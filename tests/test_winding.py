@@ -181,3 +181,27 @@ def test_even_harmonics_vanish(w):
     for nu in (2, 4, 6, 8, 10, 12):
         assert spec[nu] < 1e-9 and an[nu] == 0.0
     assert spec[3] == pytest.approx(an[3], rel=0.01)  # one phase alone keeps its triplens
+
+
+# --- air gap: Carter's factor and flux density --------------------------------------
+
+def test_carter_factor():
+    assert wd.carter_factor(11.34e-3, 0.0, 0.5e-3) == pytest.approx(1.0)
+    kc = wd.carter_factor(2 * math.pi * 65e-3 / 36, 2.5e-3, 0.5e-3)
+    u = 2.5
+    gamma = 4 / math.pi * (u * math.atan(u) - 0.5 * math.log(1 + u * u))
+    assert kc == pytest.approx(2 * math.pi * 65e-3 / 36 / (2 * math.pi * 65e-3 / 36 - gamma * 0.5e-3))
+    assert 1.10 < kc < 1.15
+    # wider openings lengthen the gap more; wide open slots: γ·g → b0 − (4g/π)(ln(b/2g)… ) < b0
+    ks = [wd.carter_factor(11.34e-3, b, 0.5e-3) for b in (1e-3, 2e-3, 4e-3, 6e-3)]
+    assert all(np.diff(ks) > 0)
+    assert wd.carter_factor(11.34e-3, 6e-3, 0.5e-3) < 11.34 / (11.34 - 6.0)
+    with pytest.raises(ValueError):
+        wd.carter_factor(11.34e-3, 12e-3, 0.5e-3)
+
+
+def test_gap_flux_density():
+    assert wd.gap_flux_density(310.1, 0.5e-3) == pytest.approx(4e-7 * math.pi * 310.1 / 0.5e-3)
+    assert wd.gap_flux_density(310.1, 0.5e-3, 1.125) == pytest.approx(wd.gap_flux_density(310.1, 0.5e-3) / 1.125)
+    with pytest.raises(ValueError):
+        wd.gap_flux_density(100.0, 0.5e-3, 0.9)

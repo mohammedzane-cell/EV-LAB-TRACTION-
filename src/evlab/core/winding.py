@@ -283,3 +283,40 @@ def pole_pairs_from_speed(f: float, omega_mech: float, tol: float = 1e-6) -> int
     if abs(p - round(p)) > tol * max(1.0, p):
         raise ValueError(f"2πf/Ω = {p:.4f} is not an integer: Ω is not a synchronous speed")
     return int(round(p))
+
+
+MU_0 = 4.0e-7 * math.pi  # H/m
+
+
+def carter_factor(slot_pitch: float, slot_opening: float, gap: float) -> float:
+    """Carter's factor k_c = τ_s/(τ_s − γ·g): slot openings lengthen the effective air gap to k_c·g.
+
+    γ = (4/π)·[(b/2g)·atan(b/2g) − ln √(1 + (b/2g)²)], b = slot opening (conformal mapping of a slot).
+
+    Args:
+        slot_pitch: slot pitch at the bore τ_s, m (> 0).
+        slot_opening: slot opening b0, m (0 ≤ b0 < τ_s).
+        gap: mechanical air gap g, m (> 0).
+    """
+    for name, x in (("slot_pitch", slot_pitch), ("gap", gap)):
+        if not math.isfinite(x) or x <= 0:
+            raise ValueError(f"{name} must be a finite number > 0 m, got {x!r}")
+    if not math.isfinite(slot_opening) or not 0 <= slot_opening < slot_pitch:
+        raise ValueError(f"slot_opening must be in [0, slot_pitch), got {slot_opening!r}")
+    u = slot_opening / (2.0 * gap)
+    gamma = (4.0 / math.pi) * (u * math.atan(u) - math.log(math.sqrt(1.0 + u * u)))
+    return slot_pitch / (slot_pitch - gamma * gap)
+
+
+def gap_flux_density(mmf: float, gap: float, carter: float = 1.0) -> float:
+    """B = μ0·F/(k_c·g): air-gap flux density of an MMF across an effective gap, T (iron MMF neglected).
+
+    Args:
+        mmf: MMF amplitude across the gap, A·turns.  gap: air gap g, m (> 0).
+        carter: Carter's factor k_c (≥ 1).
+    """
+    if not math.isfinite(gap) or gap <= 0:
+        raise ValueError(f"gap must be a finite number > 0 m, got {gap!r}")
+    if not math.isfinite(carter) or carter < 1:
+        raise ValueError(f"carter must be >= 1, got {carter!r}")
+    return MU_0 * mmf / (carter * gap)

@@ -152,6 +152,23 @@ The tab shows the slot strip (labels and colours), the kw table for y = τ and
 the chosen y, the MMF spectrum, the EMF, and the animated air-gap MMF with its
 fundamental for y = τ and y side by side (play/pause, speed slider).
 
+### Animation FEM (`io/femm_model.py`, `gui/fem_view.py`, optional)
+
+Button **Ouvrir l'animation FEM…** in tab 6. Needs pyfemm and FEMM 4.2
+(Windows; on Linux FEMM under Wine with Xvfb). Without them the tab says why and
+everything else works; the FEM tests skip. The model (geometry in A32) takes the
+slot currents from the tab 6 slot table, solves one magnetostatic case per image
+over one electrical period (linear iron ≈ 16 s per image, M-19 ≈ 60 s), writes
+the |B| maps as PNG frames and B_r(θ) at mid-gap, and compares the air-gap
+fundamental with μ0·F1/(k_c·g) from the analytical MMF (Carter factor
+`core.winding.carter_factor`).
+
+| Iron, current | FEM B1 | μ0·F1/(k_c·g) | FEM / analytical |
+|---|---|---|---|
+| linear, 6 A | 0,647 T | 0,692 T | 0,935 |
+| M-19, 6 A | 0,657 T | 0,692 T | 0,948 |
+| M-19, 18 A | 0,967 T | 2,077 T | 0,465 (saturation) |
+
 ## Tab 7 · Optimisation (`core/optimise.py`, `gui/tab_optimisation.py`)
 
 Design variables: gear ratio G, V/f boost, field-weakening margin and a

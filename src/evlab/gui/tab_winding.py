@@ -31,6 +31,7 @@ from evlab.core import winding as wd
 from evlab.core.session import Session
 from evlab.gui.format import fr, fr_fixed
 from evlab.gui.widgets import card, french_spin
+from evlab.io import femm_model
 
 TITLE = "6 · Bobinage"
 LEFT_WIDTH = 300
@@ -115,6 +116,19 @@ class WindingTab(QWidget):
         av.addWidget(self.slider)
         av.addWidget(self.lbl_speed)
         lv.addWidget(anim)
+
+        fem = QGroupBox("Animation FEM (FEMM)")
+        fv = QVBoxLayout(fem)
+        ok, reason = femm_model.femm_available()
+        self.lbl_fem = QLabel(reason if ok else f"FEMM indisponible : {reason} — le reste de l'onglet fonctionne")
+        self.lbl_fem.setWordWrap(True)
+        self.lbl_fem.setStyleSheet("color: #1e7d3a;" if ok else "color: #8a5208;")
+        self.btn_fem = QPushButton("Ouvrir l'animation FEM…")
+        self.btn_fem.clicked.connect(self.open_fem)
+        fv.addWidget(self.lbl_fem)
+        fv.addWidget(self.btn_fem)
+        lv.addWidget(fem)
+        self.fem_dialog = None
 
         self.lbl_error = QLabel("")
         self.lbl_error.setWordWrap(True)
@@ -277,6 +291,17 @@ class WindingTab(QWidget):
         e = wd.emf(self.spin_f.value(), n, wd.winding_factor(w, 1), self.spin_phi.value())
         self.lbl_emf.setText(f"N = {fr(n, 4)} spires/phase, kw1 = {fr_fixed(wd.winding_factor(w, 1), 4)}\n"
                              f"E = 4,44·f·N·kw1·Φ = {fr(e, 4)} V (efficace, par phase)")
+
+    def open_fem(self):
+        """Open the FEM animation window for the current winding (FEMM 4.2, optional)."""
+        from evlab.gui.fem_view import FemDialog
+
+        if self.winding is None:
+            self.status_message.emit("Bobinage invalide : corriger Z, 2p ou y avant le calcul FEM")
+            return None
+        self.fem_dialog = FemDialog(self, self.winding)
+        self.fem_dialog.show()
+        return self.fem_dialog
 
     # --- animation ---------------------------------------------------------------
 

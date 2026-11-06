@@ -52,4 +52,9 @@ class 3 — 1800 s, 23,27 km ± 0,5 %, v_max 131,3 km/h; class 1 — the first
 phase, if any, repeats the Low phase. Tab 4 uses the file of the vehicle's
 class when it exists, else the demo cycle (and says so).
 
+## FEM
+
+No input file: the FEM geometry is assumption A32 and the frames are written to a
+temporary folder at run time (nothing in data/).
+
 Planned: TP3 measured points.
