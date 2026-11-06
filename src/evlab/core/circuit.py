@@ -124,6 +124,13 @@ def magnetising_impedance(
     return _out(np.asarray(1.0 / (1.0 / s.r_fe + 1.0 / (1j * s.x_m))))
 
 
+def magnetising_current(m: MotorParams) -> float:
+    """No-load magnetising current I_µ = V/Xm at rated voltage and frequency, A (RMS, per phase).
+
+    The R1 drop and the iron-loss current are neglected (E ≈ V); TD5 Ex 1: 230/46 = 5 A.
+    """
+    return m.v_phase / m.x_m
+
 def thevenin(
     m: MotorParams, v_phase: ArrayLike | None = None, f: ArrayLike | None = None,
     r_fe: ArrayLike | None = None,

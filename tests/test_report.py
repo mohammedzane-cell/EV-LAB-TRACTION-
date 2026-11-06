@@ -27,7 +27,7 @@ def test_pdf_created_with_one_to_three_pages(pdf):
 
 
 def test_pdf_contains_the_kpi_strings(pdf):
-    pypdf = pytest.importorskip("pypdf")  # text extraction only; not a project dependency
+    pypdf = pytest.importorskip("pypdf")  # [dev] dependency: PDF text extraction
     reader = pypdf.PdfReader(str(pdf))
     assert 1 <= len(reader.pages) <= 3
     text = " ".join(p.extract_text() for p in reader.pages)

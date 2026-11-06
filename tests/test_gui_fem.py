@@ -6,11 +6,21 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
+from evlab.core import circuit
 from evlab.core import winding as wd
+from evlab.gui import fem_view
 from evlab.gui.main_window import MainWindow
 from evlab.io import femm_model as fm
 
 FEMM_OK, REASON = fm.femm_available()
+
+
+@pytest.fixture(autouse=True)
+def empty_cache(tmp_path, monkeypatch):
+    """The tests never read or write the committed data/fem_cache."""
+    root = tmp_path / "fem_cache"
+    monkeypatch.setattr(fm, "CACHE_DIR", root)
+    return root
 
 
 @pytest.fixture
@@ -35,6 +45,56 @@ def _fake_result(tmp_path, n=3):
         frame = fm.FemFrame(t, cur, theta, b_r, r, th, np.full((4, 16), 0.8))
         frames.append(fm._with_png(frame, case, tmp_path / f"f{k}.png"))
     return fm.FemResult(cmp_case, tuple(frames), 1.0)
+
+
+def test_current_is_peak_and_defaults_to_the_magnetising_current(qtbot, tab):
+    dlg = tab.open_fem()
+    qtbot.addWidget(dlg)
+    m = tab.session.motor  # TD5 Ex 1: I_µ = 230/46 = 5 A RMS → 7,07 A peak
+    assert dlg.spin_i.value() == pytest.approx(round(fm.peak_from_rms(circuit.magnetising_current(m)), 2))
+    assert dlg.spin_i.suffix() == " A crête"
+    assert dlg.lbl_i.text() == "7,07 A crête (5,00 A eff)"
+    assert "I_µ = V/Xm = 5,00 A eff" in dlg.lbl_imu.text()
+    dlg.combo_preset.setCurrentIndex(1)
+    assert dlg.spin_i.value() == 6.0 and dlg.lbl_i.text() == "6,00 A crête (4,24 A eff)"
+    dlg.combo_preset.setCurrentIndex(2)
+    assert dlg.spin_i.value() == 18.0
+    assert dlg.lbl_note.text() == fem_view.NOTE and "état magnétisant (à vide)" in fem_view.NOTE
+    assert "surexcitation, pas un point en charge" in fem_view.NOTE and "Géométrie démo" in fem_view.NOTE
+
+
+def test_cache_is_shown_without_femm(qtbot, tab, tmp_path, empty_cache, monkeypatch):
+    fm.save_cache(_fake_result(tmp_path, n=6), empty_cache)
+    monkeypatch.setattr(fm, "femm_available", lambda: (False, "pyfemm n'est pas installé"))
+    dlg = tab.open_fem()
+    qtbot.addWidget(dlg)
+    assert dlg.result is not None and dlg.result.cached and len(dlg.result.frames) == 6
+    assert "Résultats FEM pré-calculés" in dlg.lbl_status.text() and "géométrie démo" in dlg.lbl_status.text()
+    assert not dlg.btn_run.isEnabled() and dlg.btn_cache.isEnabled() and dlg.combo_cache.count() == 1
+    assert not dlg.image.pixmap().isNull()
+    assert np.allclose(dlg.curve_fem.getData()[1], dlg.result.frames[0].b_r)
+
+
+def test_cache_of_the_current_settings_is_preferred(qtbot, tab, tmp_path, empty_cache, monkeypatch):
+    other = _fake_result(tmp_path, n=6)  # 6 A, sorted first
+    fm.save_cache(other, empty_cache)
+    mine = fm.FemCase(winding=tab.winding, current=7.07, n_frames=12, n_radial=50, n_angular=300)
+    theta, r, th, _ = fm.sample_points(mine)
+    frames = tuple(fm.FemFrame(mine.frame_time(k), mine.currents(mine.frame_time(k)), theta,
+                               -0.7 * np.cos(2 * theta - 2 * math.pi * k / 12), r, th, None) for k in range(12))
+    fm.save_cache(fm.FemResult(mine, frames, 1.0, (0, 1)), empty_cache)
+    monkeypatch.setattr(fm, "femm_available", lambda: (False, "pyfemm n'est pas installé"))
+    dlg = tab.open_fem()
+    qtbot.addWidget(dlg)
+    assert dlg.combo_cache.count() == 2 and dlg.result.case == mine
+    assert "2 résolue(s) par FEMM, 10 déduite(s) par symétrie" in dlg.lbl_status.text()
+
+
+def test_no_cache_no_femm(qtbot, tab, monkeypatch):
+    monkeypatch.setattr(fm, "femm_available", lambda: (False, "pyfemm n'est pas installé"))
+    dlg = tab.open_fem()
+    qtbot.addWidget(dlg)
+    assert dlg.result is None and not dlg.btn_cache.isEnabled()
 
 
 def test_tab6_shows_femm_status(tab):
@@ -83,9 +143,12 @@ def test_real_femm_run_from_the_dialog(qtbot, tab):
     dlg = tab.open_fem()
     qtbot.addWidget(dlg)
     dlg.combo_mat.setCurrentIndex(1)  # linear: faster
-    dlg.spin_frames.setValue(2)
+    dlg.spin_frames.setValue(6)  # one frame solved, five from the symmetry
     with qtbot.waitSignal(dlg.fem_done, timeout=600_000) as b:
         assert dlg.run()
     res = b.args[0]
-    assert len(res.frames) == 2 and all(f.png.exists() for f in res.frames)
+    assert len(res.frames) == 6 and res.solved == (0,) and all(f.png.exists() for f in res.frames)
     assert 0.9 < dlg.comparison.ratio < 1.1
+    assert "1 résolue(s) par FEMM, 5 déduite(s) par symétrie" in dlg.lbl_status.text()
+    qtbot.waitUntil(lambda: dlg.combo_cache.count() == 1, timeout=5000)  # saved in the (test) cache
+    assert fm.load_cache(dlg.combo_cache.currentData()).case == res.case

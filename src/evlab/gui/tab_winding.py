@@ -120,7 +120,10 @@ class WindingTab(QWidget):
         fem = QGroupBox("Animation FEM (FEMM)")
         fv = QVBoxLayout(fem)
         ok, reason = femm_model.femm_available()
-        self.lbl_fem = QLabel(reason if ok else f"FEMM indisponible : {reason} — le reste de l'onglet fonctionne")
+        n_cached = len(femm_model.cached_runs())
+        cached = f" ; {n_cached} calcul(s) FEM pré-calculé(s) consultable(s)" if n_cached else ""
+        self.lbl_fem = QLabel(reason if ok else
+                              f"FEMM indisponible : {reason} — le reste de l'onglet fonctionne{cached}")
         self.lbl_fem.setWordWrap(True)
         self.lbl_fem.setStyleSheet("color: #1e7d3a;" if ok else "color: #8a5208;")
         self.btn_fem = QPushButton("Ouvrir l'animation FEM…")
@@ -299,7 +302,7 @@ class WindingTab(QWidget):
         if self.winding is None:
             self.status_message.emit("Bobinage invalide : corriger Z, 2p ou y avant le calcul FEM")
             return None
-        self.fem_dialog = FemDialog(self, self.winding)
+        self.fem_dialog = FemDialog(self, self.winding, self.session.motor)
         self.fem_dialog.show()
         return self.fem_dialog
 

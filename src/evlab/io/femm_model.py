@@ -1,13 +1,17 @@
 """2-D FEMM model of the 36-slot, 4-pole stator with a simplified rotor (optional, needs pyfemm + FEMM 4.2).
 
-Only used when pyfemm and FEMM 4.2 are installed (Windows, or Linux through Wine
-with a display, e.g. Xvfb). Everything else in the application works without it.
+Only used when pyfemm and FEMM 4.2 are installed (Windows: pyfemm's own calls; Linux:
+FEMM under Wine with a display, e.g. Xvfb, through a robust file exchange). Everything
+else in the application works without it, and saved runs (data/fem_cache/) can be
+replayed without FEMM.
 
 Model (docs/assumptions.md A32): planar magnetostatic; stator with semi-open
 rectangular slots, two layers per slot; smooth solid iron rotor without bars
 (magnetising field of the stator currents only); slot currents assigned from
 core.winding.slot_table: the phase of each layer, sign ±, N_c turns; balanced
-currents i_k(t) = I·cos(ωt − 2πk/3) stepped over one electrical period.
+currents i_k(t) = I·cos(ωt − 2πk/3) stepped over one electrical period (I = peak).
+Symmetry: the field at t + T/6 is the field at t turned by one phase belt (q slots,
+π/(3p) mechanical) with the phases permuted A+ → C− → B+, so only t ∈ [0, T/6) is solved.
 For each frame, a Lua loop inside FEMM samples B on a polar grid (|B| map) and
 along a circle in the middle of the air gap (B_r(θ)); matplotlib draws the frames.
 """
@@ -16,6 +20,7 @@ from __future__ import annotations
 
 import atexit
 import importlib.util
+import json
 import math
 import os
 import shutil
@@ -23,7 +28,8 @@ import subprocess
 import sys
 import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -32,6 +38,18 @@ import numpy as np
 from evlab.core import winding as wd
 
 MATERIALS = ("M-19 Steel", "linear")
+CACHE_DIR = Path(__file__).resolve().parents[3] / "data" / "fem_cache"
+SQRT2 = math.sqrt(2.0)
+
+
+def peak_from_rms(i_rms: float) -> float:
+    """Peak value of a sinusoidal current, A: Î = √2·I_rms."""
+    return SQRT2 * i_rms
+
+
+def rms_from_peak(i_peak: float) -> float:
+    """RMS value of a sinusoidal current, A: I_rms = Î/√2."""
+    return i_peak / SQRT2
 
 
 @dataclass(frozen=True)
@@ -67,23 +85,43 @@ class FemCase:
     winding: wd.Winding = field(default_factory=lambda: wd.Winding(36, 4, 3, 7))
     geometry: StatorGeometry = field(default_factory=StatorGeometry)
     turns_per_coil: int = 10
-    current: float = 6.0  # peak phase current, A
+    current: float = 6.0  # PEAK phase current, A (balanced three-phase)
     frequency: float = 50.0  # Hz (only sets the time axis)
     n_frames: int = 12  # per electrical period
     material: str = "M-19 Steel"
     n_gap: int = 720  # samples along the mid-gap circle
     n_radial: int = 40  # |B| map grid
     n_angular: int = 240
+    gap_layers: int = 3  # air-gap mesh size = gap / gap_layers
 
     def __post_init__(self) -> None:
         if self.material not in MATERIALS:
             raise ValueError(f"material must be one of {MATERIALS}, got {self.material!r}")
-        for name in ("turns_per_coil", "n_frames", "n_gap", "n_radial", "n_angular"):
+        for name in ("turns_per_coil", "n_frames", "n_gap", "n_radial", "n_angular", "gap_layers"):
             v = getattr(self, name)
             if not isinstance(v, int) or v < 1:
                 raise ValueError(f"{name} must be an integer >= 1, got {v!r}")
         if not math.isfinite(self.current) or self.current <= 0:
             raise ValueError(f"current must be > 0 A, got {self.current!r}")
+
+    @property
+    def current_rms(self) -> float:
+        """RMS phase current, A."""
+        return rms_from_peak(self.current)
+
+    @property
+    def symmetry_step(self) -> int | None:
+        """Frames per sixth of a period when n_frames is a multiple of 6 (symmetry usable), else None."""
+        return self.n_frames // 6 if self.n_frames % 6 == 0 else None
+
+    def frame_time(self, k: int) -> float:
+        """Time of frame k, s."""
+        return k / (self.n_frames * self.frequency)
+
+    def currents(self, t: float) -> tuple[float, float, float]:
+        """Phase currents i_A, i_B, i_C at time t, A."""
+        wt = 2.0 * math.pi * self.frequency * t
+        return tuple(self.current * math.cos(wt + wd.PHASE_SHIFT[ph]) for ph in wd.PHASES)
 
 
 @dataclass(frozen=True)
@@ -96,7 +134,7 @@ class FemFrame:
     b_r: np.ndarray  # T, radial flux density in the middle of the gap
     r_grid: np.ndarray  # mm
     th_grid: np.ndarray  # rad
-    b_mag: np.ndarray  # T, shape (n_radial, n_angular)
+    b_mag: np.ndarray | None  # T, shape (n_radial, n_angular); None for a run loaded from the cache
     png: Path | None = None
 
 
@@ -105,6 +143,8 @@ class FemResult:
     case: FemCase
     frames: tuple[FemFrame, ...]
     solve_seconds: float
+    solved: tuple[int, ...] = ()  # frame indices solved by FEMM; the others come from the symmetry
+    cached: bool = False  # loaded from data/fem_cache (pre-computed)
 
     def fundamental(self) -> np.ndarray:
         """Air-gap B_r fundamental amplitude per frame, T (FFT bin p of B_r(θ))."""
@@ -164,15 +204,13 @@ def _stop_display() -> None:
 
 
 def _exchange(femm, expr: str, timeout: float = 900.0) -> str:
-    """Send one Lua expression to FEMM through pyfemm's file link and wait for its complete reply.
+    """Linux/Wine only: send one Lua expression through pyfemm's file link and wait for its full reply.
 
     pyfemm 0.1.3 on Linux can return before FEMM has answered (a stale or half-written ofile),
     so the next command overwrites the input file and is lost. Here: remove any stale reply, write
     the command atomically, wait for a reply that is non-empty and no longer growing, then delete it.
-    On Windows pyfemm talks to FEMM through COM, which is synchronous.
+    Not used on Windows, where pyfemm's own calls go through COM (synchronous).
     """
-    if getattr(femm, "windowsOS", False):
-        return str(femm.HandleToFEMM.mlab2femm(expr))
     ifile, ofile = Path(femm.ifile), Path(femm.ofile)
     ofile.unlink(missing_ok=True)
     tmp = ifile.with_suffix(".tmp")
@@ -313,7 +351,7 @@ def _build(femm, case: FemCase, fem_file: Path) -> None:
         label(*_rot(g.r_bore + g.lip / 2, 0.0, a), "Air")
     half = math.pi / w.z
     label(*_rot((r_bot + g.r_outer) / 2, 0.0, half), iron, mesh=0.0)
-    label(*_rot(g.r_mid_gap, 0.0, half), "Air", mesh=g.gap / 3)
+    label(*_rot(g.r_mid_gap, 0.0, half), "Air", mesh=g.gap / case.gap_layers)
     label(0.0, 0.0, iron)
     femm.mi_saveas(_femm_path(fem_file))
 
@@ -323,7 +361,7 @@ def sample_points(case: FemCase) -> tuple[np.ndarray, np.ndarray, np.ndarray, np
     g = case.geometry
     theta = 2.0 * math.pi * (np.arange(case.n_gap) + 0.5) / case.n_gap
     r_grid = np.linspace(g.r_rotor * 0.35, g.r_outer * 0.999, case.n_radial)
-    th_grid = 2.0 * math.pi * np.arange(case.n_angular) / case.n_angular
+    th_grid = 2.0 * math.pi * (np.arange(case.n_angular) + 0.5) / case.n_angular  # off the slot axes
     rr, tt = np.meshgrid(r_grid, th_grid, indexing="ij")
     xy = np.vstack([np.column_stack([g.r_mid_gap * np.cos(theta), g.r_mid_gap * np.sin(theta)]),
                     np.column_stack([(rr * np.cos(tt)).ravel(), (rr * np.sin(tt)).ravel()])])
@@ -357,9 +395,109 @@ def _lua_sample(path_out: str, xy: np.ndarray) -> str:
             "closefile(h)\n")
 
 
+class _WineLink:
+    """FEMM under Wine (Linux): whole scripts sent as dofile through the robust file exchange."""
+
+    def __init__(self, femm, work: Path) -> None:
+        self.femm, self.work = femm, work
+
+    def build(self, case: FemCase, fem_file: Path) -> None:
+        rec = LuaRecorder()
+        _build(rec, case, fem_file)
+        _dofile(self.femm, self.work / "geometry.lua", rec.text())
+
+    def solve(self, currents: tuple[float, float, float], fem_file: Path) -> np.ndarray:
+        check = self.work / "currents.txt"
+        _dofile(self.femm, self.work / "frame.lua", _lua_frame(currents, _femm_path(fem_file), _femm_path(check)))
+        return np.loadtxt(check).ravel()
+
+    def sample(self, xy: np.ndarray) -> np.ndarray:
+        out = self.work / "b.txt"
+        # pyfemm wraps every command in flput(...) on Linux, so the sampling loop is a Lua file
+        _dofile(self.femm, self.work / "sample.lua", _lua_sample(_femm_path(out), xy) + "mo_close()\n")
+        return np.loadtxt(out).reshape(-1, 2)
+
+
+class _NativeLink:
+    """pyfemm's own calls (Windows: COM, synchronous)."""
+
+    def __init__(self, femm, work: Path) -> None:
+        self.femm = femm
+
+    def build(self, case: FemCase, fem_file: Path) -> None:
+        _build(self.femm, case, fem_file)
+
+    def solve(self, currents: tuple[float, float, float], fem_file: Path) -> np.ndarray:
+        f = self.femm
+        for ph, i in zip(wd.PHASES, currents):
+            f.mi_modifycircprop(ph, 1, i)
+        f.mi_saveas(_femm_path(fem_file))  # FEMM solves the file saved on disk
+        f.mi_analyze(1)
+        f.mi_loadsolution()
+        return np.array([complex(f.mo_getcircuitproperties(ph)[0]).real for ph in wd.PHASES])
+
+    def sample(self, xy: np.ndarray) -> np.ndarray:
+        b = np.array([self.femm.mo_getb(float(x), float(y)) for x, y in xy], dtype=float)
+        self.femm.mo_close()
+        return b.reshape(-1, 2)
+
+
+def _native() -> bool:
+    """pyfemm's own calls on Windows; the Wine file exchange elsewhere."""
+    return sys.platform == "win32"
+
+
+def _link(femm, work: Path):
+    return _NativeLink(femm, work) if _native() else _WineLink(femm, work)
+
+
+# --- symmetry ---------------------------------------------------------------------------
+
+def solved_indices(case: FemCase) -> tuple[int, ...]:
+    """Frames solved by FEMM: those with t in [0, T/6) when n_frames is a multiple of 6, else all."""
+    step = case.symmetry_step
+    return tuple(range(step if step is not None else case.n_frames))
+
+
+def _shift(values: np.ndarray, grid: np.ndarray, angle: float) -> np.ndarray:
+    """values(θ − angle) on the same uniform periodic θ grid (last axis): the pattern turned by +angle."""
+    n = grid.size
+    s = angle / (2.0 * math.pi / n)
+    if abs(s - round(s)) < 1e-9:
+        return np.roll(values, int(round(s)), axis=-1)
+    flat = np.atleast_2d(values)
+    out = np.array([np.interp(grid - angle, grid, row, period=2.0 * math.pi) for row in flat])
+    return out.reshape(values.shape)
+
+
+def rotate_frame(frame: FemFrame, case: FemCase, sixths: int) -> FemFrame:
+    """Frame at t + sixths·T/6 derived from `frame`: B turned by sixths·π/(3p) mechanical (q slots).
+
+    Slot s + q carries belt b + 1 (A+ → C− → B+ → A− → C+ → B−) and i_A(t + T/6) = −i_B(t),
+    i_B(t + T/6) = −i_C(t), i_C(t + T/6) = −i_A(t): the current pattern, hence B, turns by q slots.
+    """
+    angle = sixths * math.pi / (3.0 * case.winding.pole_pairs)
+    t = frame.t + sixths / (6.0 * case.frequency)
+    b_mag = None if frame.b_mag is None else _shift(frame.b_mag, frame.th_grid, angle)
+    return FemFrame(t, case.currents(t), frame.theta, _shift(frame.b_r, frame.theta, angle),
+                    frame.r_grid, frame.th_grid, b_mag)
+
+
 def run(case: FemCase, out_dir: str | Path, progress: Callable[[int, int], None] | None = None,
-        cancelled: Callable[[], bool] | None = None, frames_png: bool = True) -> FemResult:
-    """Build the model once, solve n_frames magnetostatic cases over one period, sample and draw them."""
+        cancelled: Callable[[], bool] | None = None, frames_png: bool = True,
+        solve: tuple[int, ...] | None = None) -> FemResult:
+    """Build the model once, solve the frames of [0, T/6) (or `solve`), derive the others by symmetry.
+
+    progress(k, n) counts the frames solved by FEMM. `solve` forces frames to be solved directly
+    (e.g. to check the symmetry); every other frame must be derivable from one of them.
+    """
+    base = solved_indices(case) if solve is None else tuple(sorted(set(solve)))
+    step = case.symmetry_step
+    if any(not 0 <= k < case.n_frames for k in base):
+        raise ValueError(f"solve indices must be in [0, {case.n_frames}), got {base}")
+    missing = [k for k in range(case.n_frames) if k not in base and (step is None or k % step not in base)]
+    if missing:
+        raise ValueError(f"frames {missing} are neither solved nor derivable by symmetry")
     ok, reason = femm_available()
     if not ok:
         raise RuntimeError(reason)
@@ -369,53 +507,48 @@ def run(case: FemCase, out_dir: str | Path, progress: Callable[[int, int], None]
     out.mkdir(parents=True, exist_ok=True)
     _ensure_display()
     work = Path(tempfile.mkdtemp(prefix="evlab_femm_"))
+    fem_file = work / "stator.fem"
     t_start = time.perf_counter()
     femm.openfemm(1)
-    frames = []
+    solved: dict[int, FemFrame] = {}
     try:
-        rec = LuaRecorder()
-        _build(rec, case, work / "stator.fem")
-        _dofile(femm, work / "geometry.lua", rec.text())
+        link = _link(femm, work)
+        link.build(case, fem_file)
         theta, r_grid, th_grid, xy = sample_points(case)
-        out_file = work / "b.txt"
-        sample_lua = _lua_sample(_femm_path(out_file), xy)
-        for k in range(case.n_frames):
+        for n_done, k in enumerate(base):
             if cancelled is not None and cancelled():
                 break
-            t = k / (case.n_frames * case.frequency)
-            wt = 2.0 * math.pi * case.frequency * t
-            cur = tuple(case.current * math.cos(wt + wd.PHASE_SHIFT[ph]) for ph in wd.PHASES)
-            check = work / "currents.txt"
-            _dofile(femm, work / "frame.lua", _lua_frame(cur, _femm_path(work / "stator.fem"), _femm_path(check)))
-            solved = np.loadtxt(check).ravel()
-            if not np.allclose(solved, cur, rtol=1e-9, atol=1e-9 * case.current):
-                raise RuntimeError(f"FEMM solved frame {k} with currents {solved} instead of {cur}")
-            # pyfemm wraps every command in flput(...) on Linux, so the sampling loop is a Lua file
-            _dofile(femm, work / "sample.lua", sample_lua + "mo_close()\n")
-            b = np.loadtxt(out_file).reshape(-1, 2)
+            t = case.frame_time(k)
+            cur = case.currents(t)
+            got = link.solve(cur, fem_file)
+            if not np.allclose(got, cur, rtol=1e-9, atol=1e-9 * case.current):
+                raise RuntimeError(f"FEMM solved frame {k} with currents {got} instead of {cur}")
+            b = link.sample(xy)
             bg, bm = b[: case.n_gap], b[case.n_gap:].reshape(case.n_radial, case.n_angular, 2)
             b_r = bg[:, 0] * np.cos(theta) + bg[:, 1] * np.sin(theta)
-            frame = FemFrame(t, cur, theta, b_r, r_grid, th_grid, np.hypot(bm[..., 0], bm[..., 1]))
-            if frames_png:
-                frame = _with_png(frame, case, out / f"frame_{k:03d}.png")
-            frames.append(frame)
+            solved[k] = FemFrame(t, cur, theta, b_r, r_grid, th_grid, np.hypot(bm[..., 0], bm[..., 1]))
             if progress is not None:
-                progress(k + 1, case.n_frames)
+                progress(n_done + 1, len(base))
     finally:
         femm.closefemm()
         shutil.rmtree(work, ignore_errors=True)
-    return FemResult(case, tuple(frames), time.perf_counter() - t_start)
+    complete = len(solved) == len(base)
+    frames = []
+    for k in range(case.n_frames) if complete else sorted(solved):
+        frame = solved[k] if k in solved else rotate_frame(solved[k % step], case, k // step)
+        if frames_png:
+            frame = _with_png(frame, case, out / f"frame_{k:03d}.png")
+        frames.append(frame)
+    return FemResult(case, tuple(frames), time.perf_counter() - t_start, tuple(sorted(solved)))
 
 
 def _with_png(frame: FemFrame, case: FemCase, path: Path) -> FemFrame:
-    from dataclasses import replace
-
     from evlab.io.figures import png_bytes
     from matplotlib.figure import Figure
 
     fig = Figure(figsize=(5.2, 4.6), layout="constrained")
     ax = fig.add_subplot(projection="polar")
-    th, r = np.meshgrid(np.append(frame.th_grid, 2 * math.pi), frame.r_grid)
+    th, r = np.meshgrid(np.append(frame.th_grid, frame.th_grid[0] + 2 * math.pi), frame.r_grid)
     b = np.concatenate([frame.b_mag, frame.b_mag[:, :1]], axis=1)
     mesh = ax.pcolormesh(th, r, b, cmap="inferno", vmin=0, vmax=2.0, shading="gouraud")
     ax.set_ylim(0, case.geometry.r_outer)
@@ -474,3 +607,90 @@ def analytic_fields(result: FemResult) -> tuple[Comparison, np.ndarray]:
     cmp = Comparison(float(b1.mean()), float(np.ptp(b1) / b1.mean()) if b1.size else math.nan, mmf1, kc,
                      b_smooth, b_carter, float(b1.mean() / b_carter), speed, 2 * math.pi * case.frequency / p)
     return cmp, np.array(curves)
+
+
+# --- cache of solved runs (data/fem_cache) -----------------------------------------------
+
+def cache_key(case: FemCase) -> str:
+    """Folder name of a run: iron, peak current, turns per coil, coil pitch, frames."""
+    iron = "m19" if case.material == "M-19 Steel" else "lineaire"
+    mesh = "" if case.gap_layers == 3 else f"_g{case.gap_layers}"
+    return f"{iron}_{case.current:.4g}A_{case.turns_per_coil}sp_y{case.winding.y}_{case.n_frames}im{mesh}"
+
+
+def _case_dict(case: FemCase) -> dict:
+    w = case.winding
+    return {"winding": {"z": w.z, "poles": w.poles, "m": w.m, "y": w.y}, "geometry": asdict(case.geometry),
+            "turns_per_coil": case.turns_per_coil, "current_peak": case.current, "frequency": case.frequency,
+            "n_frames": case.n_frames, "material": case.material, "n_gap": case.n_gap,
+            "n_radial": case.n_radial, "n_angular": case.n_angular, "gap_layers": case.gap_layers}
+
+
+def _case_from(d: dict) -> FemCase:
+    return FemCase(winding=wd.Winding(**d["winding"]), geometry=StatorGeometry(**d["geometry"]),
+                   turns_per_coil=d["turns_per_coil"], current=d["current_peak"], frequency=d["frequency"],
+                   n_frames=d["n_frames"], material=d["material"], n_gap=d["n_gap"],
+                   n_radial=d["n_radial"], n_angular=d["n_angular"], gap_layers=d.get("gap_layers", 3))
+
+
+def save_cache(result: FemResult, root: str | Path | None = None) -> Path:
+    """Write a run to root/<cache_key>/: frame PNGs, b_r_demo.csv (θ and B_r per frame) and meta.json."""
+    if not result.frames:
+        raise ValueError("no frame to save")
+    folder = Path(root if root is not None else CACHE_DIR) / cache_key(result.case)
+    if folder.exists():
+        shutil.rmtree(folder)
+    folder.mkdir(parents=True)
+    frames_meta = []
+    for k, f in enumerate(result.frames):
+        png = None
+        if f.png is not None and Path(f.png).exists():
+            png = f"frame_{k:03d}.png"
+            shutil.copyfile(f.png, folder / png)
+        frames_meta.append({"t_s": f.t, "currents_A": list(f.currents), "png": png})
+    theta = result.frames[0].theta
+    cols = np.column_stack([theta] + [f.b_r for f in result.frames])
+    header = ",".join(["theta [rad]"] + [f"B_r frame_{k:03d} [T]" for k in range(len(result.frames))])
+    np.savetxt(folder / "b_r_demo.csv", cols, delimiter=",", header=header, comments="", fmt="%.17g")
+    meta = {"program": "FEMM 4.2", "demo": True, "note": "géométrie démo (A32), rotor lisse sans barres",
+            "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "solve_seconds": result.solve_seconds, "solved": list(result.solved),
+            "case": _case_dict(result.case), "frames": frames_meta}
+    (folder / "meta.json").write_text(json.dumps(meta, indent=1, ensure_ascii=False), encoding="utf-8")
+    return folder
+
+
+def load_cache(folder: str | Path) -> FemResult:
+    """Read a run written by save_cache (b_mag is not stored: the |B| maps are the PNG frames)."""
+    folder = Path(folder)
+    try:
+        meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
+        case = _case_from(meta["case"])
+        data = np.loadtxt(folder / "b_r_demo.csv", delimiter=",", skiprows=1, ndmin=2)
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"cache FEM illisible ({folder.name}) : {exc}") from exc
+    if data.shape[1] != len(meta["frames"]) + 1 or data.shape[0] != case.n_gap:
+        raise ValueError(f"cache FEM incohérent ({folder.name}) : {data.shape} pour {len(meta['frames'])} images")
+    _, r_grid, th_grid, _ = sample_points(case)
+    frames = tuple(FemFrame(fm["t_s"], tuple(fm["currents_A"]), data[:, 0], data[:, k + 1], r_grid, th_grid, None,
+                            folder / fm["png"] if fm["png"] else None)
+                   for k, fm in enumerate(meta["frames"]))
+    return FemResult(case, frames, float(meta["solve_seconds"]), tuple(meta["solved"]), cached=True)
+
+
+def cached_runs(root: str | Path | None = None) -> list[Path]:
+    """Folders of saved runs under root (default data/fem_cache), sorted by name."""
+    root = Path(root if root is not None else CACHE_DIR)
+    return sorted(p.parent for p in root.glob("*/meta.json")) if root.is_dir() else []
+
+
+def find_cache(case: FemCase, root: str | Path | None = None) -> Path | None:
+    """Saved run with exactly this case, or None."""
+    for folder in cached_runs(root):
+        if folder.name == cache_key(case):
+            try:
+                if load_cache(folder).case == case:
+                    return folder
+            except ValueError:
+                return None
+    return None

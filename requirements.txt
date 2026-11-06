@@ -11,3 +11,4 @@ openpyxl==3.1.5
 # tests
 pytest==9.2.0
 pytest-qt==4.5.0
+pypdf==6.17.0  # PDF text extraction in tests/test_report.py

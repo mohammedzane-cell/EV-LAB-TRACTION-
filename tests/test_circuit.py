@@ -309,3 +309,7 @@ def test_broadcast_validation(m):
         circuit.operating_point(m, 0.1, r_fe=np.array([0.0]))
     with pytest.raises(ValueError, match="scalar"):
         circuit.breakdown(m, f=np.array([40.0, 50.0]))
+
+
+def test_magnetising_current(m):
+    assert circuit.magnetising_current(m) == pytest.approx(230.0 / 46.0)  # TD5 Ex 1: 5 A RMS

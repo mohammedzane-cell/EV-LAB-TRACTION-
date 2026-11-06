@@ -52,9 +52,14 @@ class 3 — 1800 s, 23,27 km ± 0,5 %, v_max 131,3 km/h; class 1 — the first
 phase, if any, repeats the Low phase. Tab 4 uses the file of the vehicle's
 class when it exists, else the demo cycle (and says so).
 
-## FEM
+## FEM (data/fem_cache/)
 
-No input file: the FEM geometry is assumption A32 and the frames are written to a
-temporary folder at run time (nothing in data/).
+No input file: the FEM geometry is assumption A32 (démo). `data/fem_cache/` holds
+runs solved with FEMM 4.2 (written by tab 6 after each complete run), replayed when
+FEMM is absent. One folder per case, `<fer>_<Î>A_<N_c>sp_y<y>_<n>im`:
+`frame_NNN.png` (|B| maps), `b_r_demo.csv` (`theta [rad]`, then `B_r frame_NNN [T]`
+at mid-gap) and `meta.json` (case, frames solved by FEMM, date). Committed:
+`m19_7.07A_10sp_y7_12im` (I_µ of TD5 Ex 1) and `m19_18A_10sp_y7_12im`
+(overexcitation), each 2 frames solved and 10 derived by symmetry.
 
 Planned: TP3 measured points.
