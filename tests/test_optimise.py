@@ -131,8 +131,8 @@ def test_cancel(problem):
 
 def test_pareto_front_and_baseline(problem):
     events = []
-    pr = op.pareto_front(problem, BOUNDS, n_points=3, seed=2, popsize=4, maxiter=3, workers=1,
-                         progress=lambda k, n: events.append((k, n)))
+    pr = op.pareto_front(problem, BOUNDS, n_points=3, seed=2, popsize=4, workers=1, budget=64,
+                         progress=lambda k, n: events.append((k, n)))  # 64 = 4·4·(3 + 1)
     assert len(pr.front) >= 2 and pr.message == "ok"
     t = [p.t_0_50 for p in pr.front]
     w = [p.wh_per_km for p in pr.front]
@@ -177,3 +177,25 @@ def test_kpi_changes_temperature_in_kelvin():
     ch = op.kpi_changes(base, new)
     assert ch["t_winding_max"] == (pytest.approx(-5.0), "K")
     assert ch["wh_per_km"] == (pytest.approx(-5.0), "%")
+
+
+def test_generations_give_a_fixed_budget_per_point():
+    for n_free in (1, 2, 3, 4):
+        g = op.generations(op.BUDGET, 15, n_free)
+        assert abs(op.run_evaluations(15, n_free, g) - 1500) <= 15 * n_free / 2  # ≈ 1500 for any n_free
+    assert op.generations(1500, 15, 4) == 24 and op.run_evaluations(15, 4, 24) == 1500
+    assert op.generations(10, 15, 4) == 1  # at least one generation
+    with pytest.raises(ValueError, match="budget"):
+        op.generations(0, 15, 4)
+    with pytest.raises(ValueError, match="n_free"):
+        op.generations(1500, 15, 0)
+
+
+def test_budget_is_spent_whatever_the_free_variables(problem):
+    """Same budget per Pareto point with 1 or 2 free variables; no early stop (tol = 0)."""
+    one = op.Bounds(gear_ratio=(2.5, 4.5))
+    two = op.Bounds(gear_ratio=(2.5, 4.5), margin=(0.6, 0.95))
+    assert len(op.optimise(problem, one, seed=0, popsize=5, workers=1, budget=40).log) == 40
+    assert len(op.optimise(problem, two, seed=0, popsize=5, workers=1, budget=40).log) == 40
+    pr = op.pareto_front(problem, one, n_points=2, seed=0, popsize=5, workers=1, budget=40)
+    assert [len(r.log) for r in pr.runs] == [40, 40]

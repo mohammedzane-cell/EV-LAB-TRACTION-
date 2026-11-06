@@ -40,6 +40,20 @@ T_LIMIT_MARGIN_K = 20.0  # winding T max ≤ class limit − 20 K
 V_ACCEL = 50.0 / 3.6  # 0–50 km/h, m/s
 MAP_GRID = (40, 30)
 ENVELOPE_POINTS = 150
+BUDGET = 1500  # evaluations per Pareto point (one differential-evolution run)
+
+
+def generations(budget: int, popsize: int, n_free: int) -> int:
+    """maxiter so that one run costs about `budget` evaluations: popsize·n_free·(maxiter + 1) ≈ budget."""
+    for name, v in (("budget", budget), ("popsize", popsize), ("n_free", n_free)):
+        if not isinstance(v, int) or v < 1:
+            raise ValueError(f"{name} must be an integer >= 1, got {v!r}")
+    return max(1, round(budget / (popsize * n_free)) - 1)
+
+
+def run_evaluations(popsize: int, n_free: int, maxiter: int) -> int:
+    """Evaluations of one run (fixed: no early stop): popsize·n_free·(maxiter + 1)."""
+    return popsize * n_free * (maxiter + 1)
 
 
 @dataclass(frozen=True)
@@ -248,10 +262,11 @@ class RunResult:
 def optimise(problem: Problem, bounds: Bounds, objective: str = "wh_per_km", eps: float | None = None,
              seed: int = 0, popsize: int = 15, maxiter: int = 25, workers: int = -1,
              progress: Callable[[int], None] | None = None, cancelled: Callable[[], bool] | None = None,
-             pool: ProcessPoolExecutor | None = None) -> RunResult:
+             pool: ProcessPoolExecutor | None = None, budget: int | None = None) -> RunResult:
     """Minimise one objective ("wh_per_km" or "t_0_50") over the free variables, optionally with t_0_50 ≤ eps.
 
-    Budget ≈ popsize·n_free·(maxiter + 1) evaluations. workers = 1 evaluates serially;
+    Fixed budget: exactly popsize·n_free·(maxiter + 1) evaluations (tol = 0, no early stop); with
+    `budget`, maxiter = generations(budget, popsize, n_free) (≈ budget evaluations). workers = 1 evaluates serially;
     workers = −1 (all cores) or n > 1 uses a process pool (or the given one).
     The result is the best evaluation of the log (feasible if any feasible design was met).
     """
@@ -260,6 +275,8 @@ def optimise(problem: Problem, bounds: Bounds, objective: str = "wh_per_km", eps
     free = bounds.free()
     if not free:
         raise ValueError("no free variable: every bound has low == high")
+    if budget is not None:
+        maxiter = generations(budget, popsize, len(free))
     log: list[Evaluation] = []
     own_pool = None
     if pool is None and workers != 1:
@@ -270,7 +287,7 @@ def optimise(problem: Problem, bounds: Bounds, objective: str = "wh_per_km", eps
     try:
         differential_evolution(
             _score_only, [getattr(bounds, n) for n in free], seed=seed, popsize=popsize, maxiter=maxiter,
-            tol=1e-8, polish=False, updating="deferred", workers=mapper, init="latinhypercube",
+            tol=0.0, atol=0.0, polish=False, updating="deferred", workers=mapper, init="latinhypercube",
         )
     except Cancelled:
         message = "cancelled"
@@ -306,8 +323,11 @@ class ParetoResult:
 
 def pareto_front(problem: Problem, bounds: Bounds, n_points: int = 6, seed: int = 0, popsize: int = 15,
                  maxiter: int = 25, workers: int = -1, progress: Callable[[int, int], None] | None = None,
-                 cancelled: Callable[[], bool] | None = None) -> ParetoResult:
+                 cancelled: Callable[[], bool] | None = None, budget: int | None = BUDGET) -> ParetoResult:
     """ε-constraint sweep: anchors min Wh/km and min t_0_50, then min Wh/km with t_0_50 ≤ ε in between.
+
+    Each Pareto point is one run of `budget` evaluations (default 1500, whatever the number of free
+    variables); budget=None uses popsize and maxiter as given.
 
     progress(run index, evaluations so far) is called after each generation.
     """
@@ -324,7 +344,7 @@ def pareto_front(problem: Problem, bounds: Bounds, n_points: int = 6, seed: int 
             done = sum(len(r.log) for r in runs)
             cb = None if progress is None else (lambda n: progress(k, done + n))
             r = optimise(problem, bounds, objective, eps, seed=seed + k, popsize=popsize, maxiter=maxiter,
-                         workers=workers, progress=cb, cancelled=cancelled, pool=pool)
+                         workers=workers, progress=cb, cancelled=cancelled, pool=pool, budget=budget)
             runs.append(r)
             return r
 

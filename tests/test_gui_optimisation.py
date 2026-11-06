@@ -28,7 +28,7 @@ def tab(win):
     win.tabs.setCurrentIndex(6)
     t.spin_points.setValue(2)
     t.spin_pop.setValue(3)
-    t.spin_iter.setValue(2)
+    t.spin_budget.setValue(36)  # 3·4 per generation → 2 generations + the initial population
     t.spin_workers.setValue(1)
     return t
 
@@ -83,7 +83,7 @@ def test_click_selects_and_loads_design(qtbot, tab, win):
 
 def test_cancel(qtbot, tab):
     tab.spin_points.setValue(4)
-    tab.spin_iter.setValue(30)
+    tab.spin_budget.setValue(372)  # 30 generations
     with qtbot.waitSignal(tab.pareto_done, timeout=TIMEOUT) as b:
         tab.run()
         tab.cancel()
@@ -106,3 +106,14 @@ def test_needs_a_cycle(qtbot):
     with qtbot.waitSignal(t.pareto_failed, timeout=TIMEOUT) as b:
         t.run()
     assert "onglet 4" in b.args[0]
+
+
+def test_budget_is_fixed_per_pareto_point(tab):
+    tab.spin_points.setValue(6)
+    tab.spin_pop.setValue(15)
+    tab.spin_budget.setValue(op.BUDGET)
+    assert tab.expected_evaluations() == 6 * 1500
+    assert "4 variable(s) libre(s) → 24 générations, 1500 évaluations par point" in tab.lbl_budget.text()
+    lo, hi, _ = tab.bound_spins["k_n"]
+    hi.setValue(lo.value())  # k_N fixed: still ≈ 1500 per point
+    assert "3 variable(s) libre(s) → 32 générations, 1485 évaluations par point" in tab.lbl_budget.text()

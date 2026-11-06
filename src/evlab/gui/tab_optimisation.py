@@ -112,9 +112,12 @@ class OptimisationTab(QWidget):
         self.spin_pop = QSpinBox()
         self.spin_pop.setRange(3, 50)
         self.spin_pop.setValue(15)
-        self.spin_iter = QSpinBox()
-        self.spin_iter.setRange(1, 500)
-        self.spin_iter.setValue(25)
+        self.spin_budget = QSpinBox()
+        self.spin_budget.setRange(6, 50_000)
+        self.spin_budget.setSingleStep(100)
+        self.spin_budget.setValue(op.BUDGET)
+        self.spin_budget.setToolTip("Budget fixe d'évaluations par point de Pareto, quel que soit le nombre "
+                                    "de variables libres : générations = budget / (population × variables) − 1")
         self.spin_workers = QSpinBox()
         self.spin_workers.setRange(1, max(1, os.cpu_count() or 1))
         self.spin_workers.setValue(max(1, os.cpu_count() or 1))
@@ -122,7 +125,7 @@ class OptimisationTab(QWidget):
         self.spin_seed.setRange(0, 10_000)
         bf.addRow("Points de Pareto", self.spin_points)
         bf.addRow("Population (× variables)", self.spin_pop)
-        bf.addRow("Générations", self.spin_iter)
+        bf.addRow("Évaluations / point", self.spin_budget)
         bf.addRow("Processus", self.spin_workers)
         bf.addRow("Graine", self.spin_seed)
         self.lbl_budget = QLabel("")
@@ -181,7 +184,7 @@ class OptimisationTab(QWidget):
         tl.addLayout(tables)
         right.addWidget(tab_card, 2)
         root.addLayout(right, 1)
-        for s in (self.spin_points, self.spin_pop, self.spin_iter):
+        for s in (self.spin_points, self.spin_pop, self.spin_budget):
             s.valueChanged.connect(lambda _v: self._show_budget())
         for s_lo, s_hi, _ in self.bound_spins.values():
             s_lo.valueChanged.connect(lambda _v: self._show_budget())
@@ -205,16 +208,25 @@ class OptimisationTab(QWidget):
         vals = {name: (lo.value() / sc, hi.value() / sc) for name, (lo, hi, sc) in self.bound_spins.items()}
         return op.Bounds(**vals)
 
-    def expected_evaluations(self) -> int:
+    def _per_point(self) -> tuple[int, int, int]:
+        """(free variables, generations, evaluations per Pareto point), from core.optimise."""
         try:
             n_free = len(self.bounds().free())
         except ValueError:
-            return 0
-        return self.spin_points.value() * self.spin_pop.value() * n_free * (self.spin_iter.value() + 1)
+            return 0, 0, 0
+        if n_free == 0:
+            return 0, 0, 0
+        pop = self.spin_pop.value()
+        gens = op.generations(self.spin_budget.value(), pop, n_free)
+        return n_free, gens, op.run_evaluations(pop, n_free, gens)
+
+    def expected_evaluations(self) -> int:
+        return self.spin_points.value() * self._per_point()[2]
 
     def _show_budget(self) -> None:
-        n = self.expected_evaluations()
-        self.lbl_budget.setText(f"≈ {n} évaluations au total ({self.spin_points.value()} points)")
+        n_free, gens, per = self._per_point()
+        self.lbl_budget.setText(f"{n_free} variable(s) libre(s) → {gens} générations, {per} évaluations par point ; "
+                                f"{self.expected_evaluations()} au total ({self.spin_points.value()} points)")
 
     # --- run -------------------------------------------------------------------
 
@@ -235,7 +247,7 @@ class OptimisationTab(QWidget):
         self.problem = problem
         self._cancel = False
         kw = dict(n_points=self.spin_points.value(), seed=self.spin_seed.value(), popsize=self.spin_pop.value(),
-                  maxiter=self.spin_iter.value(), workers=self.spin_workers.value())
+                  budget=self.spin_budget.value(), workers=self.spin_workers.value())
 
         def job(progress):
             return op.pareto_front(problem, bounds, progress=lambda k, n: progress(f"{k}:{n}"),

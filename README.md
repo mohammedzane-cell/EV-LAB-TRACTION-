@@ -186,6 +186,8 @@ returns Wh/km, the 0–50 km/h time and the constraints: every cycle point insid
 the envelope, winding T max ≤ class limit − 20 K, stator current ≤ inverter limit.
 `scipy.optimize.differential_evolution` (seeded, process pool) with an
 ε-constraint sweep traces the Pareto front; every evaluation is logged (A31).
+Fixed budget: 1500 evaluations per Pareto point whatever the number of free
+variables (generations = budget / (population × variables) − 1, no early stop).
 
 The tab takes the bounds of each variable (min = max fixes it) and the budget,
 runs in a worker with progress and cancel, plots the front with the baseline
