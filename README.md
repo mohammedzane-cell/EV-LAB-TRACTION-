@@ -101,4 +101,18 @@ On noise-free TD5 Ex 1 records the exact method returns the circuit exactly. The
 classical locked-rotor formula gives R'2 −13,1 % and X −7,7 %: that is the error of
 the formula itself, which neglects the magnetising branch (A9).
 
+## Data files (`io/loaders.py`, `io/demo_data.py`)
+
+`load_bench_tests(path)` reads the DC, no-load and locked-rotor tests;
+`load_load_points(path)` reads load-test points. Columns are written
+`name [unit]`; a missing column, a wrong unit, an empty file or a bad value
+raises `LoaderError` with a French message. Files named `*_demo.csv` are demo
+data. Regenerate the demo files with:
+
+```bash
+python -m evlab.io.demo_data
+```
+
+Formats and provenance: `docs/data_notes.md`.
+
 Modelling assumptions are listed in `docs/assumptions.md`.

@@ -6,7 +6,7 @@ import pytest
 
 CORE = ["session", "circuit", "identification", "drive", "losses",
         "vehicle", "thermal", "winding", "optimise"]
-IO = ["loaders", "report_pdf", "export_excel"]
+IO = ["loaders", "demo_data", "report_pdf", "export_excel"]
 GUI = ["main_window", "tab_identification", "tab_envelope", "tab_efficiency",
        "tab_vehicle", "tab_thermal", "tab_winding", "tab_optimisation"]
 
