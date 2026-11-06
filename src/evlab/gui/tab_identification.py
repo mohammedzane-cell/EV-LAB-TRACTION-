@@ -11,14 +11,13 @@ from __future__ import annotations
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QLocale, Qt, QThreadPool, Signal
+from PySide6.QtCore import Qt, QThreadPool, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
     QComboBox,
     QDialog,
-    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -40,6 +39,7 @@ from evlab.core import circuit
 from evlab.core import identification as ident
 from evlab.core.session import Session
 from evlab.gui.format import fr, fr_fixed, fr_pct
+from evlab.gui.widgets import card, chip, french_spin
 from evlab.gui.workers import CoreWorker
 from evlab.io import demo_data
 from evlab.io.loaders import (
@@ -66,34 +66,10 @@ PARAM_LABELS = {"x_m": "Xm", "x_leak": "X", "r2p": "R'2", "r_fe": "Rf"}
 STAGES = {"classical": "Formules classiques…", "fit": "Optimisation (moindres carrés, 10 départs)…"}
 COLORS = {"classical": "#e08a1e", "fit": "#2e9e5b", "points": "#2f6fd6"}
 VALUE_ROLE = Qt.ItemDataRole.UserRole
-FRENCH = QLocale(QLocale.Language.French, QLocale.Country.France)
 
 
-def _spin(lo: float, hi: float, decimals: int, suffix: str, value: float) -> QDoubleSpinBox:
-    s = QDoubleSpinBox()
-    s.setLocale(FRENCH)
-    s.setRange(lo, hi)
-    s.setDecimals(decimals)
-    s.setSuffix(f" {suffix}")
-    s.setValue(value)
-    s.setAlignment(Qt.AlignmentFlag.AlignRight)
-    return s
-
-
-def _card(title: str) -> tuple[QFrame, QVBoxLayout, QHBoxLayout]:
-    card = QFrame()
-    card.setObjectName("card")
-    card.setStyleSheet("#card { background: white; border: 1px solid #d9dce1; border-radius: 6px; }")
-    lay = QVBoxLayout(card)
-    head = QHBoxLayout()
-    label = QLabel(title)
-    f = label.font()
-    f.setBold(True)
-    label.setFont(f)
-    head.addWidget(label)
-    head.addStretch(1)
-    lay.addLayout(head)
-    return card, lay, head
+_spin = french_spin
+_card = card
 
 
 class _PreviewDialog(QDialog):
@@ -240,10 +216,7 @@ class IdentificationTab(QWidget):
 
     def _plot_card(self) -> QFrame:
         card, lay, head = _card("Caractéristiques : modèle et points d'essai")
-        self.chip_demo = QLabel("points synthétiques (démo)")
-        self.chip_demo.setStyleSheet(
-            "QLabel { border: 1px solid #c9ccd2; border-radius: 10px; padding: 2px 10px; color: #555; }"
-        )
+        self.chip_demo = chip("points synthétiques (démo)")
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
         pg.setConfigOptions(antialias=True, background="w", foreground="#333")

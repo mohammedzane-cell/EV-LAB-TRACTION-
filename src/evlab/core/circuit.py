@@ -40,21 +40,29 @@ COPPER_T0 = 234.5  # °C, inferred zero-resistance temperature of copper
 # --- internal helpers ---------------------------------------------------------------
 
 class _Supply(NamedTuple):
-    v: float  # phase voltage, V
-    w: float  # electrical angular frequency, rad/s
-    x: float  # leakage reactance at f, Ω
-    x_m: float  # magnetising reactance at f, Ω
+    v: float | np.ndarray  # phase voltage, V
+    w: float | np.ndarray  # electrical angular frequency, rad/s
+    x: float | np.ndarray  # leakage reactance at f, Ω
+    x_m: float | np.ndarray  # magnetising reactance at f, Ω
+    r_fe: float | np.ndarray  # iron-loss resistance, Ω
 
 
-def _supply(m: MotorParams, v_phase: float | None, f: float | None) -> _Supply:
-    v = m.v_phase if v_phase is None else float(v_phase)
-    freq = m.f_rated if f is None else float(f)
-    if not math.isfinite(v) or v <= 0:
-        raise ValueError(f"v_phase must be a finite number > 0 V, got {v_phase!r}")
-    if not math.isfinite(freq) or freq <= 0:
-        raise ValueError(f"f must be a finite number > 0 Hz, got {f!r}")
+def _positive(name: str, value: ArrayLike, unit: str) -> float | np.ndarray:
+    arr = np.asarray(value, dtype=float)
+    if not np.all(np.isfinite(arr)) or np.any(arr <= 0):
+        raise ValueError(f"{name} must be finite and > 0 {unit}, got {value!r}")
+    return float(arr) if arr.ndim == 0 else arr
+
+
+def _supply(
+    m: MotorParams, v_phase: ArrayLike | None, f: ArrayLike | None, r_fe: ArrayLike | None = None
+) -> _Supply:
+    """Supply at (v_phase, f), scalars or arrays that broadcast with the slip."""
+    v = m.v_phase if v_phase is None else _positive("v_phase", v_phase, "V")
+    freq = m.f_rated if f is None else _positive("f", f, "Hz")
+    rfe = m.r_fe if r_fe is None else _positive("r_fe", r_fe, "Ω")
     k = freq / m.f_rated
-    return _Supply(v, 2.0 * math.pi * freq, m.x_leak * k, m.x_m * k)
+    return _Supply(v, 2.0 * math.pi * freq, m.x_leak * k, m.x_m * k, rfe)
 
 
 def _slip(g: ArrayLike) -> NDArray[np.float64]:
@@ -79,12 +87,14 @@ class _Solution(NamedTuple):
     p_gap: NDArray[np.float64]  # air-gap power (3 phases), W
 
 
-def _solve(m: MotorParams, g: ArrayLike, v_phase: float | None, f: float | None) -> _Solution:
-    """Solve the circuit for every slip in g (vectorised, no division by g)."""
-    s = _supply(m, v_phase, f)
+def _solve(
+    m: MotorParams, g: ArrayLike, v_phase: ArrayLike | None, f: ArrayLike | None, r_fe: ArrayLike | None = None
+) -> _Solution:
+    """Solve the circuit for every slip in g (vectorised, broadcast with v_phase, f, r_fe)."""
+    s = _supply(m, v_phase, f, r_fe)
     gg = _slip(g)
-    v_th, z_th = thevenin(m, v_phase, f)
-    y_m = 1.0 / m.r_fe + 1.0 / complex(0.0, s.x_m)
+    v_th, z_th = thevenin(m, v_phase, f, r_fe=r_fe)
+    y_m = 1.0 / s.r_fe + 1.0 / (1j * s.x_m)
     d = z_th * gg + m.r2p + 1j * s.x * gg  # g·(Z_th + R'2/g + jX), never 0
     i2 = v_th * gg / d
     if m.layout == "tp3":
@@ -93,41 +103,46 @@ def _solve(m: MotorParams, g: ArrayLike, v_phase: float | None, f: float | None)
         e = s.v - m.r1 * i1
     else:
         i1 = s.v * y_m + i2
-        e = np.full_like(i2, s.v)
+        e = np.broadcast_to(s.v, i2.shape) + 0j
     p_gap = 3.0 * m.r2p * gg * np.abs(v_th) ** 2 / np.abs(d) ** 2
     return _Solution(gg, s, i1, i2, e, p_gap)
 
 
 # --- circuit building blocks --------------------------------------------------------
 
-def magnetising_impedance(m: MotorParams, f: float | None = None) -> complex:
+def magnetising_impedance(
+    m: MotorParams, f: ArrayLike | None = None, r_fe: ArrayLike | None = None
+) -> ComplexOrArray:
     """Z_m = Rf ∥ jXm: iron-loss resistance in parallel with the magnetising reactance, Ω.
 
     Args:
         m: motor circuit.
-        f: supply frequency override, Hz (Xm scales with f, Rf constant).
+        f: supply frequency override, Hz (Xm scales with f), scalar or array.
+        r_fe: iron-loss resistance override, Ω (default m.r_fe), scalar or array.
     """
-    s = _supply(m, None, f)
-    return 1.0 / (1.0 / m.r_fe + 1.0 / complex(0.0, s.x_m))
+    s = _supply(m, None, f, r_fe)
+    return _out(np.asarray(1.0 / (1.0 / s.r_fe + 1.0 / (1j * s.x_m))))
 
 
 def thevenin(
-    m: MotorParams, v_phase: float | None = None, f: float | None = None
-) -> tuple[complex, complex]:
+    m: MotorParams, v_phase: ArrayLike | None = None, f: ArrayLike | None = None,
+    r_fe: ArrayLike | None = None,
+) -> tuple[ComplexOrArray, ComplexOrArray]:
     """Thévenin source seen by the rotor branch: tp3 V_th = V·Zm/(R1+Zm), Z_th = R1∥Zm; terminals V_th = V, Z_th = R1.
 
     Args:
         m: motor circuit.
         v_phase: phase voltage override, V.
         f: supply frequency override, Hz.
+        r_fe: iron-loss resistance override, Ω.
 
     Returns:
         (V_th in V, Z_th in Ω), complex, with V as the phase reference.
     """
-    s = _supply(m, v_phase, f)
+    s = _supply(m, v_phase, f, r_fe)
     if m.layout == "terminals":
-        return complex(s.v), complex(m.r1)
-    z_m = magnetising_impedance(m, f)
+        return _out(np.asarray(s.v + 0j)), _out(np.asarray(m.r1 + 0j) + 0 * np.asarray(s.w))
+    z_m = magnetising_impedance(m, f, r_fe)
     return s.v * z_m / (m.r1 + z_m), m.r1 * z_m / (m.r1 + z_m)
 
 
@@ -281,7 +296,7 @@ def efficiency(
 
 # --- breakdown ------------------------------------------------------------------
 
-def breakdown_slip(m: MotorParams, f: float | None = None) -> float:
+def breakdown_slip(m: MotorParams, f: ArrayLike | None = None) -> FloatOrArray:
     """Closed form g_c = R'2 / sqrt(R_th² + (X_th + X)²): rotor resistance matched to the source impedance.
 
     With R1 = 0 (Z_th = 0) this is the course value g_c = R'2 / X.
@@ -292,10 +307,11 @@ def breakdown_slip(m: MotorParams, f: float | None = None) -> float:
     """
     s = _supply(m, None, f)
     _, z_th = thevenin(m, None, f)
-    return m.r2p / math.hypot(z_th.real, z_th.imag + s.x)
+    z_th = np.asarray(z_th)
+    return _out(m.r2p / np.hypot(z_th.real, z_th.imag + s.x))
 
 
-def max_torque(m: MotorParams, v_phase: float | None = None, f: float | None = None) -> float:
+def max_torque(m: MotorParams, v_phase: ArrayLike | None = None, f: ArrayLike | None = None) -> FloatOrArray:
     """Closed form T_max = 3p·|V_th|² / (2ω·(R_th + sqrt(R_th² + (X_th + X)²))), N·m (maximum power transfer).
 
     With R1 = 0 this is the course formula 3p·V² / (2·X·ω).
@@ -307,8 +323,9 @@ def max_torque(m: MotorParams, v_phase: float | None = None, f: float | None = N
     """
     s = _supply(m, v_phase, f)
     v_th, z_th = thevenin(m, v_phase, f)
+    z_th = np.asarray(z_th)
     r_th, x_tot = z_th.real, z_th.imag + s.x
-    return 3.0 * m.pole_pairs * abs(v_th) ** 2 / (2.0 * s.w * (r_th + math.hypot(r_th, x_tot)))
+    return _out(3.0 * m.pole_pairs * np.abs(v_th) ** 2 / (2.0 * s.w * (r_th + np.hypot(r_th, x_tot))))
 
 
 _LOG_G_BOUNDS = (-6.0, 3.0)  # search g in [1e-6, 1e3]
@@ -334,8 +351,10 @@ def breakdown(
     Returns:
         (g_c dimensionless, T_max in N·m).
     """
+    if np.ndim(v_phase) or np.ndim(f):
+        raise ValueError("breakdown() takes scalar v_phase and f; use breakdown_slip / max_torque for arrays")
     if method == "closed":
-        return breakdown_slip(m, f), max_torque(m, v_phase, f)
+        return float(breakdown_slip(m, f)), float(max_torque(m, v_phase, f))
     if method != "numeric":
         raise ValueError(f"method must be 'numeric' or 'closed', got {method!r}")
     _supply(m, v_phase, f)  # validate once
@@ -395,17 +414,21 @@ class OperatingPoint:
 
 
 def operating_point(
-    m: MotorParams, g: ArrayLike, v_phase: float | None = None, f: float | None = None
+    m: MotorParams, g: ArrayLike, v_phase: ArrayLike | None = None, f: ArrayLike | None = None,
+    r_fe: ArrayLike | None = None,
 ) -> OperatingPoint:
     """Every current and power at slip g; P_in = P_cu1 + P_fe + P_cu2 + P_mec holds exactly.
+
+    g, v_phase, f and r_fe broadcast together (one operating point per element).
 
     Args:
         m: motor circuit.
         g: slip (dimensionless), scalar or array; g = 0 is the ideal no-load.
         v_phase: phase voltage override, V.
         f: supply frequency override, Hz.
+        r_fe: iron-loss resistance override, Ω (e.g. frequency-dependent, core.losses).
     """
-    sol = _solve(m, g, v_phase, f)
+    sol = _solve(m, g, v_phase, f, r_fe)
     s = sol.s
     i1 = np.abs(sol.i1)
     i2 = np.abs(sol.i2)
@@ -419,13 +442,13 @@ def operating_point(
         e=_out(e),
         i1=_out(i1),
         i2=_out(i2),
-        i_fe=_out(e / m.r_fe),
+        i_fe=_out(e / s.r_fe),
         i_mu=_out(e / s.x_m),
         power_factor=_out(sol.i1.real / i1),
         p_in=_out(s_in.real),
         q_in=_out(s_in.imag),
         p_cu1=_out(p_cu1),
-        p_fe=_out(3.0 * e**2 / m.r_fe),
+        p_fe=_out(3.0 * e**2 / s.r_fe),
         p_gap=_out(sol.p_gap),
         p_cu2=_out(sol.g * sol.p_gap),
         p_mech=_out((1.0 - sol.g) * sol.p_gap),

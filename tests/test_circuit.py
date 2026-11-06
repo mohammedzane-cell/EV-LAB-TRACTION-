@@ -277,3 +277,35 @@ def test_copper_resistance():
 def test_copper_resistance_validation(r, t):
     with pytest.raises(ValueError):
         circuit.copper_resistance(r, t)
+
+
+# --- broadcasting over supply arrays (needed by drive and losses maps) -------------
+
+@pytest.mark.parametrize("layout", LAYOUTS)
+def test_broadcast_over_supply_arrays(layout):
+    m = _motor(layout)
+    g = np.array([0.02, 0.1, 0.3, -0.05])
+    f = np.array([10.0, 50.0, 80.0, 25.0])
+    v = 230.0 * np.minimum(f / 50.0, 1.0)
+    rfe = np.array([150.0, 230.0, 300.0, 200.0])
+    op = circuit.operating_point(m, g, v_phase=v, f=f, r_fe=rfe)
+    for k in range(4):
+        mk = replace(m, r_fe=float(rfe[k]))
+        ok = circuit.operating_point(mk, g[k], v_phase=v[k], f=f[k])
+        for name in ("i1", "i2", "torque", "p_in", "p_fe", "p_cu1", "p_gap", "omega_mech"):
+            assert getattr(op, name)[k] == pytest.approx(getattr(ok, name), rel=1e-12), name
+    t = circuit.torque(m, g, v_phase=v, f=f)
+    assert t[2] == pytest.approx(circuit.torque(m, 0.3, v_phase=v[2], f=80.0))
+    gc = circuit.breakdown_slip(m, f=f)
+    tm = circuit.max_torque(m, v_phase=v, f=f)
+    assert gc[1] == pytest.approx(circuit.breakdown_slip(m)) and tm.shape == (4,)
+    assert tm[0] == pytest.approx(circuit.breakdown(m, v_phase=v[0], f=10.0, method="closed")[1])
+
+
+def test_broadcast_validation(m):
+    with pytest.raises(ValueError, match="f"):
+        circuit.torque(m, 0.1, f=np.array([50.0, -1.0]))
+    with pytest.raises(ValueError, match="r_fe"):
+        circuit.operating_point(m, 0.1, r_fe=np.array([0.0]))
+    with pytest.raises(ValueError, match="scalar"):
+        circuit.breakdown(m, f=np.array([40.0, 50.0]))

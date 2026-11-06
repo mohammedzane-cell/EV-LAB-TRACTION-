@@ -52,13 +52,26 @@ class MainWindow(QMainWindow):
             tab = cls(self.session)
             self.tabs.addTab(tab, tab_label(tab.title))
             if hasattr(tab, "status_message"):
-                tab.status_message.connect(self.statusBar().showMessage)
+                tab.status_message.connect(lambda msg, t=tab: self._status_from(t, msg))
             if hasattr(tab, "busy"):
                 tab.busy.connect(self.busy_bar.setVisible)
             if hasattr(tab, "motor_published"):
-                tab.motor_published.connect(lambda _m: self.refresh_status(keep_message=True))
+                tab.motor_published.connect(self._on_motor_published)
         self.setCentralWidget(self.tabs)
         self.refresh_status()
+
+    def _status_from(self, tab, message: str) -> None:
+        """Show a tab's message only if that tab is visible (background recomputes stay quiet)."""
+        if self.tabs.currentWidget() is tab:
+            self.statusBar().showMessage(message)
+
+    def _on_motor_published(self, _motor) -> None:
+        """Tab 1 published a motor: update the status bar and let the other tabs recompute."""
+        self.refresh_status(keep_message=True)
+        for i in range(self.tabs.count()):
+            tab = self.tabs.widget(i)
+            if hasattr(tab, "on_motor_changed"):
+                tab.on_motor_changed()
 
     def refresh_status(self, keep_message: bool = False) -> None:
         """Show which motor the whole chain is using (window title and status bar)."""

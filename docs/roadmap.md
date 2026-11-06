@@ -9,7 +9,7 @@ One stage = one commit (see Definition of done in CLAUDE.md).
 | 1 | `core/identification.py`: no-load / locked-rotor / DC tests → Γ circuit (classical formulas + least-squares fit) | done (core) |
 | 1b | Project setup: pinned requirements, documented empty modules, PySide6 main window with 7 empty tabs, `python -m evlab`, smoke tests | done |
 | 2 | Tab 1 Identification (GUI on core.identification), demo CSV files and loaders | done |
-| 3 | `core/drive.py`: V/f + field-weakening envelope; tab 2 | |
+| 3 | `core/drive.py`: V/f + field-weakening envelope; tab 2 | done |
 | 4 | `core/losses.py`: efficiency map η(T, ω); tab 3 | |
 | 5 | `io/` WLTC loader + `core/vehicle.py` (class by W/kg, Wh/km, regen); tab 4 | |
 | 6 | `core/thermal.py`: two-node model, insulation life (10 K rule); tab 5 | |

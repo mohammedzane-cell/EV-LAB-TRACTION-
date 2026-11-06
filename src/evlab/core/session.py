@@ -48,6 +48,8 @@ class MotorParams:
         source: where the values come from ("TD5 Ex 1", "TP3", "fit", ...).
         is_demo: True if the values are demo/synthetic (must be labelled "démo").
         layout: "tp3" or "terminals" (see above).
+        p_mech: mechanical losses at rated synchronous speed, W (≥ 0), from the
+            no-load separation of tab 1 (TD5 Ex 1: negligible → 0). Used by core.losses.
     """
 
     v_phase: float
@@ -61,6 +63,7 @@ class MotorParams:
     source: str = "utilisateur"
     is_demo: bool = False
     layout: Layout = "tp3"
+    p_mech: float = 0.0
 
     def __post_init__(self) -> None:
         _check_positive("v_phase", self.v_phase)
@@ -72,6 +75,7 @@ class MotorParams:
         _check_positive("x_leak", self.x_leak)
         _check_positive("x_m", self.x_m)
         _check_positive("r_fe", self.r_fe)
+        _check_non_negative("p_mech", self.p_mech)
         if self.layout not in LAYOUTS:
             raise ValueError(f"layout must be one of {LAYOUTS}, got {self.layout!r}")
 

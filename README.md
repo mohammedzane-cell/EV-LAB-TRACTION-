@@ -70,6 +70,20 @@ worker; progress and any identifiability warning appear in the status bar. The
 identified motor is published to the `Session`, so tabs 2 to 7 use it
 (classical result, or the fit when there is one). Layout: `docs/mockup_tab1.png`.
 
+## Tab 2 · Enveloppe (`core/drive.py`, `gui/tab_envelope.py`)
+
+`drive.envelope(motor, DriveSettings(i_max, boost, margin, f_max))` computes the
+torque–speed envelope of the Session motor under the V/f law V = V0 + (Vn − V0)·f/fn
+up to fn, then V = Vn (field weakening). At each stator frequency every reactance
+scales with f, and the available torque is min(current-limited torque,
+margin·breakdown torque), solved on the stable branch by vectorised bisection.
+The three zones (constant torque, constant power, breakdown-limited) are read
+from the curve: the log–log slope d ln T/d ln Ω and the binding limit (A18).
+
+The tab shows the drive inputs, four KPI tiles (base speed, end of constant
+power, P max, torque at max speed) and the torque and power curves with the
+zones shaded. It recomputes in a worker whenever tab 1 publishes a motor.
+
 ## Core: Γ equivalent circuit (`core/circuit.py`, `core/session.py`)
 
 `MotorParams` is the single per-phase Γ circuit shared through a `Session`

@@ -457,6 +457,7 @@ def run_identification(
         source=source,
         is_demo=is_demo,
         layout=layout,
+        p_mech=p_mech,
     )
     lk = records.locked
     return IdentificationReport(

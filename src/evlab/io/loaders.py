@@ -249,6 +249,8 @@ def reference_motor(meta: dict[str, str]) -> MotorParams | None:
     try:
         vals = {k: float(meta[f"reference.{k}"]) for k in keys}
         vals["pole_pairs"] = int(vals["pole_pairs"])
+        if "reference.p_mech" in meta:
+            vals["p_mech"] = float(meta["reference.p_mech"])
         return MotorParams(**vals, source=meta.get("reference.source", "référence"), is_demo=True)
     except ValueError as exc:
         raise LoaderError(f"métadonnées de référence invalides : {exc}") from None
