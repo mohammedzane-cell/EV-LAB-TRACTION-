@@ -10,7 +10,8 @@ Two routes:
 - classical formulas (DC, no-load, locked-rotor tests), in a "classical"
   variant (course approximations) and an "exact" variant (inverts the
   circuit above with no approximation);
-- a least-squares fit of R'2, X, Xm, Rf to any set of measured points.
+- fit_load_points: least-squares fit of Xm, X, R'2 to load-test points,
+  with R1 (DC test) and Rf (no-load test) fixed.
 
 Per-phase quantities, star connection; powers are three-phase totals.
 Records can be built from the line voltage U as measured on the bench (TD5:
@@ -145,35 +146,6 @@ class LockedRotorTest:
         """Build from bench readings: line voltage U (V), line current (A), 3-phase power (W), f (Hz)."""
         _pos("u_line", u_line)
         return cls(v_phase=u_line / math.sqrt(3.0), i_line=i_line, p_total=p_total, f=f)
-
-
-@dataclass(frozen=True)
-class LoadPoint:
-    """One measured steady-state point for the least-squares fit.
-
-    Attributes:
-        v_phase: phase voltage, V.
-        f: supply frequency, Hz.
-        slip: slip g (dimensionless; 0 = no-load, 1 = locked rotor).
-        i_line: line current, A.
-        p_total: three-phase electrical input power, W (negative when generating).
-    """
-
-    v_phase: float
-    f: float
-    slip: float
-    i_line: float
-    p_total: float
-
-    def __post_init__(self) -> None:
-        _pos("v_phase", self.v_phase)
-        _pos("f", self.f)
-        _pos("i_line", self.i_line)
-        if not math.isfinite(self.slip):
-            raise ValueError(f"slip must be finite, got {self.slip!r}")
-        if not math.isfinite(self.p_total):
-            raise ValueError(f"p_total must be finite, got {self.p_total!r}")
-        _power_factor("load point", self.v_phase, self.i_line, abs(self.p_total))
 
 
 # --- classical tests ----------------------------------------------------------------
@@ -528,70 +500,6 @@ def identify(
     return run_identification(records, method, layout, source, is_demo).motor
 
 
-# --- least-squares fit ----------------------------------------------------------------
-
-@dataclass(frozen=True)
-class FitResult:
-    """Result of fit_circuit.
-
-    Attributes:
-        motor: fitted circuit (r1, p, rated V and f kept from the start).
-        success: True if the optimiser converged.
-        rms_relative_error: RMS of the residuals (I relative to I, P relative to 3·V·I).
-        n_points: number of points used.
-    """
-
-    motor: MotorParams
-    success: bool
-    rms_relative_error: float
-    n_points: int
-
-
-_FIT_FIELDS = ("r2p", "x_leak", "x_m", "r_fe")
-
-
-def fit_circuit(points: Sequence[LoadPoint], start: MotorParams, source: str = "fit") -> FitResult:
-    """Least-squares fit of R'2, X, Xm, Rf to measured (V, f, g, I1, P1) points.
-
-    R1, p, rated V and f and the layout are taken from `start` and kept fixed. The four
-    unknowns are fitted in log space (they stay > 0 by construction).
-    Residuals per point: (I_model − I)/I and (P_model − P)/(3·V·I).
-
-    Args:
-        points: measured points, at least 2 with distinct slips.
-        start: initial circuit (e.g. from identify()).
-        source: label of the returned MotorParams.
-    """
-    pts = list(points)
-    if len(pts) < 2 or len({p.slip for p in pts}) < 2:
-        raise ValueError(f"fit_circuit needs at least 2 points with distinct slips, got {len(pts)}")
-    if not isinstance(start, MotorParams):
-        raise ValueError(f"start must be a MotorParams, got {type(start).__name__}")
-
-    def build(x: np.ndarray) -> MotorParams:
-        vals = dict(zip(_FIT_FIELDS, np.exp(x)))
-        return replace(start, source=source, **vals)
-
-    def residuals(x: np.ndarray) -> np.ndarray:
-        m = build(x)
-        out = []
-        for p in pts:
-            op = circuit.operating_point(m, p.slip, v_phase=p.v_phase, f=p.f)
-            out.append((op.i1 - p.i_line) / p.i_line)
-            out.append((op.p_in - p.p_total) / (3.0 * p.v_phase * p.i_line))
-        return np.asarray(out)
-
-    x0 = np.log([getattr(start, n) for n in _FIT_FIELDS])
-    sol = least_squares(residuals, x0, method="lm", xtol=1e-14, ftol=1e-14, gtol=1e-14)
-    res = residuals(sol.x)
-    return FitResult(
-        motor=build(sol.x),
-        success=bool(sol.success),
-        rms_relative_error=float(np.sqrt(np.mean(res**2))),
-        n_points=len(pts),
-    )
-
-
 # --- load-test fit of (Xm, X, R'2) -------------------------------------------------
 
 class IdentifiabilityWarning(UserWarning):
@@ -709,17 +617,16 @@ def fit_load_points(
     n_starts: int = 10,
     f_scale: float = 0.05,
     seed: int = 0,
-    normalise: Literal["quantity", "point"] = "quantity",
+    normalise: Literal["quantity", "point"] = "point",
 ) -> LoadFitResult:
     """Least-squares fit of (Xm, X, R'2) to load points (g, I, T, cos φ); R1 and Rf stay fixed.
 
     R1 comes from the DC test and Rf from the no-load test (`start`, e.g. the
     classical result): load points barely depend on Rf (docs/assumptions.md A13).
-    normalise="quantity": residual = (model − measured) / RMS(measured quantity),
-    so current, torque and cos φ weigh the same (each point weighs the same in
-    absolute terms). normalise="point": residual = (model − measured)/|measured|,
-    which matches a relative (class-of-accuracy) instrument error; needs no
-    zero reading. Model shaft torque = T_em − p_mec/Ω.
+    normalise="point" (default): residual = (model − measured)/|measured|, which
+    matches an error relative to each reading (instrument accuracy class); needs
+    no zero reading. normalise="quantity": residual = (model − measured) /
+    RMS(measured quantity), each point weighs the same in absolute terms. Model shaft torque = T_em − p_mec/Ω.
     Loss soft_l1 with f_scale (residuals beyond ≈ f_scale are down-weighted).
     Confidence intervals: linearised, Cov = s²·(JᵀJ)⁻¹ with J the Jacobian of the
     plain residuals at the optimum, s² = Σr²/(m − 3), Student t with m − 3 dof.
@@ -732,7 +639,7 @@ def fit_load_points(
         n_starts: multistart runs (≥ 1): `start`, then log-uniform draws in [¼, 4]×start.
         f_scale: soft_l1 scale, in normalised residual units (> 0).
         seed: random seed of the multistart draws.
-        normalise: "quantity" (default) or "point", see above.
+        normalise: "point" (default) or "quantity", see above.
     """
     if normalise not in ("quantity", "point"):
         raise ValueError(f"normalise must be 'quantity' or 'point', got {normalise!r}")

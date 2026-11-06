@@ -88,12 +88,11 @@ Classical TP3 / TD5 chain, `run_identification(records, method=...)`:
 `method="classical"` uses the course formulas; `method="exact"` (default) inverts
 the circuit layout. Records (`DcTest`, `NoLoadTest`, `LockedRotorTest`, built with
 `from_line(U, I, P, f)`) are validated. The report keeps each intermediate value
-(R1 cold/hot, p_mec, P_fe, cos φ0, cos φcc). `fit_circuit` refines R'2, X, Xm, Rf
-by least squares on any set of measured points.
+(R1 cold/hot, p_mec, P_fe, cos φ0, cos φcc).
 
 `fit_load_points(points, start)` fits (Xm, X, R'2) to load-test points
 (g, I, T, cos φ) with `scipy.optimize.least_squares`: residuals normalised per
-quantity, positive bounds, `soft_l1` loss, a 10-start multistart, 95 % confidence
+reading (per quantity as an option), positive bounds, `soft_l1` loss, a 10-start multistart, 95 % confidence
 intervals from the Jacobian and the correlation matrix (`IdentifiabilityWarning`
 when |ρ| > 0,95). R1 and Rf stay fixed (DC and no-load tests): load points barely
 depend on Rf (A13).

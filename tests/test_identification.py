@@ -218,75 +218,6 @@ def test_identify_demo_flag():
     assert res.is_demo
 
 
-# --- least-squares fit ------------------------------------------------------------
-
-def _points(m, slips=(0.0, 0.02, 0.05, 0.1, 0.3, 1.0)):
-    pts = []
-    for g in slips:
-        v = 40.0 if g == 1.0 else m.v_phase
-        op = circuit.operating_point(m, g, v_phase=v)
-        pts.append(ident.LoadPoint(v_phase=v, f=m.f_rated, slip=g, i_line=op.i1, p_total=op.p_in))
-    return pts
-
-
-def test_fit_recovers_circuit_from_bad_start():
-    m = _motor()
-    start = MotorParams(v_phase=230, f_rated=50, pole_pairs=2, r1=m.r1,
-                        r2p=3.0, x_leak=6.0, x_m=30.0, r_fe=400.0)
-    res = ident.fit_circuit(_points(m), start)
-    assert res.success
-    for name in ("r2p", "x_leak", "x_m", "r_fe"):
-        assert getattr(res.motor, name) == pytest.approx(getattr(m, name), rel=1e-5), name
-    assert res.motor.r1 == m.r1
-    assert res.rms_relative_error < 1e-6
-    assert res.motor.source == "fit"
-
-
-def test_fit_starting_from_classical_identification():
-    m = _motor()
-    start = ident.identify(dc=_dc(m.r1), no_load=_no_load(m), locked=_locked(m),
-                           pole_pairs=2, method="classical")
-    res = ident.fit_circuit(_points(m), start)
-    assert res.motor.r2p == pytest.approx(2.0, rel=1e-5)
-    assert res.motor.x_leak == pytest.approx(4.0, rel=1e-5)
-
-
-def test_fit_corrects_p_mech_residual():
-    m = _motor()
-    nl = _no_load(m, p_mech=40.0)
-    start = ident.identify(dc=_dc(m.r1), no_load=nl, locked=_locked(m),
-                           pole_pairs=2, p_mech=40.0)
-    res = ident.fit_circuit(_points(m), start)
-    for name in ("r2p", "x_leak", "x_m", "r_fe"):
-        assert getattr(res.motor, name) == pytest.approx(getattr(m, name), rel=1e-6), name
-
-
-def test_fit_with_noise_stays_close():
-    m = _motor()
-    rng = np.random.default_rng(0)
-    pts = [ident.LoadPoint(v_phase=p.v_phase, f=p.f, slip=p.slip,
-                           i_line=p.i_line * (1 + 0.005 * rng.standard_normal()),
-                           p_total=p.p_total * (1 + 0.005 * rng.standard_normal()))
-           for p in _points(m, slips=np.linspace(0, 1, 15))]
-    res = ident.fit_circuit(pts, m)
-    assert res.motor.r2p == pytest.approx(2.0, rel=0.05)
-    assert res.motor.x_leak == pytest.approx(4.0, rel=0.05)
-    assert 0 < res.rms_relative_error < 0.02
-
-
-def test_fit_needs_enough_points():
-    m = _motor()
-    with pytest.raises(ValueError, match="at least"):
-        ident.fit_circuit(_points(m, slips=(0.02,)), m)
-
-
-def test_load_point_validation():
-    with pytest.raises(ValueError, match="i_line"):
-        ident.LoadPoint(v_phase=230, f=50, slip=0.02, i_line=0.0, p_total=100.0)
-    with pytest.raises(ValueError, match="slip"):
-        ident.LoadPoint(v_phase=230, f=50, slip=math.nan, i_line=1.0, p_total=100.0)
-
-
 # --- terminals layout ----------------------------------------------------------------
 
 def _motor_terminals(r1=0.8):
@@ -328,10 +259,10 @@ def test_wrong_layout_gives_wrong_circuit():
     assert res.r2p != pytest.approx(2.0, rel=1e-3)
 
 
-def test_fit_keeps_layout_of_start():
+def test_load_fit_keeps_layout_of_start():
     m = _motor_terminals()
-    start = replace(m, r2p=3.0, x_leak=6.0, x_m=30.0, r_fe=400.0)
-    res = ident.fit_circuit(_points(m), start)
+    start = replace(m, r2p=3.0, x_leak=6.0, x_m=30.0)
+    res = ident.fit_load_points(make_load_points(m), start, n_starts=3)
     assert res.motor.layout == "terminals"
     assert res.motor.r2p == pytest.approx(2.0, rel=1e-6)
 
@@ -343,6 +274,7 @@ def test_bad_layout():
 
 # --- full chain on generated bench records (tests/fixtures/td5_records.py) ----------
 
+from fixtures.td5_records import make_load_points  # noqa: E402
 from fixtures.td5_records import (  # noqa: E402
     CASE_A, CASE_B, LOCKED_FRACTION, PARAMS, T_COLD, T_HOT, error_table, format_table, make_records,
 )
@@ -476,7 +408,6 @@ def test_records_validation():
 
 # --- load-point fit of (Xm, X, R'2) -------------------------------------------------
 
-from fixtures.td5_records import make_load_points  # noqa: E402
 
 FIT_NAMES = ("x_m", "x_leak", "r2p")
 SEED_LOAD = 2026
@@ -527,6 +458,17 @@ def test_load_fit_noisy_beats_classical_and_ci_covers_reference(recwarn):
               f"{f'[{lo:.3f}, {hi:.3f}]':>22}")
     print("correlation:\n", np.array2string(res.correlation, precision=3))
     print("multistart:", res.n_converged, "/", len(res.multistart), "starts reach the best cost")
+
+
+def test_point_normalisation_is_default_and_quantity_is_an_option():
+    start = _classical().motor
+    pts = make_load_points(CASE_A.motor, noise=0.025, seed=SEED_LOAD)
+    default = ident.fit_load_points(pts, start, n_starts=1)
+    explicit = ident.fit_load_points(pts, start, n_starts=1, normalise="point")
+    assert default.motor == explicit.motor
+    quantity = ident.fit_load_points(pts, start, n_starts=1, normalise="quantity")
+    assert quantity.motor != default.motor
+    assert quantity.motor.r2p == pytest.approx(2.0, rel=0.05)
 
 
 def test_point_normalisation():
