@@ -7,7 +7,8 @@ One stage = one commit (see Definition of done in CLAUDE.md).
 | 0 | Scaffold, `core/session.py` (MotorParams, TD5 Ex 1), `core/circuit.py` (Γ circuit: I'2, T, g_c, T_max, power balance, R(T)), architecture guard tests | done |
 | 0b | TP3 circuit layout (R1 in series, Thévenin breakdown) | done |
 | 1 | `core/identification.py`: no-load / locked-rotor / DC tests → Γ circuit (classical formulas + least-squares fit) | done (core) |
-| 2 | GUI shell (PySide6 main window, Session, tab 1 Identification) | |
+| 1b | Project setup: pinned requirements, documented empty modules, PySide6 main window with 7 empty tabs, `python -m evlab`, smoke tests | done |
+| 2 | Tab 1 Identification (GUI on core.identification) | |
 | 3 | `core/drive.py`: V/f + field-weakening envelope; tab 2 | |
 | 4 | `core/losses.py`: efficiency map η(T, ω); tab 3 | |
 | 5 | `io/` WLTC loader + `core/vehicle.py` (class by W/kg, Wh/km, regen); tab 4 | |

@@ -5,3 +5,17 @@ __pycache__/
 build/
 dist/
 .venv/
+venv/
+
+# Course PDFs: read locally, never committed
+docs/*.pdf
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated outputs
+*.log
+reports/

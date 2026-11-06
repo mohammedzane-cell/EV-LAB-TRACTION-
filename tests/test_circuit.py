@@ -225,3 +225,15 @@ def test_copper_resistance_at_120c():
 def test_copper_resistance_validation(r, t):
     with pytest.raises(ValueError):
         circuit.copper_resistance(r, t)
+
+
+def test_td5_ex1_nominal_speed_is_slip_0_1(m):
+    # TD5 Ex 1 nameplate: 230 V / 400 V, 50 Hz, 1350 tr/min, p = 2 -> g = 0.1
+    omega = 1350 * 2 * math.pi / 60
+    assert circuit.slip_from_speed(m, omega) == pytest.approx(0.1)
+    # same circuit as the TD5 figure: 230 Ω ∥ j46 Ω across Vs, then 2/g + j4, no R1
+    op = circuit.operating_point(m, 0.1)
+    z2 = complex(2 / 0.1, 4)
+    i_s = 230 / 230 + 230 / 46j + 230 / z2
+    assert op.i1 == pytest.approx(abs(i_s))
+    assert op.power_factor == pytest.approx(i_s.real / abs(i_s))

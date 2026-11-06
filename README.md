@@ -7,15 +7,40 @@ One motor, one chain: the Γ circuit identified in tab 1 (default TD5 Ex 1) feed
 every other module. See `CLAUDE.md` for the full specification and
 `docs/roadmap.md` for the stages.
 
-## Install and test
+## Install
+
+Python 3.11 or 3.12 (3.13 also works). Exact versions are pinned in `requirements.txt`.
+
+```bash
+pip install -r requirements.txt
+```
 
 ```bash
 pip install -e ".[dev]"
 ```
 
+On a headless Linux machine Qt also needs system libraries (Debian/Ubuntu):
+
+```bash
+sudo apt-get install libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
+```
+
+## Run
+
+```bash
+python -m evlab
+```
+
+The `evlab` command does the same. The window has seven tabs (1 · Identification …
+7 · Optimisation) and a status bar showing which motor the whole chain uses.
+
+## Test
+
 ```bash
 pytest
 ```
+
+GUI tests run headless (`QT_QPA_PLATFORM=offscreen`, set in `tests/conftest.py`).
 
 ## Layout
 
@@ -24,7 +49,7 @@ src/evlab/core/   pure physics (no Qt, no I/O)
 src/evlab/io/     loaders and exports
 src/evlab/gui/    PySide6 tabs
 tests/            pytest
-docs/             roadmap, assumptions
+docs/             roadmap, assumptions, data notes (course PDFs local only)
 data/             input files (*_demo.csv for demo data)
 ```
 
