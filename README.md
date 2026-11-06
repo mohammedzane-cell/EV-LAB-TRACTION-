@@ -137,6 +137,21 @@ The tab shows the parameters (with the two time constants), the insulation
 class, the cycle count, T(t) with the class line, and KPI tiles (T max,
 T mean, margin, life).
 
+## Tab 6 · Bobinage (`core/winding.py`, `gui/tab_winding.py`)
+
+Three-phase, double-layer, integral-slot lap winding from Z, 2p and the coil
+pitch y (an integer number of slots, 1 ≤ y ≤ τ; q = Z/(2p·m) must be an
+integer, and a non-integer pitch such as "5/6" of τ = 9 is refused with the two
+nearest integer pitches). Distribution, pitch and winding factors for any
+harmonic, the slot table (top belts A+ C− B+ A− C+ B−, bottom = top shifted by y
+and reversed), the stepped phase MMF and its FFT against kw_ν/ν, the rotating
+field of balanced currents over one electrical period, and E = 4,44·f·N·kw1·Φ
+(TD2 Ex 1 reproduced: 8 poles, 1023 V per phase, 1772 V line).
+
+The tab shows the slot strip (labels and colours), the kw table for y = τ and
+the chosen y, the MMF spectrum, the EMF, and the animated air-gap MMF with its
+fundamental for y = τ and y side by side (play/pause, speed slider).
+
 ## Core: Γ equivalent circuit (`core/circuit.py`, `core/session.py`)
 
 `MotorParams` is the single per-phase Γ circuit shared through a `Session`

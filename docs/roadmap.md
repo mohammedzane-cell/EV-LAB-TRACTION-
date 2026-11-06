@@ -13,6 +13,6 @@ One stage = one commit (see Definition of done in CLAUDE.md).
 | 4 | `core/losses.py`: efficiency map η(T, ω); tab 3 | done |
 | 5 | `io/` WLTC loader + `core/vehicle.py` (class by W/kg, Wh/km, regen); tab 4 | done (official WLTC files to be added) |
 | 6 | `core/thermal.py`: two-node model, insulation life (10 K rule); tab 5 | done (démo network values) |
-| 7 | `core/winding.py`: kd, kp, kw, MMF harmonics, EMF, slot table, rotating field; tab 6 | |
+| 7 | `core/winding.py`: kd, kp, kw, MMF harmonics, EMF, slot table, rotating field; tab 6 | done |
 | 8 | `core/optimise.py`: Pareto Wh/km vs acceleration (scipy; pymoo behind flag); tab 7 | |
 | 9 | PDF report (reportlab) + Excel export (openpyxl) | |

@@ -10,7 +10,7 @@ Copied from the ME3 course Drive; read locally, never committed.
 | File | Content | Used for |
 |------|---------|----------|
 | `TD No 5.pdf` | Induction motor: Ex 1 Γ circuit (230 Ω ∥ j46 Ω, 2/g + j4; 230/400 V, 50 Hz, 1350 tr/min), Ex 2–3 no-load / locked-rotor tests, Ex 5–6 equivalent circuit | Reference motor `td5_ex1()`, identification tests |
-| `TD No 2.pdf` | Synchronous machines: EMF, winding coefficient, synchronous reactance | Tab 6 (winding, EMF) |
+| `TD No 2.pdf` | Synchronous machines: EMF, winding coefficient, synchronous reactance | Tab 6: Ex 1 (60 Hz, 900 tr/min, 576 conductors, Φ = 0,04 Wb, Kb = 1) is reproduced by the EMF test |
 | `TP_M3_ENP_Final_Complet.pdf` | Power electronics TP M3: three-phase diode rectifiers (PD3, Graetz bridge) | Not the motor TP3; possibly the inverter/DC-bus side later |
 
 Missing: the TP3 induction-motor handout (Figure 1, measured points).
