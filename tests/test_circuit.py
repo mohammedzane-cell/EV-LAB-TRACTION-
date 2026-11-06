@@ -67,14 +67,58 @@ def test_vectorised(m):
     assert t[0] == 0.0
 
 
-def test_breakdown_with_r1():
-    m = MotorParams(v_phase=230, f_rated=50, pole_pairs=2, r1=1.0,
-                    r2p=2.0, x_leak=4.0, x_m=46, r_fe=230)
+def _m_r1(r1=1.0):
+    return MotorParams(v_phase=230, f_rated=50, pole_pairs=2, r1=r1,
+                       r2p=2.0, x_leak=4.0, x_m=46, r_fe=230)
+
+
+def _direct_i2(m, g):
+    """Independent solve of the full TP3 circuit (no Thévenin)."""
+    z_m = 1 / (1 / m.r_fe + 1 / complex(0, m.x_m))
+    z2 = complex(m.r2p / g, m.x_leak)
+    i1 = m.v_phase / (m.r1 + z_m * z2 / (z_m + z2))
+    e = m.v_phase - m.r1 * i1
+    return e / z2, i1, e
+
+
+def test_thevenin_is_identity_when_r1_zero(m):
+    v_th, z_th = circuit.thevenin(m)
+    assert v_th == pytest.approx(230.0)
+    assert z_th == 0
+
+
+def test_thevenin_values_with_r1():
+    m = _m_r1(1.0)
+    z_m = 1 / (1 / 230 + 1 / 46j)
+    v_th, z_th = circuit.thevenin(m)
+    assert v_th == pytest.approx(230 * z_m / (1 + z_m))
+    assert z_th == pytest.approx(z_m / (1 + z_m))
+
+
+@pytest.mark.parametrize("g", [0.02, 0.3, 1.0, -0.1])
+def test_rotor_current_matches_full_circuit_with_r1(g):
+    m = _m_r1(1.0)
+    i2, _, _ = _direct_i2(m, g)
+    assert circuit.rotor_current(m, g) == pytest.approx(abs(i2))
+    expected_t = (3 * 2 / W) * (2.0 / g) * abs(i2) ** 2
+    assert circuit.torque(m, g) == pytest.approx(expected_t)
+
+
+def test_breakdown_with_r1_uses_thevenin():
+    m = _m_r1(1.0)
+    _, z_th = circuit.thevenin(m)
     gc = circuit.breakdown_slip(m)
-    assert gc == pytest.approx(2.0 / math.hypot(1.0, 4.0))
-    g = np.linspace(0.05, 1.0, 5000)
-    assert g[np.argmax(circuit.torque(m, g))] == pytest.approx(gc, abs=1e-3)
+    assert gc == pytest.approx(2.0 / math.hypot(z_th.real, z_th.imag + 4.0))
+    # brute force on the full circuit, independent of the closed form
+    g = np.linspace(0.05, 1.0, 20001)
+    t = np.array([(3 * 2 / W) * (2.0 / gi) * abs(_direct_i2(m, gi)[0]) ** 2 for gi in g])
+    assert g[np.argmax(t)] == pytest.approx(gc, abs=1e-4)
+    assert t.max() == pytest.approx(circuit.max_torque(m), rel=1e-7)
     assert circuit.torque(m, gc) == pytest.approx(circuit.max_torque(m))
+
+
+def test_r1_lowers_max_torque(m):
+    assert circuit.max_torque(_m_r1(1.0)) < circuit.max_torque(m)
 
 
 def test_supply_override_scales_reactance(m):
@@ -119,9 +163,37 @@ def test_stator_current_is_phasor_sum(m):
     assert op.i1 == pytest.approx(abs(i1))
 
 
-def test_operating_point_rejects_zero_slip(m):
+def test_ideal_no_load_point_with_r1():
+    m = _m_r1(1.0)
+    op = circuit.operating_point(m, 0.0)
+    assert op.i2 == 0.0
+    assert op.torque == 0.0
+    z_m = 1 / (1 / 230 + 1 / 46j)
+    i0 = 230 / (1.0 + z_m)
+    assert op.i1 == pytest.approx(abs(i0))
+    # TP3 no-load: P0 = 3·R1·I0² + P_fe (R1 carries the no-load current)
+    assert op.p_cu1 == pytest.approx(3 * 1.0 * abs(i0) ** 2)
+    assert op.p_in == pytest.approx(op.p_cu1 + op.p_fe)
+
+
+@pytest.mark.parametrize("g", [0.03, 1.0, -0.05])
+def test_power_balance_with_r1(g):
+    m = _m_r1(1.0)
+    op = circuit.operating_point(m, g)
+    i2, i1, e = _direct_i2(m, g)
+    assert op.i1 == pytest.approx(abs(i1))
+    assert op.i2 == pytest.approx(abs(i2))
+    assert op.e == pytest.approx(abs(e))
+    assert op.p_cu1 == pytest.approx(3 * 1.0 * abs(i1) ** 2)
+    assert op.p_fe == pytest.approx(3 * abs(e) ** 2 / 230)
+    assert op.p_in == pytest.approx(op.p_cu1 + op.p_fe + op.p_gap)
+    assert op.q_in == pytest.approx(3 * (abs(e) ** 2 / 46 + abs(i2) ** 2 * 4.0))
+    assert op.torque == pytest.approx(circuit.torque(m, g))
+
+
+def test_operating_point_rejects_nan_slip(m):
     with pytest.raises(ValueError, match="slip"):
-        circuit.operating_point(m, 0.0)
+        circuit.operating_point(m, math.nan)
 
 
 # --- validation ----------------------------------------------------------------

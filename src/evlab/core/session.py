@@ -25,14 +25,15 @@ def _check_non_negative(name: str, value: float) -> None:
 class MotorParams:
     """Per-phase Γ equivalent circuit of the induction motor (star connection).
 
-    Topology: the magnetising branch (r_fe ∥ j·x_m) sits directly across the
-    phase voltage; the series branch r1 + j·x_leak + r2p/g carries I'2.
+    Topology (TP3, Figure 1): V1 → r1 in series (carries I1) → node E;
+    at E the magnetising branch r_fe ∥ j·x_m is in parallel with the rotor
+    branch j·x_leak + r2p/g (carries I'2).
 
     Attributes:
         v_phase: rated phase voltage, V (RMS).
         f_rated: rated supply frequency, Hz.
         pole_pairs: number of pole pairs p (integer ≥ 1).
-        r1: stator resistance referred to the series branch, Ω (≥ 0).
+        r1: stator phase resistance, Ω (≥ 0).
         r2p: rotor resistance referred to the stator, R'2, Ω.
         x_leak: total leakage reactance N'2·ω at f_rated, Ω.
         x_m: magnetising reactance at f_rated, Ω.
