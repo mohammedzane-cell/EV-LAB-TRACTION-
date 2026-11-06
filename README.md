@@ -99,6 +99,29 @@ The tab draws the contour map with % labels, the shaft-torque envelope, the
 best-efficiency point, the cycle points (from stage 5) and exports a PNG. It
 uses the drive settings of tab 2 and recomputes when shown after a change.
 
+## Tab 4 · Véhicule & WLTC (`core/vehicle.py`, `io/cycles.py`, `gui/tab_vehicle.py`)
+
+The vehicle fits the motor. `vehicle.size_vehicle` takes the motor's rated power
+(maximum shaft power of the envelope) and the vehicle mass, gives the
+power-to-mass ratio and the WLTC class (≤ 22 W/kg → 1, ≤ 34 → 2, else 3), and
+proposes the gear ratio G that keeps the whole cycle inside the envelope (A23).
+`vehicle.simulate` drives the cycle second by second: road load
+F = m·a + ½ρCxS·v² + Crr·m·g·cosθ + m·g·sinθ, motor torque F·r/(G·ηg) in
+traction and F·r·ηg/G in regenerative braking, ωm = G·v/r, battery power =
+shaft power + motor/inverter losses interpolated from the tab 3 map +
+auxiliaries. The summary gives distance, energy, Wh/km, regenerated % and the
+number of points outside the envelope; the energy balance closes to 1e-6.
+
+Cycles are read by `io.cycles.load_cycle` (columns `t [s]`, `v [km/h]`,
+resampled to 1 s). Put the official WLTC files in `data/` as
+`wltc_class1.csv` and `wltc_class3.csv`; until then the tab uses the synthetic
+`cycle_demo.csv` (démo). The demo vehicle is a light quadricycle (A22).
+
+The tab shows the vehicle parameters, the WLTC class with its W/kg, the
+regeneration checkbox, KPI tiles, the speed and battery-power plots and a red
+warning when any point exceeds the envelope; the cycle points also appear on
+the tab 3 map.
+
 ## Core: Γ equivalent circuit (`core/circuit.py`, `core/session.py`)
 
 `MotorParams` is the single per-phase Γ circuit shared through a `Session`

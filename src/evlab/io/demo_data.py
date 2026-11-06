@@ -1,4 +1,4 @@
-"""Generate the demo bench files of data/ from the core (synthetic, labelled "démo").
+"""Generate the demo files of data/ from the core (synthetic, labelled "démo").
 
     python -m evlab.io.demo_data          # rewrites data/*_demo.csv
 
@@ -10,6 +10,9 @@ Circuit: TD5 Ex 1 (Rf = 230 Ω, Xm = 46 Ω, X = 4 Ω, R'2 = 2 Ω) plus a synthet
 R1 = 0,5 Ω at 75 °C (DC test at 20 °C) and p_mec = 60 W, so that every step
 of the chain (DC test, temperature correction, p_mec separation) is exercised.
 TD5 Ex 1 itself has R1 = 0, which would make the DC test read 0 V.
+
+data/cycle_demo.csv is a synthetic urban cycle (not a WLTC cycle), used until
+the official WLTC files are placed in data/ by the user.
 """
 
 from __future__ import annotations
@@ -38,6 +41,14 @@ LOCKED_FRACTION = 0.25
 RATED_SPEED_RPM = 1350.0  # TD5 Ex 1 nameplate
 LOAD_SLIPS = tuple(float(g) for g in np.round(np.linspace(0.02, 0.40, 12), 4))
 
+CYCLE_FILE = "cycle_demo.csv"
+# synthetic urban cycle (not WLTC): (cruise speed km/h, accel m/s², cruise s, decel m/s², idle s after)
+# (cruise speed km/h, cruise s, decel m/s², idle s after); the acceleration falls with
+# speed as in real cycles: (upper speed km/h, accel m/s²) bands below
+CYCLE_TRIPS = ((30, 20, 0.8, 15), (45, 40, 0.9, 20), (20, 15, 0.8, 10),
+               (55, 60, 1.0, 20), (60, 30, 0.9, 25), (35, 25, 0.8, 0))
+CYCLE_ACCEL_BANDS = ((20.0, 0.9), (40.0, 0.6), (1e9, 0.35))
+CYCLE_IDLE_START = 10.0  # s
 BENCH_FILE = "bench_tests_demo.csv"
 LOAD_FILE = "load_points_demo.csv"
 BENCH_COLUMNS = ("essai", "U [V]", "I [A]", "P [W]", "f [Hz]", "T [°C]")
@@ -117,6 +128,36 @@ def demo_csv_texts(spec: DemoSpec = DemoSpec()) -> tuple[str, str]:
     return bench, load
 
 
+def cycle_demo_text() -> str:
+    """Synthetic urban cycle sampled at 1 s (micro-trips, acceleration falling with speed), labelled démo."""
+    # breakpoints (t, v) of the piecewise-linear speed profile
+    pts = [(0.0, 0.0), (CYCLE_IDLE_START, 0.0)]
+    t = CYCLE_IDLE_START
+    for v_kmh, cruise, dec, idle in CYCLE_TRIPS:
+        v = v_kmh / 3.6
+        v_now = 0.0
+        for v_band, acc in CYCLE_ACCEL_BANDS:
+            v_next = min(v, v_band / 3.6)
+            if v_next > v_now:
+                t += (v_next - v_now) / acc
+                pts.append((t, v_next))
+                v_now = v_next
+        t += cruise
+        pts.append((t, v))
+        t += v / dec
+        pts.append((t, 0.0))
+        t += idle
+        pts.append((t, 0.0))
+    tb, vb = np.array(pts).T
+    ts = np.arange(0.0, math.floor(tb[-1]) + 1.0)
+    vs = np.interp(ts, tb, vb)
+    vs[-1] = 0.0
+    rows = ["t [s],v [km/h]"] + [f"{t_:g},{v_ * 3.6:.4f}" for t_, v_ in zip(ts, vs)]
+    head = ["# démo: cycle urbain synthétique (pas un cycle WLTC), généré par evlab.io.demo_data",
+            "# micro-trajets, accélération 0,9 / 0,6 / 0,35 m/s² sous 20 / 40 / au-delà km/h, v_max 60 km/h"]
+    return "\n".join(head + rows) + "\n"
+
+
 def write_demo_files(directory: Path, spec: DemoSpec = DemoSpec()) -> tuple[Path, Path]:
     """Write the two demo CSV files into `directory`; return their paths."""
     directory = Path(directory)
@@ -125,6 +166,7 @@ def write_demo_files(directory: Path, spec: DemoSpec = DemoSpec()) -> tuple[Path
     p1, p2 = directory / BENCH_FILE, directory / LOAD_FILE
     p1.write_text(bench, encoding="utf-8")
     p2.write_text(load, encoding="utf-8")
+    (directory / CYCLE_FILE).write_text(cycle_demo_text(), encoding="utf-8")
     return p1, p2
 
 
@@ -132,3 +174,4 @@ if __name__ == "__main__":
     root = Path(__file__).resolve().parents[3] / "data"
     for p in write_demo_files(root):
         print(p)
+    print(root / CYCLE_FILE)

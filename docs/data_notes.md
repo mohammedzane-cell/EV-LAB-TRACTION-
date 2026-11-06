@@ -42,4 +42,14 @@ Gaussian on each reading, seed 2026. The reference circuit is stored in the
 | `bench_tests_demo.csv` | DC test at 20 °C (5 A), 8 no-load points 0,4…1,1·Un, locked rotor at 0,25·Un, winding at 75 °C | essai (dc / vide / rotor_bloque), U [V] (line; DC: between two terminals), I [A], P [W], f [Hz], T [°C] |
 | `load_points_demo.csv` | 12 load points, g = 0,02…0,40 at rated voltage; slip and voltage exact, shaft torque = T_em − p_mec/Ω | g [-], U [V] (line), I [A], T [N·m], cos_phi [-], f [Hz] |
 
-Planned: WLTC class 1 and class 3 speed profiles, TP3 measured points.
+| `cycle_demo.csv` | synthetic urban cycle (not WLTC), 475 s, 3,73 km, v_max 60 km/h (A25) | t [s], v [km/h] |
+
+**Official WLTC files (to be provided by the user, never invented or downloaded):**
+`data/wltc_class1.csv` and `data/wltc_class3.csv`, columns `t [s]`, `v [km/h]`
+(any sampling; resampled to 1 s). Tests check, when the files are present:
+class 3 — 1800 s, 23,27 km ± 0,5 %, v_max 131,3 km/h; class 1 — the first
+1022 s (Low + Medium) give 8,091 km ± 0,5 % and 64,4 km/h, and a trailing
+phase, if any, repeats the Low phase. Tab 4 uses the file of the vehicle's
+class when it exists, else the demo cycle (and says so).
+
+Planned: TP3 measured points.

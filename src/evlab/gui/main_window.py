@@ -64,6 +64,13 @@ class MainWindow(QMainWindow):
             env_tab.envelope_done.connect(eff_tab.on_envelope)
             if env_tab.envelope is not None:
                 eff_tab.on_envelope(env_tab.envelope)
+        # tabs 2, 3 → tab 4: the vehicle uses the envelope and the loss map; its cycle goes back to tab 3
+        veh_tab = self.tabs.widget(3)
+        if hasattr(veh_tab, "on_envelope"):
+            env_tab.envelope_done.connect(veh_tab.on_envelope)
+            eff_tab.map_done.connect(veh_tab.on_map)
+            veh_tab.loss_settings_provider = eff_tab.settings
+            veh_tab.cycle_points.connect(eff_tab.set_cycle_points)
         self.refresh_status()
 
     def _status_from(self, tab, message: str) -> None:
