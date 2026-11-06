@@ -46,7 +46,7 @@ class VehicleTab(QWidget):
 
     status_message = Signal(str)
     busy = Signal(bool)
-    simulation_done = Signal(object)  # (Sizing, DriveResult, Cycle)
+    simulation_done = Signal(object)  # (Sizing, DriveResult, Cycle, EfficiencyMap)
     simulation_failed = Signal(str)
     cycle_points = Signal(object, object)  # motor shaft torque (N·m), speed (rad/s) for tab 3
 
@@ -256,7 +256,7 @@ class VehicleTab(QWidget):
             cycle = load_cycle(path)
             sizing = vehicle.size_vehicle(motor, e, st, veh, cycle)
             v = replace(veh, gear_ratio=sizing.gear_ratio) if use_proposed else veh
-            return sizing, vehicle.simulate(cycle, v, motor, e, mp, mp.settings), cycle, v, path
+            return sizing, vehicle.simulate(cycle, v, motor, e, mp, mp.settings), cycle, v, path, mp
 
         worker = CoreWorker(job)
         worker.signals.finished.connect(self._on_done)
@@ -269,8 +269,8 @@ class VehicleTab(QWidget):
         return True
 
     def _on_done(self, out) -> None:
-        sizing, res, cycle, veh, path = out
-        self.result = (sizing, res, cycle)
+        sizing, res, cycle, veh, path, mp = out
+        self.result = (sizing, res, cycle, mp)
         self.stale = False
         self.btn_simulate.setEnabled(True)
         self.busy.emit(False)

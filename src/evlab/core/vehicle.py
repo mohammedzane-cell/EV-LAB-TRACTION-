@@ -220,14 +220,19 @@ def size_vehicle(m: MotorParams, env: drive.Envelope, st: losses.LossSettings, v
 
 
 class LossTable:
-    """Motor + inverter losses P_in − P_out of an efficiency map, interpolated at any (|T|, ω).
+    """A loss term of an efficiency map, interpolated at any (|T|, ω); default: total P_in − P_out.
 
     Above the envelope (NaN in the map) each speed column keeps its last valid
     value; queries outside the grid are clamped to it (A24).
     """
 
-    def __init__(self, emap: losses.EfficiencyMap) -> None:
-        loss = emap.p_in - emap.p_out
+    def __init__(self, emap: losses.EfficiencyMap, term: str = "total") -> None:
+        if term == "total":
+            loss = emap.p_in - emap.p_out
+        elif term in ("p_cu1", "p_cu2", "p_fe", "p_mech", "p_inv"):
+            loss = getattr(emap, term)
+        else:
+            raise ValueError(f"unknown loss term {term!r}")
         if not emap.valid.any():
             raise ValueError("the efficiency map has no point inside the envelope")
         filled = loss.copy()

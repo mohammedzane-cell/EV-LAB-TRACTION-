@@ -71,6 +71,10 @@ class MainWindow(QMainWindow):
             eff_tab.map_done.connect(veh_tab.on_map)
             veh_tab.loss_settings_provider = eff_tab.settings
             veh_tab.cycle_points.connect(eff_tab.set_cycle_points)
+        # tab 4 → tab 5: the thermal model is fed by the cycle losses
+        th_tab = self.tabs.widget(4)
+        if hasattr(th_tab, "on_cycle") and hasattr(veh_tab, "simulation_done"):
+            veh_tab.simulation_done.connect(th_tab.on_cycle)
         self.refresh_status()
 
     def _status_from(self, tab, message: str) -> None:
