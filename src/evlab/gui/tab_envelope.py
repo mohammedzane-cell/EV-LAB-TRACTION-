@@ -187,7 +187,7 @@ class EnvelopeTab(QWidget):
                                                    pen=pg.mkPen(None)))
         self.plot_torque.plot(n, env.torque, pen=pg.mkPen("#1b4fa8", width=2.5), name="couple disponible")
         self.plot_torque.plot(n, env.torque_current, pen=pg.mkPen("#2e9e5b", width=1, style=Qt.PenStyle.DashLine),
-                              name="limite courant")
+                              name="limite courant", connect="finite")
         self.plot_torque.plot(n, env.settings.margin * env.torque_breakdown,
                               pen=pg.mkPen("#e08a1e", width=1, style=Qt.PenStyle.DashLine),
                               name=f"{fr_fixed(100 * env.settings.margin, 0)} % du décrochage")

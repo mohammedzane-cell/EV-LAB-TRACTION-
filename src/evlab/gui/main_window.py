@@ -58,6 +58,12 @@ class MainWindow(QMainWindow):
             if hasattr(tab, "motor_published"):
                 tab.motor_published.connect(self._on_motor_published)
         self.setCentralWidget(self.tabs)
+        # tab 2 → tab 3: the efficiency map uses the drive settings and boundary of the envelope
+        env_tab, eff_tab = self.tabs.widget(1), self.tabs.widget(2)
+        if hasattr(env_tab, "envelope_done") and hasattr(eff_tab, "on_envelope"):
+            env_tab.envelope_done.connect(eff_tab.on_envelope)
+            if env_tab.envelope is not None:
+                eff_tab.on_envelope(env_tab.envelope)
         self.refresh_status()
 
     def _status_from(self, tab, message: str) -> None:

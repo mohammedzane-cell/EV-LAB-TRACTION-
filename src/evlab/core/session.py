@@ -50,6 +50,8 @@ class MotorParams:
         layout: "tp3" or "terminals" (see above).
         p_mech: mechanical losses at rated synchronous speed, W (≥ 0), from the
             no-load separation of tab 1 (TD5 Ex 1: negligible → 0). Used by core.losses.
+        r1_temperature_k: winding temperature at which r1 holds, K (None: unknown,
+            no temperature correction in core.losses).
     """
 
     v_phase: float
@@ -64,6 +66,7 @@ class MotorParams:
     is_demo: bool = False
     layout: Layout = "tp3"
     p_mech: float = 0.0
+    r1_temperature_k: float | None = None
 
     def __post_init__(self) -> None:
         _check_positive("v_phase", self.v_phase)
@@ -76,6 +79,8 @@ class MotorParams:
         _check_positive("x_m", self.x_m)
         _check_positive("r_fe", self.r_fe)
         _check_non_negative("p_mech", self.p_mech)
+        if self.r1_temperature_k is not None:
+            _check_positive("r1_temperature_k", self.r1_temperature_k)
         if self.layout not in LAYOUTS:
             raise ValueError(f"layout must be one of {LAYOUTS}, got {self.layout!r}")
 

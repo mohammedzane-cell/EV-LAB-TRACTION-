@@ -458,6 +458,8 @@ def run_identification(
         is_demo=is_demo,
         layout=layout,
         p_mech=p_mech,
+        r1_temperature_k=(None if records.dc is None
+                          else records.t_hot_k if records.t_hot_k is not None else records.dc.temperature_k),
     )
     lk = records.locked
     return IdentificationReport(

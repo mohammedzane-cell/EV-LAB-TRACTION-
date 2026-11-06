@@ -209,7 +209,8 @@ def power_factor(
 
 
 def torque(
-    m: MotorParams, g: ArrayLike, v_phase: float | None = None, f: float | None = None
+    m: MotorParams, g: ArrayLike, v_phase: ArrayLike | None = None, f: ArrayLike | None = None,
+    r_fe: ArrayLike | None = None,
 ) -> FloatOrArray:
     """T = (3p/ω)·(R'2/g)·|I'2|²: air-gap power divided by the synchronous speed Ω_s = ω/p, N·m.
 
@@ -220,8 +221,9 @@ def torque(
         g: slip (dimensionless), scalar or array.
         v_phase: phase voltage override, V.
         f: supply frequency override, Hz.
+        r_fe: iron-loss resistance override, Ω.
     """
-    sol = _solve(m, g, v_phase, f)
+    sol = _solve(m, g, v_phase, f, r_fe)
     return _out(sol.p_gap * m.pole_pairs / sol.s.w)
 
 

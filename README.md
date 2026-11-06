@@ -74,15 +74,30 @@ identified motor is published to the `Session`, so tabs 2 to 7 use it
 
 `drive.envelope(motor, DriveSettings(i_max, boost, margin, f_max))` computes the
 torque–speed envelope of the Session motor under the V/f law V = V0 + (Vn − V0)·f/fn
-up to fn, then V = Vn (field weakening). At each stator frequency every reactance
-scales with f, and the available torque is min(current-limited torque,
-margin·breakdown torque), solved on the stable branch by vectorised bisection.
+up to fn, then V = Vn (field weakening). Every reactance scales with f. At each
+speed the available torque is min(current-limited torque, margin·breakdown
+torque, the speed's own torque peak), found over the rotor frequency by a
+vectorised golden-section search and bisections (A17).
 The three zones (constant torque, constant power, breakdown-limited) are read
 from the curve: the log–log slope d ln T/d ln Ω and the binding limit (A18).
 
 The tab shows the drive inputs, four KPI tiles (base speed, end of constant
 power, P max, torque at max speed) and the torque and power curves with the
 zones shaded. It recomputes in a worker whenever tab 1 publishes a motor.
+
+## Tab 3 · Rendement (`core/losses.py`, `gui/tab_efficiency.py`)
+
+`losses.efficiency_map(motor, torque, speed, drive_settings, LossSettings(...))`
+solves, for every (shaft torque, speed) grid point, the operating point under
+the V/f law of tab 2 (vectorised golden-section + bisection on the rotor
+frequency, no loop over points; 160 × 120 in about 0,3 s). Loss terms: copper
+3·R1(T)·I1² + 3·R'2·I'2², iron by Steinmetz (β, A19), mechanical a·Ω + b·Ω²
+from the p_mec identified in tab 1 (A20), inverter P_0 + k·P (démo, A21).
+It returns η and every term; NaN outside the envelope.
+
+The tab draws the contour map with % labels, the shaft-torque envelope, the
+best-efficiency point, the cycle points (from stage 5) and exports a PNG. It
+uses the drive settings of tab 2 and recomputes when shown after a change.
 
 ## Core: Γ equivalent circuit (`core/circuit.py`, `core/session.py`)
 

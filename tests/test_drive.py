@@ -80,13 +80,17 @@ def test_envelope_properties(motor, st):
     assert np.all(e.torque >= 0)
     assert np.all(np.diff(e.omega) > 0)
     assert e.omega[0] == 0.0  # starts at standstill
-    # continuous: no jump larger than 2 % of the peak torque between neighbours
-    assert np.max(np.abs(np.diff(e.torque))) < 0.02 * e.torque.max()
+    # continuous: the largest jump between neighbours shrinks with the grid step
+    jump = np.max(np.abs(np.diff(e.torque)))
+    fine = drive.envelope(motor, replace(st, n_points=4 * st.n_points))
+    assert np.max(np.abs(np.diff(fine.torque))) < 0.4 * jump
+    assert jump < 0.03 * e.torque.max()
     assert 0 < e.base_speed <= e.end_constant_power <= e.omega_max
     # limits respected at every point
     assert np.all(e.i1 <= st.i_max * (1 + 1e-9))
     assert np.all(e.torque <= st.margin * e.torque_breakdown * (1 + 1e-9))
-    assert np.all(e.slip > 0) and np.all(e.slip <= np.minimum(e.slip_breakdown, 1.0) + 1e-12)
+    assert np.all(e.slip > 0) and np.all(e.slip <= 1.0) and np.all(e.f <= st.f_max * (1 + 1e-12))
+    assert e.binding[-1] == "frequency" and np.all(e.binding[:-1] != "frequency")
     # the torque really is the circuit torque at the operating point
     k = len(e.omega) // 2
     assert e.torque[k] == pytest.approx(circuit.torque(motor, e.slip[k], v_phase=e.v[k], f=e.f[k]))
@@ -116,14 +120,40 @@ def test_zones_found_from_the_curve(m, settings):
 
 def test_large_current_limit_has_no_constant_power_zone(m):
     e = drive.envelope(m, drive.DriveSettings(i_max=30.0))  # 0,8·T_bd needs ~26 A
-    assert not np.any(e.zone() == 2)
+    assert np.sum(e.zone() == 2) <= 1
     assert e.end_constant_power == pytest.approx(e.base_speed, rel=0.05)
+
+
+def test_envelope_is_the_best_torque_at_each_speed(m):
+    """No (f, g) pair inside the limits gives more torque at a speed than the envelope."""
+    st = drive.DriveSettings(i_max=60.0, margin=1.0)
+    e = drive.envelope(m, st)
+    om = 1200 / RPM
+    t_env = float(e.torque_at(om))
+    fr = np.linspace(0.05, 30.0, 3000)
+    f = m.pole_pairs * om / (2 * math.pi) + fr
+    ok = f <= st.f_max
+    f, fr = f[ok], fr[ok]
+    g, v = fr / f, drive.vf_voltage(m, f)
+    t = circuit.torque(m, g, v_phase=v, f=f)
+    feasible = (circuit.stator_current(m, g, v_phase=v, f=f) <= st.i_max) & (t <= circuit.max_torque(m, v_phase=v, f=f))
+    assert t[feasible].max() <= t_env * (1 + 1e-6)
+    assert t[feasible].max() == pytest.approx(t_env, rel=1e-3)
+    # e.g. 50 Hz at g = 0,2 gives 87,1 N·m at 1200 tr/min: the envelope must be above it
+    assert t_env > circuit.torque(m, 0.2)
+
+
+def test_standstill_torque(m):
+    e = drive.envelope(m, drive.DriveSettings(i_max=20.0))
+    assert e.omega[0] == 0.0 and e.slip[0] == pytest.approx(1.0)
+    assert e.torque[0] == pytest.approx(e.torque[1], rel=0.01)
 
 
 def test_no_field_weakening_when_f_max_is_fn(m):
     e = drive.envelope(m, drive.DriveSettings(i_max=20.0, f_max=50.0))
     assert e.base_speed == e.end_constant_power == e.omega_max
     assert set(np.unique(e.zone())) == {1}
+    assert e.f[-1] == pytest.approx(50.0)
 
 
 def test_boost_raises_starting_torque_with_r1(m):

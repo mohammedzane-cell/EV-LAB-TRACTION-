@@ -4,21 +4,28 @@ The motor is the Session's MotorParams (identified in tab 1); nothing here
 invents a machine. For each stator frequency f:
   V(f) = V0 + (Vn − V0)·f/fn  for f ≤ fn   (V/f law, V0 = low-speed boost)
   V(f) = Vn                    for f > fn   (field weakening)
-every reactance scales with f (core.circuit), and the drive may use
-  T_avail(f) = min(T_I(f), margin·T_bd(f))
-where T_I is the torque at which the stator current reaches i_max on the
-stable branch (0 < g ≤ min(g_c, 1)), and T_bd is the breakdown torque at (V(f), f).
-The operating slip at T_avail gives the speed Ω = Ω_s(f)·(1 − g). At very low
-f the breakdown slip exceeds 1 (R1 dominates): the slip is then capped at 1
-(standstill) and only the strongest standstill point is kept, so the envelope
-starts at Ω = 0 with the starting torque.
+and every reactance scales with f (core.circuit).
+
+The envelope is computed per speed Ω. At fixed Ω the drive chooses the rotor
+frequency f_r (stator frequency f = p·Ω/2π + f_r, slip g = f_r/f). On the
+stable side of T(f_r) the torque, the current and the use of the breakdown
+torque all increase with f_r, so the available torque is T at the smallest of
+  f_r,peak     maximum of T(f_r) at this speed (the speed's own breakdown)
+  f_r,I        current reaches i_max
+  f_r,M        T reaches margin·T_bd(f), the breakdown torque at the stator frequency
+  f_max − pΩ/2π  frequency cap
+i.e. T_avail = min(current-limited torque, margin·breakdown torque), the
+torques being taken at the same speed. Solved for all speeds at once by a
+vectorised golden-section search (peak) and bisections. The envelope ends where
+the frequency cap starts to bind (stator frequency = f_max).
 
 The torques are electromagnetic (mechanical losses are handled by core.losses).
 Zone boundaries are read from the computed curve, not imposed. The log–log
 slope n = d ln T / d ln Ω is ≈ 0 at constant torque, ≈ −1 at constant power
-(current limit, field weakening) and ≈ −2 when the breakdown torque limits:
+(current limit, field weakening) and steeper when the breakdown limits:
   base speed            last speed before n drops below −0,5 (between the 0 and −1 laws)
-  end of constant power first speed where margin·T_bd < T_I (the breakdown limit binds)
+  end of constant power first speed above base where the breakdown limit binds
+                        (margin·T_bd or the speed's own torque peak)
 """
 
 from __future__ import annotations
@@ -32,9 +39,12 @@ from numpy.typing import ArrayLike, NDArray
 from evlab.core import circuit
 from evlab.core.session import MotorParams
 
-BISECTION_STEPS = 60  # slip bracket shrinks by 2^-60: below float resolution
+BISECTION_STEPS = 60  # bracket shrinks by 2^-60: below float resolution
+GOLDEN_STEPS = 60  # 0,618^60 ≈ 3e-13 of the bracket
+INV_PHI = (math.sqrt(5.0) - 1.0) / 2.0
+BINDING = ("current", "margin", "peak", "frequency")
 SLOPE_KNEE = -0.5  # d ln T / d ln Ω halfway between constant torque (0) and constant power (−1)
-F_MIN_RATIO = 0.01  # lowest stator frequency computed, × fn
+F_MIN_RATIO = 0.01  # lowest stator frequency used by the drive, × fn (A17)
 
 
 @dataclass(frozen=True)
@@ -46,7 +56,7 @@ class DriveSettings:
         boost: voltage at f → 0, V (phase); the law reaches Vn at fn.
         margin: usable fraction of the breakdown torque, in (0, 1].
         f_max: maximum stator frequency, Hz.
-        n_points: frequencies computed (geometric below fn, linear above).
+        n_points: speeds computed, from 0 to the synchronous speed at f_max.
     """
 
     i_max: float
@@ -96,8 +106,8 @@ def breakdown_torque(m: MotorParams, f: ArrayLike, boost: float = 0.0) -> float 
     return circuit.max_torque(m, v_phase=vf_voltage(m, f, boost), f=f)
 
 
-def _bisect_slip(fun, target: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
-    """Vectorised bisection for fun(g) = target on [lo, hi], fun increasing."""
+def _bisect(fun, target: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
+    """Vectorised bisection for fun(x) = target on [lo, hi], fun increasing, fun(lo) < target."""
     lo, hi = lo.copy(), hi.copy()
     for _ in range(BISECTION_STEPS):
         mid = 0.5 * (lo + hi)
@@ -105,6 +115,20 @@ def _bisect_slip(fun, target: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.
         lo = np.where(below, mid, lo)
         hi = np.where(below, hi, mid)
     return 0.5 * (lo + hi)
+
+
+def _golden_max(fun, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
+    """Vectorised golden-section search for the maximum of a unimodal fun on [lo, hi]."""
+    a, b = lo.copy(), hi.copy()
+    c, d = b - INV_PHI * (b - a), a + INV_PHI * (b - a)
+    fc, fd = fun(c), fun(d)
+    for _ in range(GOLDEN_STEPS):
+        left = fc > fd
+        a, b = np.where(left, a, c), np.where(left, d, b)
+        c_new, d_new = b - INV_PHI * (b - a), a + INV_PHI * (b - a)
+        c, d = np.where(left, c_new, d), np.where(left, c, d_new)
+        fc, fd = np.where(left, fun(c), fd), np.where(left, fc, fun(d))
+    return 0.5 * (a + b)
 
 
 @dataclass(frozen=True)
@@ -119,10 +143,12 @@ class Envelope:
         v: stator phase voltage, V.
         slip: operating slip at the available torque.
         i1: stator current at the available torque, A.
-        torque_current: current-limited torque T_I, N·m.
-        torque_breakdown: breakdown torque T_bd (without margin), N·m.
-        slip_breakdown: breakdown slip g_c at (V, f).
-        breakdown_binds: True where margin·T_bd < T_I (breakdown-limited).
+        torque_current: current-limited torque T_I at this speed, N·m (NaN where i_max is never reached).
+        torque_breakdown: breakdown torque T_bd at the operating stator frequency (no margin), N·m.
+        slip_breakdown: breakdown slip g_c at the operating stator frequency.
+        rotor_freq_peak: rotor frequency of the torque maximum at this speed, Hz.
+        binding: limit that sets the torque: "current", "margin", "peak" or "frequency".
+        breakdown_binds: True where the breakdown limits ("margin" or "peak").
         slope: log–log slope d ln T / d ln Ω (≈ 0, −1, −2 in zones 1, 2, 3; NaN at Ω = 0).
         base_speed: end of the constant-torque zone, rad/s.
         end_constant_power: start of the breakdown-limited zone, rad/s
@@ -140,6 +166,8 @@ class Envelope:
     torque_current: np.ndarray
     torque_breakdown: np.ndarray
     slip_breakdown: np.ndarray
+    rotor_freq_peak: np.ndarray
+    binding: np.ndarray
     breakdown_binds: np.ndarray
     slope: np.ndarray
     base_speed: float
@@ -166,13 +194,14 @@ class Envelope:
         z = np.full(self.omega.shape, 2)
         z[self.omega <= self.base_speed] = 1
         z[(self.omega > self.base_speed) & (self.omega >= self.end_constant_power) & self.breakdown_binds] = 3
+        if z.size > 1 and self.binding[-1] == "frequency":
+            z[-1] = z[-2]  # the end point (frequency cap) belongs to the zone it ends
         return z
 
     def torque_at(self, omega: ArrayLike) -> np.ndarray:
         """Available torque at given speeds (linear interpolation), N·m; NaN beyond the envelope."""
         om = np.asarray(omega, dtype=float)
-        t = np.interp(om, self.omega, self.torque, left=np.nan, right=np.nan)
-        return np.where((om >= 0) & (om < self.omega[0]), self.torque[0], t)
+        return np.interp(om, self.omega, self.torque, left=np.nan, right=np.nan)
 
 
 def envelope(m: MotorParams, settings: DriveSettings) -> Envelope:
@@ -183,56 +212,80 @@ def envelope(m: MotorParams, settings: DriveSettings) -> Envelope:
         settings: current limit, boost, margin, maximum frequency.
     """
     s = settings
-    f_knee = min(m.f_rated, s.f_max)
-    f = np.geomspace(F_MIN_RATIO * f_knee, f_knee, s.n_points // 2)
-    if s.f_max > m.f_rated:
-        f = np.concatenate([f, np.linspace(m.f_rated, s.f_max, s.n_points - s.n_points // 2)])
-    f = np.unique(f)
-    v = vf_voltage(m, f, s.boost)
-    g_c = np.asarray(circuit.breakdown_slip(m, f=f))
-    t_bd = np.asarray(circuit.max_torque(m, v_phase=v, f=f))
+    p = m.pole_pairs
+    omega_sync_max = 2.0 * math.pi * s.f_max / p
+    om = np.linspace(0.0, omega_sync_max, s.n_points + 1)[:-1]
+    f_mech = p * om / (2.0 * math.pi)
 
-    i0 = np.asarray(circuit.stator_current(m, 0.0 * f, v_phase=v, f=f))
+    # rotor-frequency bracket: past the torque peak at every speed, below the frequency cap
+    f_scan = np.linspace(s.f_max / 200.0, s.f_max, 200)
+    fr_scan = float(np.max(np.minimum(np.asarray(circuit.breakdown_slip(m, f=f_scan)), 1.0) * f_scan))
+    cap = s.f_max - f_mech
+    hi = np.minimum(1.5 * fr_scan, cap)
+    lo = np.maximum(F_MIN_RATIO * m.f_rated - f_mech, 1e-9 * fr_scan)  # stator frequency >= f_min
+
+    def state(fr: np.ndarray):
+        f = f_mech + fr
+        return fr / f, vf_voltage(m, f, s.boost), f
+
+    def torque(fr: np.ndarray) -> np.ndarray:
+        g, v, f = state(fr)
+        return np.asarray(circuit.torque(m, g, v_phase=v, f=f))
+
+    def current(fr: np.ndarray) -> np.ndarray:
+        g, v, f = state(fr)
+        return np.asarray(circuit.stator_current(m, g, v_phase=v, f=f))
+
+    def margin_use(fr: np.ndarray) -> np.ndarray:
+        g, v, f = state(fr)
+        return torque(fr) - s.margin * np.asarray(circuit.max_torque(m, v_phase=v, f=f))
+
+    _, v0, f0 = state(lo)
+    i0 = np.asarray(circuit.stator_current(m, 0.0 * om, v_phase=v0, f=np.maximum(f0, 1e-9)))
     if np.any(i0 >= s.i_max):
         k = int(np.argmax(i0 >= s.i_max))
         raise ValueError(
-            f"no-load current {i0[k]:.2f} A at f = {f[k]:.2f} Hz reaches i_max = {s.i_max} A: "
+            f"no-load current {i0[k]:.2f} A at f = {f0[k]:.2f} Hz reaches i_max = {s.i_max} A: "
             "raise the current limit or lower the boost"
         )
 
-    def current(g: np.ndarray) -> np.ndarray:
-        return np.asarray(circuit.stator_current(m, g, v_phase=v, f=f))
+    fr_peak = _golden_max(torque, lo, hi)
+    i_peak = current(fr_peak)
+    fr_i = np.where(i_peak <= s.i_max, fr_peak, _bisect(current, np.full_like(om, s.i_max), lo, fr_peak))
+    m_peak = margin_use(fr_peak)
+    fr_m = np.where(m_peak <= 0, fr_peak, _bisect(margin_use, np.zeros_like(om), lo, fr_peak))
+    candidates = np.vstack([fr_i, fr_m, fr_peak, cap])
+    fr_op = candidates.min(axis=0)
+    binding = np.array(BINDING)[np.argmin(np.vstack([fr_i, fr_m, fr_peak + 1e-12 * fr_scan, cap]), axis=0)]
+    # a limit that coincides with the peak is reported as the peak
+    binding = np.where((binding != "frequency") & np.isclose(fr_op, fr_peak, rtol=1e-9), "peak", binding)
+    binding = np.where(np.isclose(fr_op, cap, rtol=1e-12), "frequency", binding)
 
-    def torque(g: np.ndarray) -> np.ndarray:
-        return np.asarray(circuit.torque(m, g, v_phase=v, f=f))
+    # the envelope ends where the stator frequency reaches f_max
+    capped = np.nonzero(binding == "frequency")[0]
+    end = int(capped[0]) + 1 if capped.size else om.size
+    sl = slice(0, end)
+    g_op, v_op, f_op = (a[sl] for a in state(fr_op))
+    t_op = torque(fr_op)[sl]
+    om = om[sl]
+    t_i = np.where(i_peak[sl] <= s.i_max, np.nan, torque(fr_i)[sl])
+    t_bd = np.asarray(circuit.max_torque(m, v_phase=v_op, f=f_op))
+    g_c = np.asarray(circuit.breakdown_slip(m, f=f_op))
+    binding = binding[sl]
+    breakdown_binds = (binding == "margin") | (binding == "peak")
 
-    zero = np.zeros_like(f)
-    g_hi = np.minimum(g_c, 1.0)  # stable branch, speed >= 0
-    i_hi = current(g_hi)
-    g_i = np.where(i_hi <= s.i_max, g_hi, _bisect_slip(current, np.full_like(f, s.i_max), zero, g_hi))
-    t_i = torque(g_i)
-    t_avail = np.minimum(t_i, s.margin * t_bd)
-    breakdown_binds = s.margin * t_bd < t_i
-    g_op = _bisect_slip(torque, t_avail, zero, g_hi)
-    omega = np.asarray(circuit.mechanical_speed(m, g_op, f=f))
-    # standstill (g = 1) can be reached at several low frequencies: keep the strongest
-    standstill = g_op >= 1.0 - 1e-9
-    keep = ~standstill
-    if standstill.any():
-        keep[np.nonzero(standstill)[0][np.argmax(torque(g_op)[standstill])]] = True
-        omega = np.where(standstill, 0.0, omega)
-    order = np.nonzero(keep)[0][np.argsort(omega[keep])]
-    arr = {k: a[order] for k, a in dict(
-        omega=omega, torque=torque(g_op), f=f, v=v, slip=g_op, i1=current(g_op),
-        torque_current=t_i, torque_breakdown=t_bd, slip_breakdown=g_c, breakdown_binds=breakdown_binds,
-    ).items()}
-    t, om = arr["torque"], arr["omega"]
     slope = np.full(om.shape, np.nan)
     pos = om > 0
     if pos.sum() >= 3:
-        slope[pos] = np.gradient(np.log(t[pos]), np.log(om[pos]))
-    knee = np.nonzero(pos & (slope < SLOPE_KNEE))[0]
+        slope[pos] = np.gradient(np.log(np.maximum(t_op[pos], 1e-300)), np.log(om[pos]))
+    knee = np.nonzero(pos & (slope < SLOPE_KNEE) & (binding != "frequency"))[0]
     base = float(om[knee[0] - 1]) if knee.size and knee[0] > 0 else float(om[-1])
-    above = (om > base) & arr["breakdown_binds"]
+    above = (om > base) & breakdown_binds
     end_cp = float(om[np.argmax(above)]) if above.any() else float(om[-1])
-    return Envelope(power=t * om, slope=slope, base_speed=base, end_constant_power=end_cp, settings=s, **arr)
+    return Envelope(
+        omega=om, torque=t_op, power=t_op * om, f=f_op, v=v_op, slip=g_op,
+        i1=np.asarray(circuit.stator_current(m, g_op, v_phase=v_op, f=f_op)),
+        torque_current=t_i, torque_breakdown=t_bd, slip_breakdown=g_c,
+        rotor_freq_peak=fr_peak[sl], binding=binding, breakdown_binds=breakdown_binds,
+        slope=slope, base_speed=base, end_constant_power=end_cp, settings=s,
+    )

@@ -611,3 +611,9 @@ def test_identified_motor_carries_p_mech():
     assert rep.motor.p_mech == rep.p_mech == pytest.approx(60.0, rel=0.01)
     res = ident.compare_methods(make_records(CASE_B), "fit", points=make_load_points(CASE_B.motor, p_mech=60.0))
     assert res.published.p_mech == rep.p_mech
+
+
+def test_identified_motor_carries_r1_temperature():
+    rep = ident.run_identification(make_records(CASE_B))
+    assert rep.motor.r1_temperature_k == pytest.approx(T_HOT)
+    assert ident.run_identification(make_records(CASE_A)).motor.r1_temperature_k is None

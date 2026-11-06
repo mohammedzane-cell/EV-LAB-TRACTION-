@@ -6,6 +6,11 @@ from typing import Any, Callable
 
 from PySide6.QtCore import QObject, QRunnable, Signal
 
+# Workers still running. A tab may drop its reference when it starts a new
+# computation; without this set the Python-side signals object could be
+# garbage-collected while the pool thread still emits from it.
+_RUNNING: set["CoreWorker"] = set()
+
 
 class WorkerSignals(QObject):
     """Signals of a CoreWorker; created on the GUI thread, emitted from the worker thread."""
@@ -26,13 +31,17 @@ class CoreWorker(QRunnable):
         super().__init__()
         self.fn, self.args, self.kwargs = fn, args, kwargs
         self.signals = WorkerSignals()
+        _RUNNING.add(self)
 
     def run(self) -> None:
         try:
-            result = self.fn(*self.args, progress=self.signals.progress.emit, **self.kwargs)
-        except ValueError as exc:
-            self.signals.failed.emit(str(exc))
-        except Exception as exc:  # noqa: BLE001 - report, never hang the GUI
-            self.signals.failed.emit(f"erreur interne ({type(exc).__name__}) : {exc}")
-        else:
-            self.signals.finished.emit(result)
+            try:
+                result = self.fn(*self.args, progress=self.signals.progress.emit, **self.kwargs)
+            except ValueError as exc:
+                self.signals.failed.emit(str(exc))
+            except Exception as exc:  # noqa: BLE001 - report, never hang the GUI
+                self.signals.failed.emit(f"erreur interne ({type(exc).__name__}) : {exc}")
+            else:
+                self.signals.finished.emit(result)
+        finally:
+            _RUNNING.discard(self)
