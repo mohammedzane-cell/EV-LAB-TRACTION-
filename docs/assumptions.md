@@ -9,3 +9,8 @@ TP measurement does not give. Each has its value and its reason.
 | A2 | circuit | Under V/f the reactances scale with f/f_n; R1, R'2, Rf stay constant | — | Reactance = L·ω with L fixed by the circuit. Rf frequency dependence is not measured; refined in `losses.py` if TP data allow. |
 | A3 | circuit | Stator copper loss is 3·R1·I1²; iron loss is 3·E²/Rf with E = V − R1·I1 | — | Consequence of A1. |
 | A4 | circuit | Copper zero-resistance temperature 234.5 °C, reference 20 °C | 234,5 °C / 20 °C | Standard annealed copper value (course formula). |
+| A5 | identification | DC test measured between two line terminals of the star winding: R1 = U_dc / (2·I_dc) | — | Star connection convention (CLAUDE.md). A delta-connected motor needs its own formula. |
+| A6 | identification | The no-load test is done at rated voltage and frequency; they become V and f of the identified MotorParams | — | Rf and Xm depend on the flux level; the no-load test sets that level. |
+| A7 | identification | `dc=None` means R1 = 0 | 0 Ω | TD5 Ex 1 hypothesis R1 ≈ 0. Used only when there is no DC test. |
+| A8 | identification | Mechanical losses constant near synchronous speed, iron losses ∝ V²: p_mec = intercept of P0' vs V0² | — | Classical TP3 separation. With R1 ≠ 0, P_fe ∝ E² (not V0²), so the intercept carries a small bias. |
+| A9 | identification | "Classical" locked-rotor test neglects the magnetising branch | — | Course formula. On TD5 it underestimates R'2 (1,74 vs 2 Ω) and X (3,69 vs 4 Ω), giving g_c = 0,47 and T_max = 136,8 N·m. The "exact" method (default) and the fit remove this error. |

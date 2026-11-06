@@ -45,4 +45,16 @@ X = 4 Ω, R'2 = 2 Ω, R1 = 0).
 - `operating_point` — E, I1, I'2, Ife, Iµ, cos φ, P_in, Q_in, P_cu1, P_fe, P_gap, P_cu2, P_mech (g = 0 allowed: ideal no-load)
 - `copper_resistance` — R(T) = R20·(234,5 + T)/254,5
 
+## Core: identification (`core/identification.py`)
+
+From the TP3 / TD5 tests (per phase, star, three-phase powers):
+
+- `DcTest`, `NoLoadTest`, `LockedRotorTest`, `LoadPoint` — validated measurement records
+- `r1_from_dc` — R1 = U_dc / (2·I_dc)
+- `mechanical_losses` — p_mec from the P0' = P0 − 3·R1·I0² vs V0² extrapolation
+- `no_load_branch` — Rf, Xm (P_fe = P0 − 3·R1·I0² − p_mec)
+- `locked_rotor` — R'2, X; `classical` neglects the magnetising branch, `exact` removes it
+- `identify` — the three tests → `MotorParams`
+- `fit_circuit` — least-squares fit of R'2, X, Xm, Rf on measured (V, f, g, I1, P1) points
+
 Modelling assumptions are listed in `docs/assumptions.md`.

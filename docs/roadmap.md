@@ -5,7 +5,8 @@ One stage = one commit (see Definition of done in CLAUDE.md).
 | Stage | Content | Status |
 |-------|---------|--------|
 | 0 | Scaffold, `core/session.py` (MotorParams, TD5 Ex 1), `core/circuit.py` (Γ circuit: I'2, T, g_c, T_max, power balance, R(T)), architecture guard tests | done |
-| 1 | `core/identification.py`: no-load / locked-rotor / DC tests → Γ circuit (classical formulas + least-squares fit) | |
+| 0b | TP3 circuit layout (R1 in series, Thévenin breakdown) | done |
+| 1 | `core/identification.py`: no-load / locked-rotor / DC tests → Γ circuit (classical formulas + least-squares fit) | done (core) |
 | 2 | GUI shell (PySide6 main window, Session, tab 1 Identification) | |
 | 3 | `core/drive.py`: V/f + field-weakening envelope; tab 2 | |
 | 4 | `core/losses.py`: efficiency map η(T, ω); tab 3 | |
