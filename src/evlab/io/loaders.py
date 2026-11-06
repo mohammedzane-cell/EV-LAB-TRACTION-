@@ -202,6 +202,45 @@ def load_load_points(path: str | Path) -> LoadPointsFile:
     return LoadPointsFile(tuple(pts), _is_demo(path), str(path), meta)
 
 
+@dataclass(frozen=True)
+class Nameplate:
+    """Nameplate values found in a file's "# plaque.*" lines (SI; None when absent)."""
+
+    v_phase: float | None  # V
+    f: float | None  # Hz
+    pole_pairs: int | None
+    rated_speed: float | None  # rad/s
+
+
+PLATE_KEYS = {
+    "v_phase": "plaque.tension_simple [V]",
+    "f": "plaque.frequence [Hz]",
+    "pole_pairs": "plaque.paires_de_poles",
+    "rated_speed": "plaque.vitesse_nominale [tr/min]",
+}
+
+
+def nameplate(meta: dict[str, str]) -> Nameplate:
+    """Nameplate from metadata; the rated speed is converted from tr/min to rad/s here."""
+    vals: dict[str, float | int | None] = {}
+    for field_name, key in PLATE_KEYS.items():
+        raw = meta.get(key)
+        if raw is None:
+            vals[field_name] = None
+            continue
+        try:
+            x = float(raw)
+        except ValueError:
+            raise LoaderError(f"plaque signalétique : « {raw} » n'est pas un nombre ({key})") from None
+        if field_name == "pole_pairs":
+            vals[field_name] = int(x)
+        elif field_name == "rated_speed":
+            vals[field_name] = x * 2.0 * math.pi / 60.0
+        else:
+            vals[field_name] = x
+    return Nameplate(**vals)
+
+
 def reference_motor(meta: dict[str, str]) -> MotorParams | None:
     """Reference circuit stored in a demo file's metadata ("# reference.<field>: value"), if any."""
     keys = ("v_phase", "f_rated", "pole_pairs", "r1", "r2p", "x_leak", "x_m", "r_fe")

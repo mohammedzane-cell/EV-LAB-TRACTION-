@@ -32,7 +32,7 @@ from __future__ import annotations
 import math
 import warnings
 from dataclasses import dataclass, replace
-from typing import Literal, Sequence
+from typing import Callable, Literal, Sequence
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -90,6 +90,12 @@ class DcTest:
         _pos("v_dc", self.v_dc)
         _pos("i_dc", self.i_dc)
         _pos("temperature_k", self.temperature_k)
+
+    @classmethod
+    def from_resistance(cls, r1: float, temperature_k: float) -> "DcTest":
+        """DC test equivalent to a known phase resistance R1 (Ω) at temperature_k (K): 1 A, U = 2·R1·1 A."""
+        _pos("r1", r1)
+        return cls(v_dc=2.0 * r1, i_dc=1.0, temperature_k=temperature_k)
 
 
 @dataclass(frozen=True)
@@ -733,3 +739,92 @@ def fit_load_points(
         multistart=tuple(StartResult(tuple(th.tolist()), tuple(s.x.tolist()), float(s.cost)) for s, th in runs),
         n_converged=n_conv,
     )
+
+
+# --- comparison of the methods (tab 1) ----------------------------------------------
+
+CompareMethod = Literal["classical", "fit", "both"]
+COMPARED_PARAMS = ("r_fe", "x_m", "x_leak", "r2p")
+
+
+def relative_error(value: float, reference: float | None) -> float | None:
+    """Error in % of a value against its reference, 100·(value − ref)/ref; None without a reference."""
+    if reference is None or reference == 0:
+        return None
+    return 100.0 * (value - reference) / reference
+
+
+@dataclass(frozen=True)
+class MethodComparison:
+    """Classical and/or load-fit identification of the same bench data, against a reference.
+
+    Attributes:
+        reference: circuit that generated the data (demo files), or None.
+        classical: classical chain (always computed: it is also the start of the fit).
+        fit: load-point fit, or None when the method is "classical".
+        shown: methods the user asked for, in display order ("classical", "fit").
+        published: motor to publish to the Session (the fit when there is one).
+        errors: error % per shown method and parameter (None without a reference).
+    """
+
+    reference: MotorParams | None
+    classical: IdentificationReport
+    fit: LoadFitResult | None
+    shown: tuple[str, ...]
+    published: MotorParams
+    errors: dict[str, dict[str, float | None]]
+
+    def motor(self, row: str) -> MotorParams:
+        """Identified circuit of a method ("classical" or "fit")."""
+        if row == "classical":
+            return self.classical.motor
+        if row == "fit" and self.fit is not None:
+            return self.fit.motor
+        raise ValueError(f"no result for method {row!r}")
+
+
+def compare_methods(
+    records: TestRecords,
+    method: CompareMethod,
+    points: Sequence[LoadTestPoint] | None = None,
+    layout: Layout = "tp3",
+    reference: MotorParams | None = None,
+    is_demo: bool = False,
+    source: str = "TP3",
+    progress: Callable[[str], None] | None = None,
+) -> MethodComparison:
+    """Run the classical chain, then the load fit if asked, and compare both to the reference.
+
+    Args:
+        records: bench tests.
+        method: "classical", "fit" (load-point fit started from the classical result) or "both".
+        points: load-test points, required for "fit" and "both".
+        layout: circuit layout.
+        reference: circuit that generated the data, if known (demo files).
+        is_demo: True if the data are demo data; carried by the published motor.
+        source: label of the identified motors.
+        progress: called with "classical" then "fit" when each step starts.
+    """
+    if method not in ("classical", "fit", "both"):
+        raise ValueError(f"method must be 'classical', 'fit' or 'both', got {method!r}")
+    if method != "classical" and not points:
+        raise ValueError("the load fit needs load-test points")
+    if progress:
+        progress("classical")
+    rep = run_identification(records, method="classical", layout=layout,
+                             source=f"{source} · formules classiques", is_demo=is_demo)
+    fit = None
+    if method != "classical":
+        if progress:
+            progress("fit")
+        fit = fit_load_points(points, rep.motor, p_mech=rep.p_mech)
+        fit = replace(fit, motor=replace(fit.motor, source=f"{source} · optimisation", is_demo=is_demo))
+    shown = {"classical": ("classical",), "fit": ("fit",), "both": ("classical", "fit")}[method]
+    published = fit.motor if fit is not None else rep.motor
+    motors = {"classical": rep.motor, "fit": fit.motor if fit else None}
+    errors = {
+        row: {n: relative_error(getattr(motors[row], n), getattr(reference, n) if reference else None)
+              for n in COMPARED_PARAMS}
+        for row in shown
+    }
+    return MethodComparison(reference, rep, fit, shown, published, errors)

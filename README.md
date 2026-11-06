@@ -53,6 +53,23 @@ docs/             roadmap, assumptions, data notes (course PDFs local only)
 data/             input files (*_demo.csv for demo data)
 ```
 
+## Tab 1 · Identification (`gui/tab_identification.py`)
+
+Left panel: **Machine** (V, f, p, R1 and its temperature, layout TP3 / Bornes;
+rated speed read from the file's nameplate), **Essais (CSV)** (bench tests and
+load points, each with a status line and a preview; "Charger la démo" loads the
+two `data/*_demo.csv` files), **Méthode** (Formules classiques, Optimisation,
+Comparer les deux), then **Identifier** (and Exporter PDF, disabled until
+stage 9). Right: torque–slip and current–slip plots (model curves from the
+core, measured points, breakdown point; chip "points synthétiques (démo)"), and
+the table Référence / Formules classiques / Optimisation with error % and the
+95 % interval of the fit as tooltip.
+
+**Identifier** runs `core.identification.compare_methods` in a `QThreadPool`
+worker; progress and any identifiability warning appear in the status bar. The
+identified motor is published to the `Session`, so tabs 2 to 7 use it
+(classical result, or the fit when there is one). Layout: `docs/mockup_tab1.png`.
+
 ## Core: Γ equivalent circuit (`core/circuit.py`, `core/session.py`)
 
 `MotorParams` is the single per-phase Γ circuit shared through a `Session`

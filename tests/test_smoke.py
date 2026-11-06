@@ -8,7 +8,7 @@ CORE = ["session", "circuit", "identification", "drive", "losses",
         "vehicle", "thermal", "winding", "optimise"]
 IO = ["loaders", "demo_data", "report_pdf", "export_excel"]
 GUI = ["main_window", "tab_identification", "tab_envelope", "tab_efficiency",
-       "tab_vehicle", "tab_thermal", "tab_winding", "tab_optimisation"]
+       "tab_vehicle", "tab_thermal", "tab_winding", "tab_optimisation", "format", "workers"]
 
 TAB_TITLES = [
     "1 · Identification",
@@ -44,7 +44,7 @@ def test_main_window_opens_with_seven_tabs(qtbot):
     qtbot.addWidget(win)
     win.show()
     qtbot.waitExposed(win)
-    assert win.windowTitle() == "EV-Traction Lab"
+    assert win.windowTitle() == "EV-Traction Lab : Laboratoire virtuel de traction (ME3)"
     assert win.tabs.count() == 7
     # Qt stores '&&' for a literal '&' (a single '&' would be hidden as a shortcut marker)
     labels = [win.tabs.tabText(i) for i in range(win.tabs.count())]

@@ -35,6 +35,7 @@ NOISE = 0.025
 SEED = 2026
 NO_LOAD_FRACTIONS = (0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1)
 LOCKED_FRACTION = 0.25
+RATED_SPEED_RPM = 1350.0  # TD5 Ex 1 nameplate
 LOAD_SLIPS = tuple(float(g) for g in np.round(np.linspace(0.02, 0.40, 12), 4))
 
 BENCH_FILE = "bench_tests_demo.csv"
@@ -66,6 +67,10 @@ def _header(spec: DemoSpec, what: str) -> list[str]:
     return [
         f"# démo: {what}, généré par evlab.io.demo_data depuis le circuit de référence",
         f"# bruit: {spec.noise} (relatif, gaussien), graine: {spec.seed}",
+        f"# plaque.tension_simple [V]: {m.v_phase:g}",
+        f"# plaque.frequence [Hz]: {m.f_rated:g}",
+        f"# plaque.paires_de_poles: {m.pole_pairs}",
+        f"# plaque.vitesse_nominale [tr/min]: {RATED_SPEED_RPM:g}",
         f"# reference.source: {m.source}",
         f"# reference.v_phase: {m.v_phase}",
         f"# reference.f_rated: {m.f_rated}",

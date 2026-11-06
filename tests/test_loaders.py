@@ -136,3 +136,15 @@ def test_missing_file():
 
 def test_loader_error_is_a_value_error():
     assert issubclass(LoaderError, ValueError)
+
+
+def test_nameplate_from_demo_file():
+    from evlab.io.loaders import nameplate
+
+    plate = nameplate(load_bench_tests(BENCH).meta)
+    assert plate.v_phase == 230.0 and plate.f == 50.0 and plate.pole_pairs == 2
+    assert plate.rated_speed == pytest.approx(1350 * 2 * math.pi / 60)  # tr/min -> rad/s at the edge
+    empty = nameplate({})
+    assert empty.v_phase is None and empty.rated_speed is None
+    with pytest.raises(LoaderError, match="plaque"):
+        nameplate({"plaque.paires_de_poles": "deux"})

@@ -1,5 +1,9 @@
 # démo: essais DC, à vide, rotor bloqué, généré par evlab.io.demo_data depuis le circuit de référence
 # bruit: 0.025 (relatif, gaussien), graine: 2026
+# plaque.tension_simple [V]: 230
+# plaque.frequence [Hz]: 50
+# plaque.paires_de_poles: 2
+# plaque.vitesse_nominale [tr/min]: 1350
 # reference.source: TD5 Ex 1 + R1 (démo)
 # reference.v_phase: 230.0
 # reference.f_rated: 50.0

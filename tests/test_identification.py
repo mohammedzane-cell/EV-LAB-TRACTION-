@@ -548,3 +548,59 @@ def test_load_fit_validation():
         ident.LoadTestPoint(slip=0.05, i_line=0.0, torque=40.0, power_factor=0.8, v_phase=230, f=50)
     with pytest.raises(ValueError, match="slip"):
         ident.LoadTestPoint(slip=math.nan, i_line=1.0, torque=40.0, power_factor=0.8, v_phase=230, f=50)
+
+
+# --- helpers for tab 1: R1 from the Machine fields, errors, method comparison -------
+
+def test_dc_test_from_resistance():
+    dc = ident.DcTest.from_resistance(0.42, 293.15)
+    assert ident.r1_from_dc(dc) == pytest.approx(0.42)
+    assert dc.temperature_k == 293.15
+    with pytest.raises(ValueError):
+        ident.DcTest.from_resistance(0.0, 293.15)
+
+
+def test_relative_error():
+    assert ident.relative_error(2.1, 2.0) == pytest.approx(5.0)
+    assert ident.relative_error(1.9, 2.0) == pytest.approx(-5.0)
+    assert ident.relative_error(1.0, 0.0) is None
+    assert ident.relative_error(1.0, None) is None
+
+
+@pytest.mark.parametrize("method, rows, published", [
+    ("classical", ("classical",), "classical"),
+    ("fit", ("fit",), "fit"),
+    ("both", ("classical", "fit"), "fit"),
+])
+def test_compare_methods(method, rows, published):
+    rec = make_records(CASE_B, noise=0.025, seed=SEED_LOAD)
+    pts = make_load_points(CASE_B.motor, noise=0.025, seed=SEED_LOAD, p_mech=CASE_B.p_mech)
+    stages = []
+    res = ident.compare_methods(rec, method, points=pts, reference=CASE_B.motor, is_demo=True,
+                                progress=stages.append)
+    assert res.shown == rows
+    classical = ident.run_identification(rec, method="classical")
+    assert res.classical.motor.r2p == classical.motor.r2p
+    if "fit" in rows:
+        fit = ident.fit_load_points(pts, classical.motor, p_mech=classical.p_mech)
+        assert res.fit.motor.r2p == fit.motor.r2p
+        assert stages == ["classical", "fit"]
+    else:
+        assert res.fit is None and stages == ["classical"]
+    pub = res.fit.motor if published == "fit" else res.classical.motor
+    for n in ("r1", "r_fe", "x_m", "x_leak", "r2p"):
+        assert getattr(res.published, n) == getattr(pub, n)
+    assert res.published.is_demo
+    for row in rows:
+        motor = res.motor(row)
+        assert res.errors[row]["r2p"] == pytest.approx(ident.relative_error(motor.r2p, 2.0))
+
+
+def test_compare_methods_validation():
+    rec = make_records(CASE_A)
+    with pytest.raises(ValueError, match="points"):
+        ident.compare_methods(rec, "fit", points=None)
+    with pytest.raises(ValueError, match="method"):
+        ident.compare_methods(rec, "magic")
+    res = ident.compare_methods(rec, "classical")
+    assert res.reference is None and res.errors["classical"]["r2p"] is None
