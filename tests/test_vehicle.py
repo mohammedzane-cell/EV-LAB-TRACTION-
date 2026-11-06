@@ -192,3 +192,28 @@ def test_validation():
         Cycle(t=np.array([0.0, 0.0]), v=np.array([0.0, 1.0]), name="x", is_demo=False)
     with pytest.raises(ValueError, match="pmr"):
         vehicle.wltc_class(-1.0)
+
+
+# --- acceleration ---------------------------------------------------------------
+
+def test_acceleration_time_constant_force(motor, env):
+    """Without drag, t = ∫ m dv / (F(v) − F_roll) lies between m·v/(F_max − F_roll) and m·v/(F_min − F_roll)."""
+    veh = replace(vehicle.demo_quadricycle(gear_ratio=3.5), cx_s=1e-9)
+    v = 20 * KMH
+    w_end = veh.gear_ratio * v / veh.wheel_radius
+    assert w_end < env.base_speed  # constant-torque zone
+    lim = losses.shaft_torque_limit(motor, env, LOSS)
+    sel = env.omega <= w_end
+    t = vehicle.acceleration_time(veh, motor, env, LOSS, v)
+    f_roll = veh.crr * veh.mass * vehicle.G_EARTH
+    # bounds from the min and max torque over the speed range
+    f_lo = lim[sel].min() * veh.gear_ratio * veh.gear_efficiency / veh.wheel_radius - f_roll
+    f_hi = lim[sel].max() * veh.gear_ratio * veh.gear_efficiency / veh.wheel_radius - f_roll
+    assert veh.mass * v / f_hi <= t <= veh.mass * v / f_lo
+    # and the quadrature converges
+    assert vehicle.acceleration_time(veh, motor, env, LOSS, v, n=4000) == pytest.approx(t, rel=1e-3)
+
+
+def test_acceleration_time_unreachable(motor, env):
+    veh = vehicle.demo_quadricycle(gear_ratio=12.0)  # top speed below 50 km/h
+    assert vehicle.acceleration_time(veh, motor, env, LOSS, 50 * KMH) == math.inf

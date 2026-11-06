@@ -152,6 +152,23 @@ The tab shows the slot strip (labels and colours), the kw table for y = τ and
 the chosen y, the MMF spectrum, the EMF, and the animated air-gap MMF with its
 fundamental for y = τ and y side by side (play/pause, speed slider).
 
+## Tab 7 · Optimisation (`core/optimise.py`, `gui/tab_optimisation.py`)
+
+Design variables: gear ratio G, V/f boost, field-weakening margin and a
+rewinding factor k_N (turns × k_N at the same copper area: every impedance
+× k_N², rated voltage fixed). Each evaluation chains only the tested models
+(envelope, 40 × 30 loss map, cycle simulation, 0–50 km/h, thermal model) and
+returns Wh/km, the 0–50 km/h time and the constraints: every cycle point inside
+the envelope, winding T max ≤ class limit − 20 K, stator current ≤ inverter limit.
+`scipy.optimize.differential_evolution` (seeded, process pool) with an
+ε-constraint sweep traces the Pareto front; every evaluation is logged (A31).
+
+The tab takes the bounds of each variable (min = max fixes it) and the budget,
+runs in a worker with progress and cancel, plots the front with the baseline
+and every admissible evaluation, and shows baseline vs the selected design with
+the gain in % per KPI. "Charger ce design" loads the rewound motor, the V/f
+law and the gear ratio into every tab.
+
 ## Core: Γ equivalent circuit (`core/circuit.py`, `core/session.py`)
 
 `MotorParams` is the single per-phase Γ circuit shared through a `Session`

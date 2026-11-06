@@ -75,7 +75,38 @@ class MainWindow(QMainWindow):
         th_tab = self.tabs.widget(4)
         if hasattr(th_tab, "on_cycle") and hasattr(veh_tab, "simulation_done"):
             veh_tab.simulation_done.connect(th_tab.on_cycle)
+        # tab 7: the optimisation problem is assembled from tabs 1–5; a chosen design goes back to them
+        opt_tab = self.tabs.widget(6)
+        if hasattr(opt_tab, "problem_provider"):
+            opt_tab.problem_provider = self.optimisation_problem
+            opt_tab.load_design.connect(self.load_design)
         self.refresh_status()
+
+    def optimisation_problem(self):
+        """core.optimise.Problem from the current state of tabs 1 to 5 (raises ValueError)."""
+        from evlab.core import optimise
+
+        env_tab, eff_tab, veh_tab, th_tab = (self.tabs.widget(i) for i in (1, 2, 3, 4))
+        if getattr(veh_tab, "result", None) is None:
+            raise ValueError("simulez d'abord le cycle dans l'onglet 4 · Véhicule & WLTC")
+        _sizing, _res, cycle, _emap = veh_tab.result
+        return optimise.Problem(
+            motor=self.session.motor, drive=env_tab.settings(), loss_settings=eff_tab.settings(),
+            vehicle=veh_tab.vehicle(), cycle=cycle, thermal=th_tab.params(),
+            insulation_class=th_tab.combo_class.currentData(), n_thermal_cycles=th_tab.spin_cycles.value(),
+        )
+
+    def load_design(self, base_motor, design) -> None:
+        """Load an optimised design into every tab: rewound motor, V/f law of tab 2, gear ratio of tab 4."""
+        from evlab.core import optimise
+
+        env_tab, veh_tab = self.tabs.widget(1), self.tabs.widget(3)
+        motor = optimise.rewound(base_motor, design.k_n)
+        env_tab.spin_boost.setValue(design.boost)
+        env_tab.spin_margin.setValue(100.0 * design.margin)
+        veh_tab.spin_g.setValue(design.gear_ratio)  # kept as the user's ratio, not re-proposed
+        self.session.set_motor(motor)
+        self._on_motor_published(motor)
 
     def _status_from(self, tab, message: str) -> None:
         """Show a tab's message only if that tab is visible (background recomputes stay quiet)."""

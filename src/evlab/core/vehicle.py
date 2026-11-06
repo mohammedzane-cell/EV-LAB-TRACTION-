@@ -229,7 +229,7 @@ class LossTable:
     def __init__(self, emap: losses.EfficiencyMap, term: str = "total") -> None:
         if term == "total":
             loss = emap.p_in - emap.p_out
-        elif term in ("p_cu1", "p_cu2", "p_fe", "p_mech", "p_inv"):
+        elif term in ("p_cu1", "p_cu2", "p_fe", "p_mech", "p_inv", "i1"):
             loss = getattr(emap, term)
         else:
             raise ValueError(f"unknown loss term {term!r}")
@@ -256,6 +256,32 @@ class LossTable:
         t = np.clip(np.abs(np.asarray(torque, dtype=float)), self.torque[0], self.torque[-1])
         w = np.clip(np.asarray(omega, dtype=float), self.speed[0], self.speed[-1])
         return self._f(np.stack([t, w], axis=-1))
+
+
+def acceleration_time(veh: Vehicle, m: MotorParams, env: drive.Envelope, st: losses.LossSettings,
+                      v_target: float, n: int = 400) -> float:
+    """Time from standstill to v_target at full torque on a flat road, s (inf if unreachable).
+
+    t = ∫₀^v m·dv / (F_max(v) − F_res(v)), with F_max = T_shaft,max(ωm)·G·ηg/r from the
+    envelope and F_res = ½ρCxS·v² + Crr·m·g·cosθ + m·g·sinθ; midpoint rule on n speed steps.
+    Rotating inertia is not included (A30).
+
+    Args:
+        veh: vehicle.  m: motor.  env: drive envelope.  st: loss settings (shaft limit).
+        v_target: target speed, m/s (> 0).  n: integration steps.
+    """
+    _pos("v_target", v_target)
+    v = (np.arange(n) + 0.5) * v_target / n
+    omega = veh.gear_ratio * v / veh.wheel_radius
+    t_lim = np.interp(omega, env.omega, losses.shaft_torque_limit(m, env, st), right=0.0)
+    t_lim = np.where(omega > env.omega_max, 0.0, t_lim)
+    f_max = t_lim * veh.gear_ratio * veh.gear_efficiency / veh.wheel_radius
+    f_res = (0.5 * RHO_AIR * veh.cx_s * v**2 + veh.crr * veh.mass * G_EARTH * math.cos(veh.grade)
+             + veh.mass * G_EARTH * math.sin(veh.grade))
+    surplus = f_max - f_res
+    if np.any(surplus <= 0):
+        return math.inf
+    return float(np.sum(veh.mass / surplus) * v_target / n)
 
 
 @dataclass(frozen=True)
