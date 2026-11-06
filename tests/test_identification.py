@@ -1,4 +1,5 @@
 import math
+import warnings
 from dataclasses import replace
 
 import numpy as np
@@ -471,3 +472,137 @@ def test_records_validation():
         replace(rec, t_hot_k=-1.0)
     with pytest.raises(ValueError, match="p_mech"):
         replace(rec, p_mech=-1.0)
+
+
+# --- load-point fit of (Xm, X, R'2) -------------------------------------------------
+
+from fixtures.td5_records import make_load_points  # noqa: E402
+
+FIT_NAMES = ("x_m", "x_leak", "r2p")
+SEED_LOAD = 2026
+
+
+def _classical(noise=0.0, seed=SEED_LOAD, case=CASE_A):
+    return ident.run_identification(make_records(case, noise=noise, seed=seed), method="classical")
+
+
+def test_load_fit_noise_free_within_0_1pct():
+    start = _classical().motor
+    res = ident.fit_load_points(make_load_points(CASE_A.motor), start)
+    assert res.success
+    for n in FIT_NAMES:
+        assert getattr(res.motor, n) == pytest.approx(getattr(CASE_A.motor, n), rel=1e-3), n
+    assert res.motor.r_fe == start.r_fe and res.motor.r1 == start.r1  # fixed, not fitted
+    assert res.rms < 1e-6
+
+
+def test_load_fit_with_r1_and_mechanical_losses():
+    rep = _classical(case=CASE_B)
+    pts = make_load_points(CASE_B.motor, p_mech=CASE_B.p_mech)
+    res = ident.fit_load_points(pts, rep.motor, p_mech=rep.p_mech)
+    for n in FIT_NAMES:
+        # Rf and p_mec come from the classical chain (slightly biased, A8/A9): 0.5 % budget
+        assert getattr(res.motor, n) == pytest.approx(getattr(CASE_B.motor, n), rel=5e-3), n
+
+
+def test_load_fit_noisy_beats_classical_and_ci_covers_reference(recwarn):
+    cls = _classical(noise=0.025)
+    pts = make_load_points(CASE_A.motor, noise=0.025, seed=SEED_LOAD)
+    res = ident.fit_load_points(pts, cls.motor)
+    ref = CASE_A.motor
+    for n in ("x_leak", "r2p"):
+        e_fit = abs(getattr(res.motor, n) - getattr(ref, n))
+        e_cls = abs(getattr(cls.motor, n) - getattr(ref, n))
+        assert e_fit <= e_cls, f"{n}: fit {e_fit:.4f} Ω vs classical {e_cls:.4f} Ω"
+    for n in FIT_NAMES:
+        lo, hi = res.ci95[n]
+        assert lo < getattr(ref, n) < hi, f"{n}: {getattr(ref, n)} outside [{lo:.4f}, {hi:.4f}]"
+    # table for the report
+    print(f"\nTD5 Ex 1 — 2.5 % noise, seed {SEED_LOAD}")
+    print(f"{'param':<7}{'ref':>8}{'classical':>11}{'err %':>8}{'optim':>9}{'err %':>8}{'95 % CI':>22}")
+    for n in FIT_NAMES:
+        r, c, o = getattr(ref, n), getattr(cls.motor, n), getattr(res.motor, n)
+        lo, hi = res.ci95[n]
+        print(f"{n:<7}{r:>8.3f}{c:>11.4f}{100*(c-r)/r:>+8.2f}{o:>9.4f}{100*(o-r)/r:>+8.2f}"
+              f"{f'[{lo:.3f}, {hi:.3f}]':>22}")
+    print("correlation:\n", np.array2string(res.correlation, precision=3))
+    print("multistart:", res.n_converged, "/", len(res.multistart), "starts reach the best cost")
+
+
+def test_point_normalisation():
+    start = _classical().motor
+    res = ident.fit_load_points(make_load_points(CASE_A.motor), start, normalise="point")
+    for n in FIT_NAMES:
+        assert getattr(res.motor, n) == pytest.approx(getattr(CASE_A.motor, n), rel=1e-3), n
+    noisy = ident.fit_load_points(make_load_points(CASE_A.motor, noise=0.025, seed=SEED_LOAD),
+                                  _classical(noise=0.025).motor, normalise="point")
+    for n in FIT_NAMES:
+        lo, hi = noisy.ci95[n]
+        assert lo < getattr(CASE_A.motor, n) < hi, n
+    zero_t = (ident.LoadTestPoint(slip=0.0, i_line=5.0, torque=0.0, power_factor=0.2, v_phase=230, f=50),)
+    with pytest.raises(ValueError, match="zero"):
+        ident.fit_load_points(zero_t + make_load_points(CASE_A.motor)[:3], start, normalise="point")
+    with pytest.raises(ValueError, match="normalise"):
+        ident.fit_load_points(make_load_points(CASE_A.motor), start, normalise="log")
+
+
+def test_multistart_converges_to_one_minimum():
+    pts = make_load_points(CASE_A.motor, noise=0.025, seed=SEED_LOAD)
+    res = ident.fit_load_points(pts, _classical(noise=0.025).motor, n_starts=10)
+    assert len(res.multistart) == 10
+    assert res.n_converged == 10
+    best = min(s.cost for s in res.multistart)
+    assert res.cost == pytest.approx(best)
+    starts = np.array([s.start for s in res.multistart])
+    assert np.ptp(np.log(starts), axis=0).min() > 1.0  # starts really spread (factor > e)
+
+
+def test_correlation_matrix_properties():
+    pts = make_load_points(CASE_A.motor, noise=0.025, seed=SEED_LOAD)
+    res = ident.fit_load_points(pts, _classical(noise=0.025).motor)
+    c = res.correlation
+    assert c.shape == (3, 3)
+    assert np.allclose(np.diag(c), 1.0)
+    assert np.allclose(c, c.T)
+    assert np.all(np.abs(c) <= 1.0 + 1e-12)
+    for n in FIT_NAMES:
+        lo, hi = res.ci95[n]
+        assert lo < getattr(res.motor, n) < hi
+
+
+def test_check_correlation_warns_above_limit():
+    corr = np.array([[1.0, 0.97, -0.2], [0.97, 1.0, 0.1], [-0.2, 0.1, 1.0]])
+    with pytest.warns(ident.IdentifiabilityWarning, match="x_m–x_leak"):
+        high = ident.check_correlation(corr, FIT_NAMES)
+    assert high == (("x_m", "x_leak", 0.97),)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert ident.check_correlation(np.eye(3), FIT_NAMES) == ()
+    with pytest.raises(ValueError, match="matrix"):
+        ident.check_correlation(np.eye(2), FIT_NAMES)
+
+
+@pytest.mark.filterwarnings("ignore::evlab.core.identification.IdentifiabilityWarning")
+def test_light_load_points_correlate_xm_and_x():
+    """Near g = 0 the rotor branch is almost R'2/g: Xm and X only add reactive current together."""
+    start = _classical().motor
+    light = ident.fit_load_points(make_load_points(CASE_A.motor, slips=(0.004, 0.005, 0.006),
+                                                   noise=0.001, seed=1), start, n_starts=1)
+    wide = ident.fit_load_points(make_load_points(CASE_A.motor, noise=0.001, seed=1), start, n_starts=1)
+    rho_light, rho_wide = light.correlation[0, 1], wide.correlation[0, 1]
+    assert rho_light > 0.9 > rho_wide + 0.2
+
+
+def test_load_fit_validation():
+    start = td5_ex1()
+    pts = make_load_points(CASE_A.motor)
+    with pytest.raises(ValueError, match="at least 3"):
+        ident.fit_load_points(pts[:2], start)
+    with pytest.raises(ValueError, match="n_starts"):
+        ident.fit_load_points(pts, start, n_starts=0)
+    with pytest.raises(ValueError, match="power_factor"):
+        ident.LoadTestPoint(slip=0.05, i_line=10.0, torque=40.0, power_factor=1.2, v_phase=230, f=50)
+    with pytest.raises(ValueError, match="i_line"):
+        ident.LoadTestPoint(slip=0.05, i_line=0.0, torque=40.0, power_factor=0.8, v_phase=230, f=50)
+    with pytest.raises(ValueError, match="slip"):
+        ident.LoadTestPoint(slip=math.nan, i_line=1.0, torque=40.0, power_factor=0.8, v_phase=230, f=50)

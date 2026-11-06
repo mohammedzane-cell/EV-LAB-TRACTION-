@@ -91,6 +91,13 @@ the circuit layout. Records (`DcTest`, `NoLoadTest`, `LockedRotorTest`, built wi
 (R1 cold/hot, p_mec, P_fe, cos φ0, cos φcc). `fit_circuit` refines R'2, X, Xm, Rf
 by least squares on any set of measured points.
 
+`fit_load_points(points, start)` fits (Xm, X, R'2) to load-test points
+(g, I, T, cos φ) with `scipy.optimize.least_squares`: residuals normalised per
+quantity, positive bounds, `soft_l1` loss, a 10-start multistart, 95 % confidence
+intervals from the Jacobian and the correlation matrix (`IdentifiabilityWarning`
+when |ρ| > 0,95). R1 and Rf stay fixed (DC and no-load tests): load points barely
+depend on Rf (A13).
+
 On noise-free TD5 Ex 1 records the exact method returns the circuit exactly. The
 classical locked-rotor formula gives R'2 −13,1 % and X −7,7 %: that is the error of
 the formula itself, which neglects the magnetising branch (A9).

@@ -29,12 +29,14 @@ Classical chain (run_identification):
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass, replace
 from typing import Literal, Sequence
 
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy.optimize import least_squares
+from scipy.stats import t as student_t
 
 from evlab.core import circuit
 from evlab.core.circuit import COPPER_T0, T_ZERO_C
@@ -587,4 +589,240 @@ def fit_circuit(points: Sequence[LoadPoint], start: MotorParams, source: str = "
         success=bool(sol.success),
         rms_relative_error=float(np.sqrt(np.mean(res**2))),
         n_points=len(pts),
+    )
+
+
+# --- load-test fit of (Xm, X, R'2) -------------------------------------------------
+
+class IdentifiabilityWarning(UserWarning):
+    """Two fitted parameters are so correlated that the data cannot separate them."""
+
+
+@dataclass(frozen=True)
+class LoadTestPoint:
+    """One load-test point.
+
+    Attributes:
+        slip: slip g from the tachometer (dimensionless).
+        i_line: line current, A.
+        torque: shaft torque, N·m (torquemeter or dynamometer).
+        power_factor: cos φ1 (dimensionless, |cos φ| ≤ 1).
+        v_phase: phase voltage, V.
+        f: supply frequency, Hz.
+    """
+
+    slip: float
+    i_line: float
+    torque: float
+    power_factor: float
+    v_phase: float
+    f: float
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.slip):
+            raise ValueError(f"slip must be finite, got {self.slip!r}")
+        _pos("i_line", self.i_line)
+        _pos("v_phase", self.v_phase)
+        _pos("f", self.f)
+        if not math.isfinite(self.torque):
+            raise ValueError(f"torque must be finite, got {self.torque!r}")
+        if not math.isfinite(self.power_factor) or abs(self.power_factor) > 1.0:
+            raise ValueError(f"power_factor must be in [-1, 1], got {self.power_factor!r}")
+
+
+@dataclass(frozen=True)
+class StartResult:
+    """One run of the multistart: initial and final (Xm, X, R'2) in Ω, final cost."""
+
+    start: tuple[float, float, float]
+    end: tuple[float, float, float]
+    cost: float
+
+
+@dataclass(frozen=True)
+class LoadFitResult:
+    """Result of fit_load_points.
+
+    Attributes:
+        motor: circuit with the fitted Xm, X, R'2 (R1, Rf and the rest from `start`).
+        success: optimiser status of the best run.
+        cost: robust cost of the best run.
+        rms: RMS of the normalised residuals (dimensionless; ≈ relative noise level).
+        std: standard error of each fitted parameter, Ω.
+        ci95: 95 % confidence interval of each fitted parameter, Ω.
+        correlation: 3×3 correlation matrix in the order PARAM_NAMES.
+        high_correlation: parameter pairs with |ρ| > 0,95.
+        multistart: every run of the multistart.
+        n_converged: runs that ended on the best parameters (relative distance < 1e-4).
+    """
+
+    motor: MotorParams
+    success: bool
+    cost: float
+    rms: float
+    std: dict[str, float]
+    ci95: dict[str, tuple[float, float]]
+    correlation: np.ndarray
+    high_correlation: tuple[tuple[str, str, float], ...]
+    multistart: tuple[StartResult, ...]
+    n_converged: int
+
+
+LOAD_FIT_NAMES = ("x_m", "x_leak", "r2p")
+CORRELATION_LIMIT = 0.95
+
+
+def check_correlation(
+    corr: np.ndarray, names: Sequence[str], limit: float = CORRELATION_LIMIT
+) -> tuple[tuple[str, str, float], ...]:
+    """Pairs with |ρ| > limit; warns IdentifiabilityWarning for each (the data cannot separate them).
+
+    Args:
+        corr: square correlation matrix (dimensionless).
+        names: parameter names, in matrix order.
+        limit: threshold on |ρ|, in (0, 1).
+    """
+    c = np.asarray(corr, dtype=float)
+    if c.ndim != 2 or c.shape[0] != c.shape[1] or c.shape[0] != len(names):
+        raise ValueError(f"corr must be a {len(names)}×{len(names)} matrix, got shape {c.shape}")
+    if not 0 < limit < 1:
+        raise ValueError(f"limit must be in (0, 1), got {limit!r}")
+    high = tuple(
+        (names[a], names[b], float(c[a, b]))
+        for a in range(len(names)) for b in range(a + 1, len(names))
+        if abs(c[a, b]) > limit
+    )
+    for a, b, rho in high:
+        warnings.warn(
+            f"correlation {a}–{b} = {rho:+.3f} (|ρ| > {limit}): the data cannot separate "
+            "these parameters; add load points over a wider slip range (towards breakdown)",
+            IdentifiabilityWarning,
+            stacklevel=3,
+        )
+    return high
+
+
+def fit_load_points(
+    points: Sequence[LoadTestPoint],
+    start: MotorParams,
+    p_mech: float = 0.0,
+    n_starts: int = 10,
+    f_scale: float = 0.05,
+    seed: int = 0,
+    normalise: Literal["quantity", "point"] = "quantity",
+) -> LoadFitResult:
+    """Least-squares fit of (Xm, X, R'2) to load points (g, I, T, cos φ); R1 and Rf stay fixed.
+
+    R1 comes from the DC test and Rf from the no-load test (`start`, e.g. the
+    classical result): load points barely depend on Rf (docs/assumptions.md A13).
+    normalise="quantity": residual = (model − measured) / RMS(measured quantity),
+    so current, torque and cos φ weigh the same (each point weighs the same in
+    absolute terms). normalise="point": residual = (model − measured)/|measured|,
+    which matches a relative (class-of-accuracy) instrument error; needs no
+    zero reading. Model shaft torque = T_em − p_mec/Ω.
+    Loss soft_l1 with f_scale (residuals beyond ≈ f_scale are down-weighted).
+    Confidence intervals: linearised, Cov = s²·(JᵀJ)⁻¹ with J the Jacobian of the
+    plain residuals at the optimum, s² = Σr²/(m − 3), Student t with m − 3 dof.
+    They do not include the uncertainty of the fixed R1 and Rf.
+
+    Args:
+        points: load-test points, at least 3.
+        start: initial circuit (classical result); gives R1, Rf, p, layout, rating.
+        p_mech: mechanical losses, W (≥ 0), to convert T_em to shaft torque.
+        n_starts: multistart runs (≥ 1): `start`, then log-uniform draws in [¼, 4]×start.
+        f_scale: soft_l1 scale, in normalised residual units (> 0).
+        seed: random seed of the multistart draws.
+        normalise: "quantity" (default) or "point", see above.
+    """
+    if normalise not in ("quantity", "point"):
+        raise ValueError(f"normalise must be 'quantity' or 'point', got {normalise!r}")
+    pts = list(points)
+    if len(pts) < 3:
+        raise ValueError(f"fit_load_points needs at least 3 points, got {len(pts)}")
+    if not isinstance(start, MotorParams):
+        raise ValueError(f"start must be a MotorParams, got {type(start).__name__}")
+    if not isinstance(n_starts, int) or n_starts < 1:
+        raise ValueError(f"n_starts must be an integer >= 1, got {n_starts!r}")
+    _pos("f_scale", f_scale)
+    if not math.isfinite(p_mech) or p_mech < 0:
+        raise ValueError(f"p_mech must be a finite number >= 0 W, got {p_mech!r}")
+
+    g = np.array([p.slip for p in pts])
+    meas = {
+        "i": np.array([p.i_line for p in pts]),
+        "t": np.array([p.torque for p in pts]),
+        "pf": np.array([p.power_factor for p in pts]),
+    }
+    if normalise == "quantity":
+        scale = {k: np.full_like(v, np.sqrt(np.mean(v**2))) for k, v in meas.items()}
+    else:
+        scale = {k: np.abs(v) for k, v in meas.items()}
+    for k, sc in scale.items():
+        if np.any(sc == 0):
+            raise ValueError(f"measured {k} is zero ({normalise} normalisation): cannot normalise")
+    groups: dict[tuple[float, float], list[int]] = {}
+    for k, p in enumerate(pts):
+        groups.setdefault((p.v_phase, p.f), []).append(k)
+
+    def build(theta: np.ndarray) -> MotorParams:
+        return replace(start, **dict(zip(LOAD_FIT_NAMES, (float(v) for v in theta))))
+
+    def residuals(theta: np.ndarray) -> np.ndarray:
+        m = build(theta)
+        i_mod = np.empty_like(g)
+        t_mod = np.empty_like(g)
+        pf_mod = np.empty_like(g)
+        for (v, f), idx in groups.items():
+            op = circuit.operating_point(m, g[idx], v_phase=v, f=f)
+            i_mod[idx] = op.i1
+            t_mod[idx] = op.torque - p_mech / op.omega_mech
+            pf_mod[idx] = op.power_factor
+        return np.concatenate([
+            (i_mod - meas["i"]) / scale["i"],
+            (t_mod - meas["t"]) / scale["t"],
+            (pf_mod - meas["pf"]) / scale["pf"],
+        ])
+
+    theta0 = np.array([getattr(start, n) for n in LOAD_FIT_NAMES])
+    rng = np.random.default_rng(seed)
+    starts = [theta0] + [theta0 * 4.0 ** rng.uniform(-1.0, 1.0, 3) for _ in range(n_starts - 1)]
+    runs = []
+    for th in starts:
+        sol = least_squares(residuals, th, bounds=(1e-9, np.inf), loss="soft_l1",
+                            f_scale=f_scale, x_scale="jac", xtol=1e-12, ftol=1e-12, gtol=1e-12)
+        runs.append((sol, th))
+    best, _ = min(runs, key=lambda r: r[0].cost)
+    theta = best.x
+    n_conv = sum(bool(np.all(np.abs(s.x / theta - 1.0) < 1e-4)) for s, _ in runs)
+
+    # linearised uncertainty from the plain residuals
+    r = residuals(theta)
+    jac = np.empty((r.size, theta.size))
+    for k in range(theta.size):
+        h = 1e-6 * theta[k]
+        tp, tm = theta.copy(), theta.copy()
+        tp[k] += h
+        tm[k] -= h
+        jac[:, k] = (residuals(tp) - residuals(tm)) / (2.0 * h)
+    dof = r.size - theta.size
+    s2 = float(r @ r) / dof
+    try:
+        cov = s2 * np.linalg.inv(jac.T @ jac)
+    except np.linalg.LinAlgError as exc:
+        raise ValueError("Jacobian is singular: the load points do not determine Xm, X, R'2") from exc
+    std = np.sqrt(np.diag(cov))
+    corr = cov / np.outer(std, std)
+    t95 = float(student_t.ppf(0.975, dof))
+    high = check_correlation(corr, LOAD_FIT_NAMES)
+    return LoadFitResult(
+        motor=replace(build(theta), source=f"{start.source} + fit charge"),
+        success=bool(best.success),
+        cost=float(best.cost),
+        rms=float(np.sqrt(np.mean(r**2))),
+        std=dict(zip(LOAD_FIT_NAMES, std.tolist())),
+        ci95={n: (float(v - t95 * e), float(v + t95 * e)) for n, v, e in zip(LOAD_FIT_NAMES, theta, std)},
+        correlation=corr,
+        high_correlation=high,
+        multistart=tuple(StartResult(tuple(th.tolist()), tuple(s.x.tolist()), float(s.cost)) for s, th in runs),
+        n_converged=n_conv,
     )

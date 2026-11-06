@@ -108,3 +108,29 @@ def format_table(title: str, rows) -> str:
         es = "—" if e is None else f"{e:+.3f}"
         lines.append(f"{n:<7}{r:>12.5g}{g:>12.5g}{es:>10}")
     return "\n".join(lines)
+
+
+LOAD_SLIPS = tuple(np.round(np.linspace(0.02, 0.40, 12), 4))  # light load to just past breakdown
+
+
+def make_load_points(
+    m: MotorParams, slips=LOAD_SLIPS, noise: float = 0.0, seed: int = 0, p_mech: float = 0.0
+) -> tuple[ident.LoadTestPoint, ...]:
+    """Load-test points (slip, I, shaft torque, cos φ) at rated V and f.
+
+    Slip (tachometer) and supply voltage are taken as exact; I, T and cos φ get
+    relative Gaussian noise `noise`.
+    """
+    rng = np.random.default_rng(seed)
+
+    def meas(x: float) -> float:
+        return x * (1.0 + noise * rng.standard_normal()) if noise else x
+
+    pts = []
+    for g in slips:
+        op = circuit.operating_point(m, g)
+        t_shaft = op.torque - p_mech / op.omega_mech
+        pts.append(ident.LoadTestPoint(
+            slip=float(g), i_line=meas(op.i1), torque=meas(t_shaft),
+            power_factor=meas(op.power_factor), v_phase=m.v_phase, f=m.f_rated))
+    return tuple(pts)
