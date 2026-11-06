@@ -61,7 +61,7 @@ def test_layout(tab):
     titles = [g.title() for g in tab.findChildren(__import__("PySide6.QtWidgets").QtWidgets.QGroupBox)]
     assert titles == ["Machine", "Essais (CSV)", "Méthode"]
     assert tab.btn_identify.text() == "Identifier"
-    assert tab.btn_pdf.text() == "Exporter PDF" and not tab.btn_pdf.isEnabled()
+    assert tab.btn_pdf.text() == "Exporter PDF" and tab.btn_pdf.isEnabled()  # wired to Fichier → Exporter PDF
     assert [tab.combo_layout.itemText(i) for i in range(2)] == ["TP3 (R1 en tête)", "Bornes"]
     assert tab.combo_layout.currentData() == "tp3"
     assert [rb.text() for rb in tab.radios.values()] == ["Formules classiques", "Optimisation (scipy)",

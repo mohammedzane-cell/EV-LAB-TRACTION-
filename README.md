@@ -169,6 +169,24 @@ and every admissible evaluation, and shows baseline vs the selected design with
 the gain in % per KPI. "Charger ce design" loads the rewound motor, the V/f
 law and the gear ratio into every tab.
 
+## Reports (`io/report.py`, `io/excel.py`, `io/snapshot.py`, `io/figures.py`)
+
+Menu **Fichier → Exporter PDF… / Exporter Excel…** (also the "Exporter PDF"
+button of tab 1) asks for the group name and a file, then writes, in a worker:
+
+- an A4 French PDF (reportlab), 2–3 pages: title block (group, date),
+  1 identification table, 2 envelope and efficiency figures, 3 cycle figure and
+  KPI table, 4 thermal summary, 5 winding factors, 6 optimisation (baseline vs
+  optimum and Pareto plot), an assumptions box built from the settings in use,
+  and a footer on every page listing what is démo. Figures are drawn with
+  matplotlib from the core results; fonts are DejaVu Sans from matplotlib.
+- an Excel workbook (openpyxl): one sheet per module with the raw SI arrays and
+  the units in the headers (16 significant digits).
+
+Both come from one `Snapshot` of the session; results not computed yet (map,
+cycle, thermal) are computed with the core for the export, the optimisation is
+reported as "non calculée" until it has been run.
+
 ## Core: Γ equivalent circuit (`core/circuit.py`, `core/session.py`)
 
 `MotorParams` is the single per-phase Γ circuit shared through a `Session`

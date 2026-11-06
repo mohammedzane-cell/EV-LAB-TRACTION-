@@ -15,4 +15,4 @@ One stage = one commit (see Definition of done in CLAUDE.md).
 | 6 | `core/thermal.py`: two-node model, insulation life (10 K rule); tab 5 | done (démo network values) |
 | 7 | `core/winding.py`: kd, kp, kw, MMF harmonics, EMF, slot table, rotating field; tab 6 | done |
 | 8 | `core/optimise.py`: Pareto Wh/km vs acceleration (scipy differential evolution + ε-constraint); tab 7 | done (pymoo not used, pending approval) |
-| 9 | PDF report (reportlab) + Excel export (openpyxl) | |
+| 9 | PDF report (reportlab) + Excel export (openpyxl), Fichier menu | done |
