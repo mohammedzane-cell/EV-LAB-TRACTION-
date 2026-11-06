@@ -12,7 +12,6 @@ import math
 from dataclasses import replace
 from pathlib import Path
 
-import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QThreadPool, Signal
 from PySide6.QtWidgets import (
