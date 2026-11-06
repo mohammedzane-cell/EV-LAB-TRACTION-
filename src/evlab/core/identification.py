@@ -13,6 +13,17 @@ Two routes:
 - a least-squares fit of R'2, X, Xm, Rf to any set of measured points.
 
 Per-phase quantities, star connection; powers are three-phase totals.
+Records can be built from the line voltage U as measured on the bench (TD5:
+"no-load test 380 V, 3.7 A, 350 W"); V = U/√3 is used internally.
+
+Notation (TD5 → here): Rs → R1, Rm → Rf (r_fe), Xm → Xm (x_m),
+R'2 → R'2 (r2p), X = X1 + X'2 → X (x_leak), J0/I0, P0, Ucc/Icc/Pcc as is.
+
+Classical chain (run_identification):
+  1. DC test → R1 cold = U_dc/(2·I_dc); then R1 hot = R1 cold·(234,5 + T_hot)/(234,5 + T_cold)
+  2. no-load series → P0' = P0 − 3·R1·I0², fitted as a·U0² + p_mec (extrapolation to U = 0)
+  3. rated no-load point → P_fe = P0' − p_mec, Rf = 3·V0²/P_fe, Xm = 3·V0²/Q0
+  4. locked-rotor test → R'2 = Pcc/(3·Icc²) − R1, X = sqrt(Zcc² − Rcc²)
 """
 
 from __future__ import annotations
@@ -26,6 +37,7 @@ from numpy.typing import ArrayLike
 from scipy.optimize import least_squares
 
 from evlab.core import circuit
+from evlab.core.circuit import COPPER_T0, T_ZERO_C
 from evlab.core.session import LAYOUTS, Layout, MotorParams
 
 Method = Literal["classical", "exact"]
@@ -64,14 +76,17 @@ class DcTest:
     Attributes:
         v_dc: DC voltage between the two terminals, V.
         i_dc: DC current, A.
+        temperature_k: winding temperature during the DC test, K (default 20 °C).
     """
 
     v_dc: float
     i_dc: float
+    temperature_k: float = 293.15
 
     def __post_init__(self) -> None:
         _pos("v_dc", self.v_dc)
         _pos("i_dc", self.i_dc)
+        _pos("temperature_k", self.temperature_k)
 
 
 @dataclass(frozen=True)
@@ -95,6 +110,12 @@ class NoLoadTest:
             _pos(n, getattr(self, n))
         _power_factor("no-load test", self.v_phase, self.i_line, self.p_total)
 
+    @classmethod
+    def from_line(cls, u_line: float, i_line: float, p_total: float, f: float) -> "NoLoadTest":
+        """Build from bench readings: line voltage U (V), line current (A), 3-phase power (W), f (Hz)."""
+        _pos("u_line", u_line)
+        return cls(v_phase=u_line / math.sqrt(3.0), i_line=i_line, p_total=p_total, f=f)
+
 
 @dataclass(frozen=True)
 class LockedRotorTest:
@@ -116,6 +137,12 @@ class LockedRotorTest:
         for n in ("v_phase", "i_line", "p_total", "f"):
             _pos(n, getattr(self, n))
         _power_factor("locked-rotor test", self.v_phase, self.i_line, self.p_total)
+
+    @classmethod
+    def from_line(cls, u_line: float, i_line: float, p_total: float, f: float) -> "LockedRotorTest":
+        """Build from bench readings: line voltage U (V), line current (A), 3-phase power (W), f (Hz)."""
+        _pos("u_line", u_line)
+        return cls(v_phase=u_line / math.sqrt(3.0), i_line=i_line, p_total=p_total, f=f)
 
 
 @dataclass(frozen=True)
@@ -150,18 +177,35 @@ class LoadPoint:
 # --- classical tests ----------------------------------------------------------------
 
 def r1_from_dc(test: DcTest) -> float:
-    """Stator phase resistance from the DC test on a star winding, R1 = U / (2·I), Ω."""
+    """R1 = U_dc / (2·I_dc), Ω: between two terminals of a star the current crosses two phases."""
     return test.v_dc / (2.0 * test.i_dc)
 
 
-def mechanical_losses(v0: ArrayLike, p0_prime: ArrayLike) -> float:
-    """Mechanical losses from no-load points by extrapolation to V = 0, W.
+def r1_at_temperature(r_measured: float, t_measured_k: float, t_k: float) -> float:
+    """R(T) = R(T_meas)·(234,5 + T°C)/(234,5 + T_meas°C), Ω: copper resistance is linear in T.
 
-    Fits P0' = a·V0² + p_mec (least squares) where P0' = P0 − 3·R1·I0²
-    (iron losses ∝ V², mechanical losses constant at ~ synchronous speed).
+    With T_meas = 20 °C this is R(T) = R20·(234,5 + T)/254,5 (CLAUDE.md).
 
     Args:
-        v0: phase voltages of the no-load points, V (≥ 2 distinct values).
+        r_measured: resistance measured at t_measured_k, Ω (> 0).
+        t_measured_k: temperature of the measurement, K (> 0).
+        t_k: temperature to convert to, K (> 0).
+    """
+    _pos("r_measured", r_measured)
+    _pos("t_measured_k", t_measured_k)
+    _pos("t_k", t_k)
+    return r_measured * (COPPER_T0 + t_k - T_ZERO_C) / (COPPER_T0 + t_measured_k - T_ZERO_C)
+
+
+def mechanical_losses(v0: ArrayLike, p0_prime: ArrayLike) -> float:
+    """p_mec = intercept at U = 0 of the straight line P0' = a·U0² + p_mec, W.
+
+    Iron losses grow as U² (flux ∝ U), mechanical losses stay constant near
+    synchronous speed, so the line through (U0², P0') cuts the axis at p_mec.
+    Phase or line voltages give the same intercept (U² = 3·V²).
+
+    Args:
+        v0: voltages of the no-load points (phase or line), V (≥ 2 distinct values).
         p0_prime: P0 − 3·R1·I0² at each point, W.
 
     Returns:
@@ -209,6 +253,14 @@ def no_load_branch(
     Returns:
         (r_fe, x_m) in Ω, x_m at the test frequency.
     """
+    r_fe, x_m, _, _ = _no_load_branch(test, r1, p_mech, method, layout)
+    return r_fe, x_m
+
+
+def _no_load_branch(
+    test: NoLoadTest, r1: float, p_mech: float, method: Method, layout: Layout
+) -> tuple[float, float, float, float]:
+    """(Rf, Xm, P_fe, E) — see no_load_branch."""
     _method(method)
     _layout(layout)
     if not math.isfinite(r1) or r1 < 0:
@@ -231,7 +283,7 @@ def no_load_branch(
         e2 = v**2
     else:
         e2 = abs(v - r1 * i * complex(cos_phi, -sin_phi)) ** 2
-    return 3.0 * e2 / p_fe, 3.0 * e2 / q0
+    return 3.0 * e2 / p_fe, 3.0 * e2 / q0, p_fe, math.sqrt(e2)
 
 
 def locked_rotor(
@@ -291,6 +343,156 @@ def locked_rotor(
     return z2.real, z2.imag / k
 
 
+@dataclass(frozen=True)
+class TestRecords:
+    """Everything measured on the bench for one motor (TP3 / TD5 test sequence).
+
+    Attributes:
+        dc: DC test, or None to take R1 = 0 (TD5 Ex 1 hypothesis R1 ≈ 0).
+        t_hot_k: winding temperature during the no-load / locked-rotor tests, K.
+            None: R1 is used as measured by the DC test (e.g. TD5 "hot resistance").
+        no_load: no-load tests, one per voltage; the one closest to v_rated
+            (within 10 %) gives Rf and Xm, the whole series gives p_mec.
+        locked: locked-rotor test.
+        pole_pairs: number of pole pairs p (nameplate).
+        v_rated: rated phase voltage, V (nameplate).
+        f_rated: rated frequency, Hz (nameplate).
+        p_mech: mechanical losses, W, if known (TD5: "negligible" → 0);
+            None: separated from the no-load series by the U² extrapolation.
+    """
+
+    dc: DcTest | None
+    t_hot_k: float | None
+    no_load: tuple[NoLoadTest, ...]
+    locked: LockedRotorTest
+    pole_pairs: int
+    v_rated: float
+    f_rated: float
+    p_mech: float | None = None
+
+    def __post_init__(self) -> None:
+        if len(self.no_load) == 0:
+            raise ValueError("at least one no-load test is needed")
+        if self.t_hot_k is not None:
+            _pos("t_hot_k", self.t_hot_k)
+        _pos("v_rated", self.v_rated)
+        _pos("f_rated", self.f_rated)
+        if self.p_mech is not None and (not math.isfinite(self.p_mech) or self.p_mech < 0):
+            raise ValueError(f"p_mech must be None or a finite number >= 0 W, got {self.p_mech!r}")
+        if any(t.f != self.no_load[0].f for t in self.no_load):
+            raise ValueError("all no-load tests must be at the same frequency")
+        self.rated_no_load()  # validates that a rated point exists
+
+    def rated_no_load(self) -> NoLoadTest:
+        """No-load test closest to the rated voltage (must be within 10 %, i.e. 5σ of a 2 % voltmeter)."""
+        best = min(self.no_load, key=lambda t: abs(t.v_phase - self.v_rated))
+        if abs(best.v_phase - self.v_rated) > 0.10 * self.v_rated:
+            raise ValueError(
+                f"no no-load test within 10 % of the rated voltage {self.v_rated:.1f} V "
+                f"(closest: {best.v_phase:.1f} V)"
+            )
+        return best
+
+
+@dataclass(frozen=True)
+class IdentificationReport:
+    """Result of run_identification, with the intermediate values of each step.
+
+    Attributes:
+        motor: identified circuit.
+        method: "classical" or "exact".
+        r1_cold: R1 at the DC-test temperature, Ω.
+        r1_hot: R1 used in the circuit (at t_hot_k), Ω.
+        p_mech: mechanical losses used, W (given or extrapolated).
+        p_fe: iron losses at the rated no-load point, W.
+        e0: voltage across the magnetising branch at the rated no-load point, V.
+        cos_phi0: no-load power factor.
+        cos_phi_cc: locked-rotor power factor.
+        n_no_load: number of no-load points used for the p_mec separation.
+    """
+
+    motor: MotorParams
+    method: str
+    r1_cold: float
+    r1_hot: float
+    p_mech: float
+    p_fe: float
+    e0: float
+    cos_phi0: float
+    cos_phi_cc: float
+    n_no_load: int
+
+
+def run_identification(
+    records: TestRecords,
+    method: Method = "exact",
+    layout: Layout = "tp3",
+    source: str = "TP3",
+    is_demo: bool = False,
+) -> IdentificationReport:
+    """Whole chain: DC → R1 hot → p_mec by U² extrapolation → Rf, Xm → R'2, X → MotorParams.
+
+    Args:
+        records: bench measurements.
+        method: "classical" (course formulas) or "exact" (inverts the layout).
+        layout: circuit layout ("exact" inverts it; stored in the result).
+        source: label stored in the MotorParams.
+        is_demo: True if the records are demo data (labelled "démo" downstream).
+    """
+    _method(method)
+    _layout(layout)
+    if records.dc is None:
+        r1_cold = r1_hot = 0.0
+    else:
+        r1_cold = r1_from_dc(records.dc)
+        r1_hot = (
+            r1_cold
+            if records.t_hot_k is None
+            else r1_at_temperature(r1_cold, records.dc.temperature_k, records.t_hot_k)
+        )
+
+    if records.p_mech is not None:
+        p_mech = records.p_mech
+    else:
+        r1_noload = 0.0 if (method == "exact" and layout == "terminals") else r1_hot
+        u0 = np.array([math.sqrt(3.0) * t.v_phase for t in records.no_load])
+        p0p = np.array([t.p_total - 3.0 * r1_noload * t.i_line**2 for t in records.no_load])
+        p_mech = mechanical_losses(u0, p0p)
+
+    rated = records.rated_no_load()
+    r_fe, x_m, p_fe, e0 = _no_load_branch(rated, r1_hot, p_mech, method, layout)
+    f0 = rated.f
+    x_m_rated = x_m * records.f_rated / f0
+    r2p, x = locked_rotor(records.locked, r1_hot, records.f_rated, r_fe=r_fe, x_m=x_m_rated,
+                          method=method, layout=layout)
+    motor = MotorParams(
+        v_phase=records.v_rated,
+        f_rated=records.f_rated,
+        pole_pairs=records.pole_pairs,
+        r1=r1_hot,
+        r2p=r2p,
+        x_leak=x,
+        x_m=x_m_rated,
+        r_fe=r_fe,
+        source=source,
+        is_demo=is_demo,
+        layout=layout,
+    )
+    lk = records.locked
+    return IdentificationReport(
+        motor=motor,
+        method=method,
+        r1_cold=r1_cold,
+        r1_hot=r1_hot,
+        p_mech=p_mech,
+        p_fe=p_fe,
+        e0=e0,
+        cos_phi0=_power_factor("no-load test", rated.v_phase, rated.i_line, rated.p_total),
+        cos_phi_cc=_power_factor("locked-rotor test", lk.v_phase, lk.i_line, lk.p_total),
+        n_no_load=len(records.no_load),
+    )
+
+
 def identify(
     dc: DcTest | None,
     no_load: NoLoadTest,
@@ -302,9 +504,9 @@ def identify(
     is_demo: bool = False,
     layout: Layout = "tp3",
 ) -> MotorParams:
-    """Γ circuit from the DC, no-load and locked-rotor tests.
+    """Γ circuit from one DC, one rated no-load and one locked-rotor test (no temperature correction).
 
-    Rated voltage and frequency are those of the no-load test.
+    Shortcut for run_identification with rated V and f taken from the no-load test.
 
     Args:
         dc: DC test, or None to take R1 = 0 (TD5 hypothesis R1 ≈ 0).
@@ -317,24 +519,11 @@ def identify(
         is_demo: True if the measurements are demo data.
         layout: circuit layout ("exact" inverts it; stored in the result).
     """
-    _method(method)
-    _layout(layout)
-    r1 = 0.0 if dc is None else r1_from_dc(dc)
-    r_fe, x_m = no_load_branch(no_load, r1, p_mech, method, layout)
-    r2p, x = locked_rotor(locked, r1, no_load.f, r_fe=r_fe, x_m=x_m, method=method, layout=layout)
-    return MotorParams(
-        v_phase=no_load.v_phase,
-        f_rated=no_load.f,
-        pole_pairs=pole_pairs,
-        r1=r1,
-        r2p=r2p,
-        x_leak=x,
-        x_m=x_m,
-        r_fe=r_fe,
-        source=source,
-        is_demo=is_demo,
-        layout=layout,
+    records = TestRecords(
+        dc=dc, t_hot_k=None, no_load=(no_load,), locked=locked, pole_pairs=pole_pairs,
+        v_rated=no_load.v_phase, f_rated=no_load.f, p_mech=p_mech,
     )
+    return run_identification(records, method, layout, source, is_demo).motor
 
 
 # --- least-squares fit ----------------------------------------------------------------

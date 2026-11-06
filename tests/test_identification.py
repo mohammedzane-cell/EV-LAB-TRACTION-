@@ -338,3 +338,136 @@ def test_fit_keeps_layout_of_start():
 def test_bad_layout():
     with pytest.raises(ValueError, match="layout"):
         ident.no_load_branch(_no_load(td5_ex1()), r1=0.0, layout="star")
+
+
+# --- full chain on generated bench records (tests/fixtures/td5_records.py) ----------
+
+from fixtures.td5_records import (  # noqa: E402
+    CASE_A, CASE_B, LOCKED_FRACTION, PARAMS, T_COLD, T_HOT, error_table, format_table, make_records,
+)
+
+
+def test_r1_cold_to_hot():
+    r_cold = 0.411
+    r_hot = ident.r1_at_temperature(r_cold, T_COLD, T_HOT)
+    assert r_hot == pytest.approx(r_cold * (234.5 + 75.0) / (234.5 + 20.0))
+    # same as going through R20 with R(T) = R20·(234.5 + T)/254.5
+    assert r_hot == pytest.approx(circuit.copper_resistance(r_cold, T_HOT))
+    assert ident.r1_at_temperature(1.0, 313.15, 293.15) == pytest.approx(254.5 / 274.5)
+
+
+@pytest.mark.parametrize("args", [(0.0, 293.15, 348.15), (-1.0, 293.15, 348.15),
+                                  (1.0, 0.0, 348.15), (1.0, 293.15, math.nan)])
+def test_r1_at_temperature_validation(args):
+    with pytest.raises(ValueError):
+        ident.r1_at_temperature(*args)
+
+
+def test_no_hot_temperature_means_no_correction():
+    rec = replace(make_records(CASE_B), t_hot_k=None)  # TD5 style: "hot resistance" measured directly
+    rep = ident.run_identification(rec)
+    assert rep.r1_hot == rep.r1_cold == pytest.approx(CASE_B.motor.r1 * 254.5 / 309.5)
+
+
+def test_from_line_divides_by_sqrt3():
+    t = ident.NoLoadTest.from_line(u_line=380.0, i_line=3.7, p_total=350.0, f=50.0)
+    assert t.v_phase == pytest.approx(380.0 / math.sqrt(3))
+    t = ident.LockedRotorTest.from_line(u_line=87.4, i_line=6.9, p_total=370.0, f=50.0)
+    assert t.v_phase == pytest.approx(87.4 / math.sqrt(3))
+
+
+def test_case_a_records_are_td5():
+    rec = make_records(CASE_A)
+    assert rec.dc is None and rec.p_mech == 0.0
+    rated = rec.rated_no_load()
+    assert rated.v_phase == pytest.approx(230.0)
+    assert rated.p_total == pytest.approx(3 * 230**2 / 230)  # P0 = iron losses only
+
+
+@pytest.mark.parametrize("case", [CASE_A, CASE_B], ids=["A", "B"])
+def test_noise_free_exact_within_1pct(case):
+    rep = ident.run_identification(make_records(case), method="exact")
+    for name, ref, got, err in error_table(case.motor, rep.motor):
+        if err is None:
+            assert got == pytest.approx(ref, abs=1e-9), name
+        else:
+            assert abs(err) < 1.0, f"{name}: {err:+.3f} %"
+
+
+def test_noise_free_classical_case_a():
+    m = CASE_A.motor
+    rep = ident.run_identification(make_records(CASE_A), method="classical")
+    # no-load: exact when R1 = 0
+    assert rep.motor.r_fe == pytest.approx(m.r_fe, rel=1e-9)
+    assert rep.motor.x_m == pytest.approx(m.x_m, rel=1e-9)
+    # locked rotor: the classical formula reads Zcc = R'2 + jX, but the measured
+    # Zcc also contains Zm in parallel. Its error is that of the formula itself:
+    z_cc = circuit.impedance(m, 1.0, v_phase=LOCKED_FRACTION * m.v_phase)
+    assert rep.motor.r2p == pytest.approx(z_cc.real - m.r1, rel=1e-9)
+    assert rep.motor.x_leak == pytest.approx(z_cc.imag, rel=1e-9)
+    assert rep.motor.r2p < m.r2p and rep.motor.x_leak < m.x_leak
+
+
+def test_noise_free_classical_case_b():
+    m = CASE_B.motor
+    rep = ident.run_identification(make_records(CASE_B), method="classical")
+    assert rep.r1_cold == pytest.approx(m.r1 * 254.5 / 309.5)
+    assert rep.motor.r1 == pytest.approx(m.r1, rel=1e-12)  # hot R1 recovered
+    assert rep.p_mech == pytest.approx(CASE_B.p_mech, rel=0.05)
+    assert rep.motor.r_fe == pytest.approx(m.r_fe, rel=0.01)
+    assert rep.motor.x_m == pytest.approx(m.x_m, rel=0.01)
+    assert rep.motor.is_demo is False  # the chain does not know; the caller labels it
+
+
+def test_report_contents():
+    rep = ident.run_identification(make_records(CASE_B))
+    assert rep.method == "exact"
+    assert 0 < rep.cos_phi0 < rep.cos_phi_cc < 1
+    assert rep.p_fe == pytest.approx(3 * rep.e0**2 / rep.motor.r_fe)
+    assert rep.n_no_load == 8
+
+
+@pytest.mark.parametrize("method", ["classical", "exact"])
+@pytest.mark.parametrize("case", [CASE_A, CASE_B], ids=["A", "B"])
+def test_noisy_records_report_errors(case, method):
+    """2 % Gaussian noise on every measured value, fixed seed: errors are reported, not asserted."""
+    rec = make_records(case, noise=0.02, seed=2026)
+    rep = ident.run_identification(rec, method=method)
+    rows = error_table(case.motor, rep.motor)
+    print("\n" + format_table(f"{case.name} — {method}, 2 % noise, seed 2026", rows))
+    for name, ref, got, err in rows:
+        assert math.isfinite(got) and got >= 0, name
+    # deterministic with a fixed seed
+    again = ident.run_identification(make_records(case, noise=0.02, seed=2026), method=method)
+    assert again.motor == rep.motor
+
+
+# --- bad inputs ------------------------------------------------------------------
+
+@pytest.mark.parametrize("cls", [ident.NoLoadTest, ident.LockedRotorTest])
+@pytest.mark.parametrize("kw", [dict(p_total=-100.0), dict(i_line=0.0), dict(u_line=0.0),
+                                dict(i_line=-2.0), dict(f=0.0), dict(p_total=math.nan)])
+def test_bad_records(cls, kw):
+    args = dict(u_line=380.0, i_line=3.7, p_total=350.0, f=50.0) | kw
+    with pytest.raises(ValueError):
+        cls.from_line(**args)
+
+
+@pytest.mark.parametrize("kw", [dict(i_dc=0.0), dict(v_dc=-1.0), dict(temperature_k=-5.0)])
+def test_bad_dc(kw):
+    with pytest.raises(ValueError):
+        ident.DcTest(**(dict(v_dc=4.0, i_dc=5.0) | kw))
+
+
+def test_records_validation():
+    rec = make_records(CASE_B)
+    with pytest.raises(ValueError, match="no-load"):
+        replace(rec, no_load=())
+    with pytest.raises(ValueError, match="distinct"):
+        ident.run_identification(replace(rec, no_load=rec.no_load[-2:-1]))  # p_mech=None needs a series
+    with pytest.raises(ValueError, match="rated"):
+        replace(rec, v_rated=290.0)  # closest point 253 V: more than 10 % away
+    with pytest.raises(ValueError, match="t_hot_k"):
+        replace(rec, t_hot_k=-1.0)
+    with pytest.raises(ValueError, match="p_mech"):
+        replace(rec, p_mech=-1.0)

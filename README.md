@@ -78,14 +78,21 @@ optional V/f supply override (`v_phase`, `f`):
 
 ## Core: identification (`core/identification.py`)
 
-From the TP3 / TD5 tests (per phase, star, three-phase powers):
+Classical TP3 / TD5 chain, `run_identification(records, method=...)`:
 
-- `DcTest`, `NoLoadTest`, `LockedRotorTest`, `LoadPoint` — validated measurement records
-- `r1_from_dc` — R1 = U_dc / (2·I_dc)
-- `mechanical_losses` — p_mec from the P0' = P0 − 3·R1·I0² vs V0² extrapolation
-- `no_load_branch` — Rf, Xm (P_fe = P0 − 3·R1·I0² − p_mec)
-- `locked_rotor` — R'2, X; `classical` neglects the magnetising branch, `exact` removes it
-- `identify` — the three tests → `MotorParams`; `layout=` selects the circuit the "exact" method inverts
-- `fit_circuit` — least-squares fit of R'2, X, Xm, Rf on measured (V, f, g, I1, P1) points
+1. DC test → R1 cold = U_dc/(2·I_dc), then R1 hot = R1 cold·(234,5 + T_hot)/(234,5 + T_cold)
+2. no-load series → P0' = P0 − 3·R1·I0² against U0², intercept at U = 0 = p_mec
+3. rated no-load point → Rf = 3·V0²/P_fe, Xm = 3·V0²/Q0
+4. locked-rotor test → R'2 = Pcc/(3·Icc²) − R1, X = sqrt(Zcc² − Rcc²)
+
+`method="classical"` uses the course formulas; `method="exact"` (default) inverts
+the circuit layout. Records (`DcTest`, `NoLoadTest`, `LockedRotorTest`, built with
+`from_line(U, I, P, f)`) are validated. The report keeps each intermediate value
+(R1 cold/hot, p_mec, P_fe, cos φ0, cos φcc). `fit_circuit` refines R'2, X, Xm, Rf
+by least squares on any set of measured points.
+
+On noise-free TD5 Ex 1 records the exact method returns the circuit exactly. The
+classical locked-rotor formula gives R'2 −13,1 % and X −7,7 %: that is the error of
+the formula itself, which neglects the magnetising branch (A9).
 
 Modelling assumptions are listed in `docs/assumptions.md`.
