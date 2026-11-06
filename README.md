@@ -55,19 +55,25 @@ data/             input files (*_demo.csv for demo data)
 
 ## Core: Γ equivalent circuit (`core/circuit.py`, `core/session.py`)
 
-Layout of TP3, Figure 1: V1 → R1 (carries I1) → Rf ∥ jXm → jX + R'2/g.
-
 `MotorParams` is the single per-phase Γ circuit shared through a `Session`
 (defaults to TD5 Ex 1: V = 230 V, f = 50 Hz, p = 2, Rf = 230 Ω, Xm = 46 Ω,
-X = 4 Ω, R'2 = 2 Ω, R1 = 0).
+X = 4 Ω, R'2 = 2 Ω, R1 = 0). Its `layout` selects the topology:
 
-`circuit.py` provides, in SI units, with optional V/f supply override:
+- `"tp3"` (default, TP3 Figure 1): V → R1 (carries I1) → Rf ∥ jXm → jX + R'2/g
+- `"terminals"`: Rf ∥ jXm at the terminals, R1 in series with jX + R'2/g
 
-- `rotor_current`, `torque` — T = (3p/ω)·(R'2/g)·I'2², vectorised over slip
-- `thevenin` — V_th, Z_th of R1 + magnetising branch
-- `breakdown_slip`, `max_torque` — from the Thévenin equivalent; TD5 (R1 = 0): g_c = 0,5, T_max = 126,3 N·m
-- `slip_from_speed`, `speed_from_slip`
-- `operating_point` — E, I1, I'2, Ife, Iµ, cos φ, P_in, Q_in, P_cu1, P_fe, P_gap, P_cu2, P_mech (g = 0 allowed: ideal no-load)
+The two are identical when R1 = 0. All functions are vectorised over the slip g,
+handle g = 0 (no-load) and g < 0 (generator) without division, and accept an
+optional V/f supply override (`v_phase`, `f`):
+
+- `impedance`, `stator_current`, `rotor_current`, `power_factor`
+- `torque` — T = (3p/ω)·(R'2/g)·I'2²
+- `mechanical_speed`, `slip_from_speed`
+- `input_power`, `efficiency` (mechanical losses not included, see A10)
+- `breakdown(m)` → (g_c, T_max): numeric by default, `method="closed"` for the
+  Thévenin closed form; TD5: g_c = 0,5, T_max = 126,3 N·m
+- `thevenin`, `magnetising_impedance`
+- `operating_point` — every current and power; P_in = P_cu1 + P_fe + P_cu2 + P_mec
 - `copper_resistance` — R(T) = R20·(234,5 + T)/254,5
 
 ## Core: identification (`core/identification.py`)
@@ -79,7 +85,7 @@ From the TP3 / TD5 tests (per phase, star, three-phase powers):
 - `mechanical_losses` — p_mec from the P0' = P0 − 3·R1·I0² vs V0² extrapolation
 - `no_load_branch` — Rf, Xm (P_fe = P0 − 3·R1·I0² − p_mec)
 - `locked_rotor` — R'2, X; `classical` neglects the magnetising branch, `exact` removes it
-- `identify` — the three tests → `MotorParams`
+- `identify` — the three tests → `MotorParams`; `layout=` selects the circuit the "exact" method inverts
 - `fit_circuit` — least-squares fit of R'2, X, Xm, Rf on measured (V, f, g, I1, P1) points
 
 Modelling assumptions are listed in `docs/assumptions.md`.

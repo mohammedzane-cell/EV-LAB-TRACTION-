@@ -81,3 +81,12 @@ def test_session_rejects_non_motor():
     s = Session()
     with pytest.raises(ValueError, match="MotorParams"):
         s.set_motor("not a motor")  # type: ignore[arg-type]
+
+
+def test_layout_default_and_validation():
+    assert td5_ex1().layout == "tp3"
+    kwargs = dict(v_phase=230.0, f_rated=50.0, pole_pairs=2, r1=0.0,
+                  r2p=2.0, x_leak=4.0, x_m=46.0, r_fe=230.0)
+    assert MotorParams(**kwargs, layout="terminals").layout == "terminals"
+    with pytest.raises(ValueError, match="layout"):
+        MotorParams(**kwargs, layout="T")

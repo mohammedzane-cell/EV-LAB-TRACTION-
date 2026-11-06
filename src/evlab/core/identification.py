@@ -1,6 +1,10 @@
 """Identification of the Γ equivalent circuit from the TP3 / TD5 tests.
 
-Circuit (TP3, Figure 1): V1 → R1 (carries I1) → Rf ∥ jXm → jX + R'2/g.
+Circuit layouts (see core.session.MotorParams):
+  "tp3" (default, TP3 Figure 1): V1 → R1 (carries I1) → Rf ∥ jXm → jX + R'2/g
+  "terminals": Rf ∥ jXm across V1, in parallel with R1 + jX + R'2/g
+The "exact" methods invert the chosen layout; the "classical" ones are the
+course formulas (TP3 recipe) and do not depend on the layout.
 
 Two routes:
 - classical formulas (DC, no-load, locked-rotor tests), in a "classical"
@@ -22,7 +26,7 @@ from numpy.typing import ArrayLike
 from scipy.optimize import least_squares
 
 from evlab.core import circuit
-from evlab.core.session import MotorParams
+from evlab.core.session import LAYOUTS, Layout, MotorParams
 
 Method = Literal["classical", "exact"]
 
@@ -35,6 +39,11 @@ def _pos(name: str, value: float) -> None:
 def _method(method: str) -> None:
     if method not in ("classical", "exact"):
         raise ValueError(f"method must be 'classical' or 'exact', got {method!r}")
+
+
+def _layout(layout: str) -> None:
+    if layout not in LAYOUTS:
+        raise ValueError(f"layout must be one of {LAYOUTS}, got {layout!r}")
 
 
 def _power_factor(name: str, v: float, i: float, p: float) -> float:
@@ -177,30 +186,38 @@ def mechanical_losses(v0: ArrayLike, p0_prime: ArrayLike) -> float:
 
 
 def no_load_branch(
-    test: NoLoadTest, r1: float, p_mech: float = 0.0, method: Method = "exact"
+    test: NoLoadTest,
+    r1: float,
+    p_mech: float = 0.0,
+    method: Method = "exact",
+    layout: Layout = "tp3",
 ) -> tuple[float, float]:
     """Magnetising branch (Rf, Xm) from the no-load test, Ω.
 
-    P_fe = P0 − 3·R1·I0² − p_mec,  Q0 = sqrt((3·V0·I0)² − P0²).
-    classical: Rf = 3·V0²/P_fe, Xm = 3·V0²/Q0 (drop in R1 neglected).
-    exact:     same with E = |V0 − R1·I0| in place of V0.
+    Q0 = sqrt((3·V0·I0)² − P0²); R1 absorbs no reactive power.
+    classical:       P_fe = P0 − 3·R1·I0² − p_mec, Rf = 3·V0²/P_fe, Xm = 3·V0²/Q0 (R1 drop neglected).
+    exact, tp3:      same P_fe, with E = |V0 − R1·I0| in place of V0 (R1 carries I0).
+    exact, terminals: P_fe = P0 − p_mec, Rf = 3·V0²/P_fe, Xm = 3·V0²/Q0 (R1 carries no no-load current).
 
     Args:
         test: no-load measurement.
         r1: stator phase resistance, Ω (≥ 0).
         p_mech: mechanical losses, W (≥ 0), e.g. from mechanical_losses().
         method: "classical" or "exact".
+        layout: circuit layout inverted by the "exact" method.
 
     Returns:
         (r_fe, x_m) in Ω, x_m at the test frequency.
     """
     _method(method)
+    _layout(layout)
     if not math.isfinite(r1) or r1 < 0:
         raise ValueError(f"r1 must be a finite number >= 0 Ω, got {r1!r}")
     if not math.isfinite(p_mech) or p_mech < 0:
         raise ValueError(f"p_mech must be a finite number >= 0 W, got {p_mech!r}")
     v, i, p = test.v_phase, test.i_line, test.p_total
-    p_fe = p - 3.0 * r1 * i**2 - p_mech
+    r1_noload = 0.0 if (method == "exact" and layout == "terminals") else r1
+    p_fe = p - 3.0 * r1_noload * i**2 - p_mech
     if p_fe <= 0:
         raise ValueError(
             f"iron losses P0 − 3·R1·I0² − p_mec = {p_fe:.1f} W must be > 0: check P0, R1 and p_mec"
@@ -210,7 +227,7 @@ def no_load_branch(
     q0 = 3.0 * v * i * sin_phi
     if q0 <= 0:
         raise ValueError("no-load reactive power is zero: Xm cannot be identified")
-    if method == "classical":
+    if method == "classical" or layout == "terminals":
         e2 = v**2
     else:
         e2 = abs(v - r1 * i * complex(cos_phi, -sin_phi)) ** 2
@@ -224,12 +241,15 @@ def locked_rotor(
     r_fe: float | None = None,
     x_m: float | None = None,
     method: Method = "exact",
+    layout: Layout = "tp3",
 ) -> tuple[float, float]:
     """Rotor branch (R'2, X) from the locked-rotor test, Ω.
 
-    classical: magnetising branch neglected, Rcc = Pcc/(3·Icc²),
-               R'2 = Rcc − R1, X = sqrt(Zcc² − Rcc²).
-    exact:     Z2 = 1 / (1/(Zcc − R1) − 1/Z_m), with Z_m = Rf ∥ jXm at the test frequency.
+    classical:        magnetising branch neglected, Rcc = Pcc/(3·Icc²),
+                      R'2 = Rcc − R1, X = sqrt(Zcc² − Rcc²).
+    exact, tp3:       Z2 = 1 / (1/(Zcc − R1) − 1/Z_m)   (remove R1, then Z_m in parallel).
+    exact, terminals: R1 + Z2 = 1 / (1/Zcc − 1/Z_m)     (remove Z_m in parallel, then R1).
+    Z_m = Rf ∥ jXm at the test frequency.
 
     Args:
         test: locked-rotor measurement.
@@ -238,11 +258,13 @@ def locked_rotor(
         r_fe: iron-loss resistance, Ω (required for "exact").
         x_m: magnetising reactance at f_rated, Ω (required for "exact").
         method: "classical" or "exact".
+        layout: circuit layout inverted by the "exact" method.
 
     Returns:
         (r2p, x_leak) in Ω, x_leak referred to f_rated.
     """
     _method(method)
+    _layout(layout)
     _pos("f_rated", f_rated)
     if not math.isfinite(r1) or r1 < 0:
         raise ValueError(f"r1 must be a finite number >= 0 Ω, got {r1!r}")
@@ -258,7 +280,10 @@ def locked_rotor(
         _pos("r_fe", r_fe)
         _pos("x_m", x_m)
         z_m = 1.0 / (1.0 / r_fe + 1.0 / complex(0.0, x_m * k))
-        z2 = 1.0 / (1.0 / (z_cc - r1) - 1.0 / z_m)
+        if layout == "tp3":
+            z2 = 1.0 / (1.0 / (z_cc - r1) - 1.0 / z_m)
+        else:
+            z2 = 1.0 / (1.0 / z_cc - 1.0 / z_m) - r1
     if z2.real <= 0:
         raise ValueError(f"identified R'2 = {z2.real:.4f} Ω is not > 0: R1 too large for this test")
     if z2.imag <= 0:
@@ -275,6 +300,7 @@ def identify(
     method: Method = "exact",
     source: str = "TP3",
     is_demo: bool = False,
+    layout: Layout = "tp3",
 ) -> MotorParams:
     """Γ circuit from the DC, no-load and locked-rotor tests.
 
@@ -289,11 +315,13 @@ def identify(
         method: "classical" or "exact".
         source: label stored in the MotorParams.
         is_demo: True if the measurements are demo data.
+        layout: circuit layout ("exact" inverts it; stored in the result).
     """
     _method(method)
+    _layout(layout)
     r1 = 0.0 if dc is None else r1_from_dc(dc)
-    r_fe, x_m = no_load_branch(no_load, r1, p_mech, method)
-    r2p, x = locked_rotor(locked, r1, no_load.f, r_fe=r_fe, x_m=x_m, method=method)
+    r_fe, x_m = no_load_branch(no_load, r1, p_mech, method, layout)
+    r2p, x = locked_rotor(locked, r1, no_load.f, r_fe=r_fe, x_m=x_m, method=method, layout=layout)
     return MotorParams(
         v_phase=no_load.v_phase,
         f_rated=no_load.f,
@@ -305,6 +333,7 @@ def identify(
         r_fe=r_fe,
         source=source,
         is_demo=is_demo,
+        layout=layout,
     )
 
 
@@ -333,7 +362,7 @@ _FIT_FIELDS = ("r2p", "x_leak", "x_m", "r_fe")
 def fit_circuit(points: Sequence[LoadPoint], start: MotorParams, source: str = "fit") -> FitResult:
     """Least-squares fit of R'2, X, Xm, Rf to measured (V, f, g, I1, P1) points.
 
-    R1, p, rated V and f are taken from `start` and kept fixed. The four
+    R1, p, rated V and f and the layout are taken from `start` and kept fixed. The four
     unknowns are fitted in log space (they stay > 0 by construction).
     Residuals per point: (I_model − I)/I and (P_model − P)/(3·V·I).
 

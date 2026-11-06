@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import Literal
+
+Layout = Literal["tp3", "terminals"]
+LAYOUTS: tuple[str, ...] = ("tp3", "terminals")
 
 
 def _check_positive(name: str, value: float) -> None:
@@ -25,9 +29,12 @@ def _check_non_negative(name: str, value: float) -> None:
 class MotorParams:
     """Per-phase Γ equivalent circuit of the induction motor (star connection).
 
-    Topology (TP3, Figure 1): V1 → r1 in series (carries I1) → node E;
-    at E the magnetising branch r_fe ∥ j·x_m is in parallel with the rotor
-    branch j·x_leak + r2p/g (carries I'2).
+    Two Γ layouts (identical when r1 = 0):
+      "tp3" (default, TP3 Figure 1): V1 → r1 in series (carries I1) → node E;
+          at E the magnetising branch r_fe ∥ j·x_m is in parallel with the
+          rotor branch j·x_leak + r2p/g (carries I'2).
+      "terminals": r_fe ∥ j·x_m directly across V1; r1 is in series with
+          j·x_leak + r2p/g and carries I'2 only.
 
     Attributes:
         v_phase: rated phase voltage, V (RMS).
@@ -40,6 +47,7 @@ class MotorParams:
         r_fe: iron-loss resistance, Ω.
         source: where the values come from ("TD5 Ex 1", "TP3", "fit", ...).
         is_demo: True if the values are demo/synthetic (must be labelled "démo").
+        layout: "tp3" or "terminals" (see above).
     """
 
     v_phase: float
@@ -52,6 +60,7 @@ class MotorParams:
     r_fe: float
     source: str = "utilisateur"
     is_demo: bool = False
+    layout: Layout = "tp3"
 
     def __post_init__(self) -> None:
         _check_positive("v_phase", self.v_phase)
@@ -63,6 +72,8 @@ class MotorParams:
         _check_positive("x_leak", self.x_leak)
         _check_positive("x_m", self.x_m)
         _check_positive("r_fe", self.r_fe)
+        if self.layout not in LAYOUTS:
+            raise ValueError(f"layout must be one of {LAYOUTS}, got {self.layout!r}")
 
     @property
     def omega_rated(self) -> float:

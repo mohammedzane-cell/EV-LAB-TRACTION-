@@ -1,4 +1,5 @@
 import math
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -283,3 +284,57 @@ def test_load_point_validation():
         ident.LoadPoint(v_phase=230, f=50, slip=0.02, i_line=0.0, p_total=100.0)
     with pytest.raises(ValueError, match="slip"):
         ident.LoadPoint(v_phase=230, f=50, slip=math.nan, i_line=1.0, p_total=100.0)
+
+
+# --- terminals layout ----------------------------------------------------------------
+
+def _motor_terminals(r1=0.8):
+    return replace(_motor(r1), layout="terminals")
+
+
+def test_no_load_exact_terminals_does_not_subtract_r1_loss():
+    m = _motor_terminals()
+    t = _no_load(m)
+    # terminals layout: R1 carries no current at g = 0, P0 = P_fe exactly
+    assert t.p_total == pytest.approx(3 * 230**2 / 230)
+    r_fe, x_m = ident.no_load_branch(t, r1=m.r1, method="exact", layout="terminals")
+    assert r_fe == pytest.approx(230.0, rel=1e-12)
+    assert x_m == pytest.approx(46.0, rel=1e-12)
+
+
+def test_locked_rotor_exact_terminals():
+    m = _motor_terminals()
+    r2p, x = ident.locked_rotor(_locked(m), r1=m.r1, f_rated=50, r_fe=230.0, x_m=46.0,
+                                method="exact", layout="terminals")
+    assert r2p == pytest.approx(2.0, rel=1e-12)
+    assert x == pytest.approx(4.0, rel=1e-12)
+
+
+def test_identify_exact_terminals_roundtrip():
+    m = _motor_terminals()
+    res = ident.identify(dc=_dc(m.r1), no_load=_no_load(m), locked=_locked(m),
+                         pole_pairs=2, method="exact", layout="terminals")
+    assert res.layout == "terminals"
+    for name in ("r1", "r2p", "x_leak", "x_m", "r_fe"):
+        assert getattr(res, name) == pytest.approx(getattr(m, name), rel=1e-12), name
+
+
+def test_wrong_layout_gives_wrong_circuit():
+    # data from a TP3 motor identified with the terminals formulas: R'2 is off
+    m = _motor(0.8)
+    res = ident.identify(dc=_dc(m.r1), no_load=_no_load(m), locked=_locked(m),
+                         pole_pairs=2, method="exact", layout="terminals")
+    assert res.r2p != pytest.approx(2.0, rel=1e-3)
+
+
+def test_fit_keeps_layout_of_start():
+    m = _motor_terminals()
+    start = replace(m, r2p=3.0, x_leak=6.0, x_m=30.0, r_fe=400.0)
+    res = ident.fit_circuit(_points(m), start)
+    assert res.motor.layout == "terminals"
+    assert res.motor.r2p == pytest.approx(2.0, rel=1e-6)
+
+
+def test_bad_layout():
+    with pytest.raises(ValueError, match="layout"):
+        ident.no_load_branch(_no_load(td5_ex1()), r1=0.0, layout="star")
