@@ -50,7 +50,9 @@ onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
 - **Montrer** la barre d'état : « Moteur : Identification TP3 · optimisation
   (démo) ». R1 = 0,40 Ω mesurée à 20 °C (essai DC), soit 0,49 Ω à 75 °C, la
   température du bobinage pendant l'essai. Le couple maximal tombe alors à
-  C_max = 109,4 N·m (g_c = 0,48, affichés sur la courbe) : c'est la chute de tension
+  C_max = 109,4 N·m (g_c = 0,48, affichés sur la courbe couple–glissement ; les
+  deux courbes de gauche donnent le même essai en fonction de la vitesse, 900 à
+  1470 tr/min pour g = 0,02 … 0,40) : c'est la chute de tension
   dans R1.
 - **Montrer** la note sous *Schéma* : le choix TP3 / bornes ne change pas les
   formules classiques, il fixe le circuit de l'optimisation et des onglets 2 à 7.
@@ -155,4 +157,4 @@ onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
 
 **Si une question porte sur la validation** : renvoyer au tableau « What is
 validated / what is démo » du README (circuit TD5, facteurs de bobinage,
-bilans d'énergie, comparaison avec un balayage exhaustif à 1 % près, 554 tests).
+bilans d'énergie, comparaison avec un balayage exhaustif à 1 % près, 555 tests).

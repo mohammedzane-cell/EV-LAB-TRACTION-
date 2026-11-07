@@ -2,12 +2,13 @@
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 from PySide6.QtCore import Qt
 
 from evlab.core import circuit
 from evlab.core import identification as ident
-from evlab.gui.format import fr, fr_pct
+from evlab.gui.format import fr, fr_fixed, fr_pct
 from evlab.gui.main_window import MainWindow
 from evlab.gui.tab_identification import COLUMNS, VALUE_ROLE
 from evlab.io.loaders import load_bench_tests, load_load_points, reference_motor
@@ -219,3 +220,53 @@ def test_worker_failure_is_reported(qtbot, win, tab, monkeypatch):
 def test_fields_use_decimal_comma(tab):
     tab.load_bench_file(BENCH)
     assert "," in tab.spin_r1.text() and "." not in tab.spin_r1.text()
+
+
+# --- 2×2 plot grid: torque and current vs speed and vs slip ------------------------------
+
+def _items(pw):
+    return {c.name(): c for c in pw.getPlotItem().listDataItems()}
+
+
+def test_four_plots_in_a_two_by_two_grid(qtbot, tab):
+    from evlab.gui.tab_identification import RAD_S_TO_RPM
+
+    tab.load_bench_file(BENCH)
+    tab.load_points_file(LOAD)
+    result = _run(qtbot, tab, "both")
+    assert set(tab.plots) == {"torque_speed", "torque_slip", "current_speed", "current_slip"}
+    grid = tab.plot_grid
+    pos = {k: grid.getItemPosition(grid.indexOf(pw))[:2] for k, pw in tab.plots.items()}
+    assert pos == {"torque_speed": (0, 0), "torque_slip": (0, 1), "current_speed": (1, 0), "current_slip": (1, 1)}
+    assert tab.plot_torque is tab.plots["torque_slip"] and tab.plot_current is tab.plots["current_slip"]
+    m = result.fit.motor
+    pts = tab.points_file.points
+    for key, pw in tab.plots.items():
+        items = _items(pw)
+        assert {"modèle (formules classiques)", "modèle (optimisation)", "points d'essai (démo)"} <= set(items)
+        assert pw.getPlotItem().legend is None  # one shared legend for the four plots
+        x, y = items["modèle (optimisation)"].getData()
+        assert x.size > 100
+        g = (np.asarray(circuit.slip_from_speed(m, x / RAD_S_TO_RPM)) if key.endswith("speed") else x)
+        assert np.all((g > 0) & (g <= 1 + 1e-12))  # model over g ∈ (0, 1]
+        want = circuit.torque(m, g) if key.startswith("torque") else circuit.stator_current(m, g)
+        assert np.allclose(y, want, rtol=1e-12)
+        px, py = items["points d'essai (démo)"].getData()
+        assert len(px) == len(pts) == 12
+        if key.endswith("speed"):
+            speed = np.array([circuit.mechanical_speed(result.published, p.slip, f=p.f) for p in pts])
+            assert np.allclose(px / RAD_S_TO_RPM, speed, rtol=0, atol=1e-9)
+        else:
+            assert np.allclose(px, [p.slip for p in pts])
+        assert np.allclose(py, [p.torque if key.startswith("torque") else p.i_line for p in pts])
+    # breakdown labels on the torque–slip plot only, from circuit.breakdown
+    g_c, t_max = circuit.breakdown(result.published)
+    labels = [i for i in tab.plots["torque_slip"].getPlotItem().items if hasattr(i, "toPlainText")]
+    assert [lbl.toPlainText() for lbl in labels] == [f"C_max = {fr(t_max, 4)} N·m\ng_c = {fr_fixed(g_c, 2)}"]
+    for key in ("torque_speed", "current_speed", "current_slip"):
+        assert not [i for i in tab.plots[key].getPlotItem().items if hasattr(i, "toPlainText")]
+    legend = tab.lbl_legend.text()
+    for name in ("modèle (formules classiques)", "modèle (optimisation)", "points d'essai (démo)"):
+        assert name in legend
+    assert tab.chip_demo.isVisibleTo(tab)
+    assert tab.plots["torque_speed"].getPlotItem().getAxis("bottom").labelText == "vitesse (tr/min)"

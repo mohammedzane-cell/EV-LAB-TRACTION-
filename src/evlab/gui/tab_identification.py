@@ -220,22 +220,36 @@ class IdentificationTab(QWidget):
         self.radios["fit"].setChecked(True)
         return box
 
+    PLOTS = (  # key, title, x label, y label, grid row, grid column
+        ("torque_speed", "Couple–vitesse", "vitesse (tr/min)", "Couple (N·m)", 0, 0),
+        ("torque_slip", "Couple–glissement", "glissement g", "Couple (N·m)", 0, 1),
+        ("current_speed", "Courant–vitesse", "vitesse (tr/min)", "Courant absorbé (A)", 1, 0),
+        ("current_slip", "Courant–glissement", "glissement g", "Courant absorbé (A)", 1, 1),
+    )
+
     def _plot_card(self) -> QFrame:
         card, lay, head = _card("Caractéristiques : modèle et points d'essai")
+        self.lbl_legend = QLabel("")  # one legend shared by the four plots
+        self.lbl_legend.setTextFormat(Qt.TextFormat.RichText)
+        head.insertWidget(1, self.lbl_legend)
         self.chip_demo = chip("points synthétiques (démo)")
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
         pg.setConfigOptions(antialias=True, background="w", foreground="#333")
-        plots = QHBoxLayout()
-        self.plot_torque = pg.PlotWidget(title="Couple–glissement")
-        self.plot_current = pg.PlotWidget(title="Courant–glissement")
-        for pw, ylab in ((self.plot_torque, "Couple (N·m)"), (self.plot_current, "Courant absorbé (A)")):
-            pw.setLabel("bottom", "glissement g")
+        self.plot_grid = QGridLayout()
+        self.plot_grid.setSpacing(4)
+        self.plots: dict[str, pg.PlotWidget] = {}
+        for key, title, xlab, ylab, row, col in self.PLOTS:
+            pw = pg.PlotWidget()
+            pw.setTitle(title, size="10pt")
+            pw.setLabel("bottom", xlab)
             pw.setLabel("left", ylab)
             pw.showGrid(x=True, y=True, alpha=0.25)
-            pw.addLegend(offset=(-10, -10))  # bottom right: free of curves and annotation
-            plots.addWidget(pw)
-        lay.addLayout(plots)
+            self.plots[key] = pw
+            self.plot_grid.addWidget(pw, row, col)
+        self.plot_torque = self.plots["torque_slip"]
+        self.plot_current = self.plots["current_slip"]
+        lay.addLayout(self.plot_grid)
         return card
 
     def _table_card(self) -> QFrame:
@@ -489,17 +503,24 @@ class IdentificationTab(QWidget):
         return "Formules classiques (TP3 / TD5)"
 
     def _refresh_plots(self) -> None:
-        for pw in (self.plot_torque, self.plot_current):
+        for pw in self.plots.values():
             pw.clear()
+        legend = []
         res = self.result
+        t_top = 0.0
         if res is not None:
-            g = np.linspace(0.0, 1.0, 401)
+            g = np.linspace(0.0, 1.0, 401)[1:]  # g ∈ (0, 1]: motoring, from near no-load to standstill
             for row in res.shown:
                 m = res.motor(row)
                 pen = pg.mkPen(COLORS[row], width=2)
                 name = f"modèle ({ROW_LABELS[row].lower()})"
-                self.plot_torque.plot(g, circuit.torque(m, g), pen=pen, name=name)
-                self.plot_current.plot(g, circuit.stator_current(m, g), pen=pen, name=name)
+                n = np.asarray(circuit.mechanical_speed(m, g)) * RAD_S_TO_RPM
+                t, i = circuit.torque(m, g), circuit.stator_current(m, g)
+                t_top = max(t_top, float(np.max(t)))
+                for key, x, y in (("torque_speed", n, t), ("torque_slip", g, t),
+                                  ("current_speed", n, i), ("current_slip", g, i)):
+                    self.plots[key].plot(x, y, pen=pen, name=name)
+                legend.append(f"<span style='color:{COLORS[row]}'>━━</span> {name}")
             g_c, t_max = circuit.breakdown(res.published)
             text = pg.TextItem(f"C_max = {fr(t_max, 4)} N·m\ng_c = {fr_fixed(g_c, 2)}",
                                color="#333", anchor=(-0.1, 1.1))
@@ -510,10 +531,27 @@ class IdentificationTab(QWidget):
         if self.points_file is not None:
             pts = self.points_file.points
             demo = " (démo)" if self.points_file.is_demo else ""
-            kw = dict(pen=None, symbol="o", symbolSize=7, symbolBrush=None,
-                      symbolPen=pg.mkPen(COLORS["points"], width=1.5), name=f"points d'essai{demo}")
-            self.plot_torque.plot([p.slip for p in pts], [p.torque for p in pts], **kw)
-            self.plot_current.plot([p.slip for p in pts], [p.i_line for p in pts], **kw)
+            name = f"points d'essai{demo}"
+            kw = dict(pen=None, symbol="o", symbolSize=6, symbolBrush=None,
+                      symbolPen=pg.mkPen(COLORS["points"], width=1.5), name=name)
+            m = res.published if res is not None else self._plate_motor()
+            g = [p.slip for p in pts]
+            n = [float(circuit.mechanical_speed(m, p.slip, f=p.f)) * RAD_S_TO_RPM for p in pts]
+            t, i = [p.torque for p in pts], [p.i_line for p in pts]
+            for key, x, y in (("torque_speed", n, t), ("torque_slip", g, t),
+                              ("current_speed", n, i), ("current_slip", g, i)):
+                self.plots[key].plot(x, y, **kw)
+            legend.append(f"<span style='color:{COLORS['points']}'>○</span> {name}")
+        self.lbl_legend.setText("&nbsp;&nbsp;&nbsp;".join(legend))
+        if t_top > 0:  # headroom above the curves for the C_max / g_c label, same scale on both torque plots
+            for key in ("torque_speed", "torque_slip"):
+                self.plots[key].setYRange(0.0, 1.35 * t_top, padding=0)
+
+    def _plate_motor(self):
+        """Session motor with the pole pairs of the Machine fields (point speeds before identification)."""
+        from dataclasses import replace
+
+        return replace(self.session.motor, pole_pairs=self.spin_p.value())
 
 
 def _name(path) -> str:

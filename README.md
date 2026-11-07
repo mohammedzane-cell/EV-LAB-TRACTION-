@@ -145,8 +145,11 @@ rated speed read from the file's nameplate), **Essais (CSV)** (bench tests and
 load points, each with a status line and a preview; "Charger la démo" loads the
 two `data/*_demo.csv` files), **Méthode** (Formules classiques, Optimisation,
 Comparer les deux), then **Identifier** and **Exporter PDF** (the whole
-session report, same as Fichier → Exporter PDF). Right: torque–slip and current–slip plots (model curves from the
-core, measured points, breakdown point; chip "points synthétiques (démo)"), and
+session report, same as Fichier → Exporter PDF). Right: a 2 × 2 grid, torque–speed | torque–slip on top and
+current–speed | current–slip below (model curves over g ∈ (0, 1] from the core, speed
+from `circuit.mechanical_speed` converted to tr/min at the GUI edge, measured points
+on all four, C_max and g_c from `circuit.breakdown` on the torque–slip plot, one
+shared legend in the card header; chip "points synthétiques (démo)"), and
 the table Référence / Formules classiques / Optimisation with error % and the
 95 % interval of the fit as tooltip.
 

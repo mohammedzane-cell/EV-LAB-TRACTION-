@@ -59,8 +59,9 @@ des essais TP3 / TD5.
 **Action** : *Identifier*. Le moteur obtenu est publié pour les onglets 2 à 7
 (le résultat de l'optimisation s'il existe, sinon celui des formules classiques).
 
-**Sorties** : courbes couple–glissement et courant–glissement (modèle et points
-d'essai), tableau Référence / Formules classiques / Optimisation avec l'écart en %
+**Sorties** : quatre courbes, couple–vitesse | couple–glissement en haut et
+courant–vitesse | courant–glissement en bas (modèle et points d'essai sur les quatre,
+C_max et g_c sur couple–glissement, légende commune en tête), tableau Référence / Formules classiques / Optimisation avec l'écart en %
 (l'infobulle donne l'intervalle de confiance à 95 % de l'optimisation).
 
 **À vérifier** : les formules classiques sous-estiment R'2 (rotor bloqué : la
