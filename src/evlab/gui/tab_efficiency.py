@@ -9,6 +9,7 @@ only converts units for display (rad/s → tr/min, °C ↔ K, η → %).
 from __future__ import annotations
 
 import numpy as np
+import matplotlib
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import QThreadPool, Signal
@@ -27,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from evlab.core import drive, losses
 from evlab.core.session import Session
+from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
 from evlab.gui.widgets import card, chip, french_spin, set_demo_chip
 from evlab.gui.workers import CoreWorker
@@ -108,15 +110,12 @@ class EfficiencyTab(QWidget):
 
         self.lbl_drive = QLabel()
         self.lbl_drive.setWordWrap(True)
-        self.lbl_drive.setStyleSheet("color: #555;")
+        self.lbl_drive.setProperty("role", "muted")
         lv.addWidget(self.lbl_drive)
 
         self.btn_compute = QPushButton("Calculer la carte")
         self.btn_compute.setMinimumHeight(34)
-        self.btn_compute.setStyleSheet(
-            "QPushButton { background: #2f6fd6; color: white; font-weight: bold; border-radius: 4px; }"
-            "QPushButton:disabled { background: #9db7e6; }"
-        )
+        self.btn_compute.setProperty("role", "primary")
         self.btn_compute.clicked.connect(self.compute)
         self.btn_png = QPushButton("Exporter PNG")
         self.btn_png.setEnabled(False)
@@ -134,7 +133,6 @@ class EfficiencyTab(QWidget):
         self.canvas = FigureCanvasQTAgg(self.figure)
         lay.addWidget(self.canvas, 1)
         self.lbl_best = QLabel("")
-        self.lbl_best.setStyleSheet("color: #333;")
         lay.addWidget(self.lbl_best)
         root.addWidget(map_card, 1)
 
@@ -265,6 +263,15 @@ class EfficiencyTab(QWidget):
     # --- drawing and export ---------------------------------------------------------
 
     def _draw(self) -> None:
+        """Draw the map with the matplotlib colours of the current theme."""
+        with matplotlib.rc_context(theme.mpl_rc()):
+            self.figure.set_facecolor(theme.color("plot_bg"))
+            self._draw_map()
+
+    def on_theme_changed(self) -> None:
+        self._draw()
+
+    def _draw_map(self) -> None:
         self.figure.clear()
         ax = self.figure.add_subplot()
         self.ax = ax
@@ -283,10 +290,10 @@ class EfficiencyTab(QWidget):
         self.figure.colorbar(filled, ax=ax, label="Rendement (%)")
         env = emap.envelope
         ax.plot(env.omega * RPM, losses.shaft_torque_limit(self.session.motor, env, emap.settings),
-                color="#d62728", linewidth=2, label="enveloppe (couple à l'arbre)")
+                color=theme.color("red"), linewidth=2, label="enveloppe (couple à l'arbre)")
         if self.chk_cycle.isChecked() and self.cycle_points is not None:
             t, w = self.cycle_points
-            ax.scatter(w * RPM, t, s=6, color="#ff7f0e", alpha=0.6, label="points du cycle")
+            ax.scatter(w * RPM, t, s=6, color=theme.color("orange"), alpha=0.6, label="points du cycle")
         demo = " (démo)" if self.session.motor.is_demo else ""
         ax.set_title(f"{self.session.motor.source}{demo}", fontsize=10)
         ax.set_xlabel("Vitesse (tr/min)")

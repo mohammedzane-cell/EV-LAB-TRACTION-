@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 from evlab.core import optimise as op
 from evlab.core import thermal
 from evlab.core.session import Session
+from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed, fr_pct
 from evlab.gui.widgets import card, chip, french_spin, set_demo_chip
 from evlab.gui.workers import CoreWorker
@@ -92,6 +93,8 @@ class OptimisationTab(QWidget):
         for r, (name, label, unit, dec, lo, hi, scale) in enumerate(VAR_ROWS, start=1):
             s_lo = french_spin(0.0, 1e3, dec, unit, lo * scale)
             s_hi = french_spin(0.0, 1e3, dec, unit, hi * scale)
+            for sp in (s_lo, s_hi):
+                sp.setMinimumWidth(64)  # the label column keeps its full text in the 300 px panel
             lbl = QLabel(label)
             lbl.setToolTip({"gear_ratio": "Rapport de réduction G = ωm/ωroue",
                             "boost": "Tension de la loi V/f à f → 0",
@@ -103,7 +106,7 @@ class OptimisationTab(QWidget):
             self.bound_spins[name] = (s_lo, s_hi, scale)
         hint = QLabel("min = max fixe la variable. k_N : spires × k_N à section de cuivre constante.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: #555;")
+        hint.setProperty("role", "muted")
         grid.addWidget(hint, len(VAR_ROWS) + 1, 0, 1, 3)
         lv.addWidget(box)
 
@@ -133,16 +136,13 @@ class OptimisationTab(QWidget):
         bf.addRow("Graine", self.spin_seed)
         self.lbl_budget = QLabel("")
         self.lbl_budget.setWordWrap(True)
-        self.lbl_budget.setStyleSheet("color: #555;")
+        self.lbl_budget.setProperty("role", "muted")
         bf.addRow(self.lbl_budget)
         lv.addWidget(budget)
 
         self.btn_run = QPushButton("Lancer l'optimisation")
         self.btn_run.setMinimumHeight(34)
-        self.btn_run.setStyleSheet(
-            "QPushButton { background: #2f6fd6; color: white; font-weight: bold; border-radius: 4px; }"
-            "QPushButton:disabled { background: #9db7e6; }"
-        )
+        self.btn_run.setProperty("role", "primary")
         self.btn_run.clicked.connect(self.run)
         self.btn_cancel = QPushButton("Annuler")
         self.btn_cancel.setEnabled(False)
@@ -162,11 +162,9 @@ class OptimisationTab(QWidget):
         self.chip_demo = chip("démo")
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
-        self.chip_r1 = chip(R1_ZERO_NOTE)
-        self.chip_r1.setStyleSheet(self.chip_r1.styleSheet().replace("color: #555", "color: #b3261e"))
+        self.chip_r1 = chip(R1_ZERO_NOTE, "alert")
         head.addWidget(self.chip_r1)
         self.on_motor_changed()
-        pg.setConfigOptions(antialias=True, background="w", foreground="#333")
         self.plot = pg.PlotWidget()
         self.plot.setLabel("bottom", "0–50 km/h (s)")
         self.plot.setLabel("left", "Consommation (Wh/km)")
@@ -174,7 +172,7 @@ class OptimisationTab(QWidget):
         self.plot.addLegend(offset=(-10, 10))
         pl.addWidget(self.plot)
         self.lbl_click = QLabel("Cliquer un point du front pour le sélectionner.")
-        self.lbl_click.setStyleSheet("color: #555;")
+        self.lbl_click.setProperty("role", "muted")
         pl.addWidget(self.lbl_click)
         right.addWidget(plot_card, 3)
 
@@ -325,16 +323,16 @@ class OptimisationTab(QWidget):
                            name="évaluations admissibles")
         self.front_item = pg.ScatterPlotItem(
             [e.t_0_50 for e in r.front], [e.wh_per_km for e in r.front], size=11,
-            brush=pg.mkBrush("#2e9e5b"), pen=pg.mkPen("#1b5e35"), data=list(range(len(r.front))),
+            brush=pg.mkBrush(theme.color("green")), pen=pg.mkPen(theme.color("dark_green")), data=list(range(len(r.front))),
             hoverable=True, name="front de Pareto")
         self.front_item.sigClicked.connect(self._clicked)
         self.plot.addItem(self.front_item)
         self.plot.plot([e.t_0_50 for e in r.front], [e.wh_per_km for e in r.front],
-                       pen=pg.mkPen("#2e9e5b", width=1, style=Qt.PenStyle.DashLine))
+                       pen=pg.mkPen(theme.color("green"), width=1, style=Qt.PenStyle.DashLine))
         b = r.baseline
         if math.isfinite(b.t_0_50):
             self.plot.plot([b.t_0_50], [b.wh_per_km], pen=None, symbol="star", symbolSize=16,
-                           symbolBrush="#e08a1e", symbolPen=pg.mkPen("#8a5208"), name="base")
+                           symbolBrush=theme.color("orange"), symbolPen=pg.mkPen(theme.color("brown")), name="base")
 
     def _clicked(self, _item, points, _ev=None) -> None:
         if points:
@@ -356,7 +354,7 @@ class OptimisationTab(QWidget):
                 if c:
                     it.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 if c == 3 and key in ("wh_per_km", "t_0_50") and math.isfinite(value):
-                    it.setForeground(pg.mkColor("#1e7d3a" if value < 0 else "#b3261e"))
+                    it.setForeground(pg.mkColor(theme.color("success" if value < 0 else "alert_fg")))
                 self.kpi_table.setItem(r, c, it)
         for r, (name, label, unit, dec, _lo, _hi, sc) in enumerate(VAR_ROWS):
             cells = (label + (f" ({unit})" if unit else ""), fr_fixed(getattr(b.design, name) * sc, dec),

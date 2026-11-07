@@ -4,6 +4,7 @@ Usage (from the repository root, app installed with `pip install -e .[dev]`):
 
     python tools/capture_screenshots.py                 # writes docs/images/*.png
     python tools/capture_screenshots.py --out /tmp/x --numbers numbers.json
+    python tools/capture_screenshots.py --theme dark --out /tmp/sombre
 
 Clicks the demo path (tab 1 démo data → "Comparer les deux" → Identifier, then tabs 2 to 7,
 the FEM window on its saved 7,07 A run, the quick Pareto run 3 points × 300 evaluations on
@@ -33,8 +34,8 @@ def _table(t) -> list[list[str]]:
             for r in range(t.rowCount())]
 
 
-def capture(out: Path) -> dict:
-    """Drive the app, save the PNGs in `out`, return the displayed numbers."""
+def capture(out: Path, theme_name: str = "light") -> dict:
+    """Drive the app in the given theme, save the PNGs in `out`, return the displayed numbers."""
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtCore import QEventLoop, QTimer
     from PySide6.QtWidgets import QApplication, QLabel
@@ -75,7 +76,7 @@ def capture(out: Path) -> dict:
         widget.grab().save(str(out / f"{name}.png"))
 
     nums: dict = {}
-    w = MainWindow()
+    w = MainWindow(theme_name=theme_name)  # never the remembered theme: captures are reproducible
     w.resize(*SIZE)
     w.show()
     pump(800)
@@ -171,8 +172,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", type=Path, default=ROOT / "docs" / "images", help="folder for the PNGs")
     ap.add_argument("--numbers", type=Path, help="also write the displayed numbers to this JSON file")
+    ap.add_argument("--theme", choices=("light", "dark"), default="light", help="UI theme (default light)")
     args = ap.parse_args()
-    nums = capture(args.out)
+    nums = capture(args.out, args.theme)
     text = json.dumps(nums, ensure_ascii=False, indent=1, default=str)
     if args.numbers:
         args.numbers.write_text(text, encoding="utf-8")

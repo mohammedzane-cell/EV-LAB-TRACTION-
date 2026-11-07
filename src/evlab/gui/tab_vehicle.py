@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from evlab.core import drive, losses, vehicle
 from evlab.core.session import Session
+from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
 from evlab.gui.widgets import KpiTile, card, chip, french_spin, set_demo_chip
 from evlab.gui.workers import CoreWorker
@@ -87,9 +88,6 @@ class VehicleTab(QWidget):
         self.btn_propose.clicked.connect(self.propose_gear)
         self.chk_regen = QCheckBox("Freinage récupératif")
         self.chk_regen.setChecked(True)
-        g_row = QHBoxLayout()
-        g_row.addWidget(self.spin_g, 1)
-        g_row.addWidget(self.btn_propose)
         form.addRow("Masse", self.spin_mass)
         form.addRow("Cx·S", self.spin_cxs)
         form.addRow("Crr", self.spin_crr)
@@ -97,7 +95,8 @@ class VehicleTab(QWidget):
         form.addRow("Rendement transmission", self.spin_eta_g)
         form.addRow("Auxiliaires", self.spin_aux)
         form.addRow("Pente", self.spin_grade)
-        form.addRow("Rapport G", g_row)
+        form.addRow("Rapport G", self.spin_g)
+        form.addRow("", self.btn_propose)  # own row: the label stays whole in the 300 px panel
         form.addRow(self.chk_regen)
         lv.addWidget(box)
 
@@ -111,25 +110,20 @@ class VehicleTab(QWidget):
         self.lbl_cycle.setWordWrap(True)
         self.lbl_gear = QLabel("")
         self.lbl_gear.setWordWrap(True)
-        self.lbl_gear.setStyleSheet("color: #555;")
+        self.lbl_gear.setProperty("role", "muted")
         self.btn_cycle = QPushButton("Charger un cycle CSV…")
         self.btn_cycle.clicked.connect(self._choose_cycle)
         self.btn_class_cycle = QPushButton("Cycle de la classe")
         self.btn_class_cycle.clicked.connect(self.use_class_cycle)
         for w in (self.lbl_class, self.lbl_cycle, self.lbl_gear):
             cv.addWidget(w)
-        row = QHBoxLayout()
-        row.addWidget(self.btn_cycle)
-        row.addWidget(self.btn_class_cycle)
-        cv.addLayout(row)
+        cv.addWidget(self.btn_cycle)  # one per row: both labels stay whole in the 300 px panel
+        cv.addWidget(self.btn_class_cycle)
         lv.addWidget(cyc)
 
         self.btn_simulate = QPushButton("Simuler le cycle")
         self.btn_simulate.setMinimumHeight(34)
-        self.btn_simulate.setStyleSheet(
-            "QPushButton { background: #2f6fd6; color: white; font-weight: bold; border-radius: 4px; }"
-            "QPushButton:disabled { background: #9db7e6; }"
-        )
+        self.btn_simulate.setProperty("role", "primary")
         self.btn_simulate.clicked.connect(self.simulate)
         lv.addWidget(self.btn_simulate)
         lv.addStretch(1)
@@ -138,9 +132,7 @@ class VehicleTab(QWidget):
         right = QVBoxLayout()
         self.lbl_warning = QLabel("")
         self.lbl_warning.setWordWrap(True)
-        self.lbl_warning.setStyleSheet(
-            "QLabel { background: #fde8e7; color: #b3261e; border: 1px solid #b3261e;"
-            " border-radius: 4px; padding: 6px; font-weight: bold; }")
+        self.lbl_warning.setProperty("role", "warning")
         self.lbl_warning.setVisible(False)
         right.addWidget(self.lbl_warning)
         tiles = QHBoxLayout()
@@ -157,7 +149,6 @@ class VehicleTab(QWidget):
         self.chip_demo = chip("démo")
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
-        pg.setConfigOptions(antialias=True, background="w", foreground="#333")
         self.plot_speed = pg.PlotWidget(title="Vitesse du véhicule")
         self.plot_power = pg.PlotWidget(title="Puissance batterie")
         self.plot_power.setXLink(self.plot_speed)
@@ -315,9 +306,9 @@ class VehicleTab(QWidget):
     def _draw(self, res: vehicle.DriveResult, cycle: vehicle.Cycle) -> None:
         self.plot_speed.clear()
         self.plot_power.clear()
-        self.plot_speed.plot(cycle.t, cycle.v * KMH, pen=pg.mkPen("#1b4fa8", width=2), name=cycle.name)
+        self.plot_speed.plot(cycle.t, cycle.v * KMH, pen=pg.mkPen(theme.color("blue"), width=2), name=cycle.name)
         if res.outside.any():
             self.plot_speed.plot(res.t[res.outside], res.v[res.outside] * KMH, pen=None, symbol="o", symbolSize=7,
-                                 symbolBrush="#d62728", symbolPen=None, name="hors enveloppe")
-        self.plot_power.plot(res.t, res.p_battery / 1000, pen=pg.mkPen("#2e9e5b", width=1.5), name="batterie")
-        self.plot_power.addLine(y=0, pen=pg.mkPen("#999"))
+                                 symbolBrush=theme.color("red"), symbolPen=None, name="hors enveloppe")
+        self.plot_power.plot(res.t, res.p_battery / 1000, pen=pg.mkPen(theme.color("green"), width=1.5), name="batterie")
+        self.plot_power.addLine(y=0, pen=pg.mkPen(theme.color("grey")))

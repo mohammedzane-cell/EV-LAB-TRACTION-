@@ -54,6 +54,11 @@ PDF and Excel export; log in `<dossier>/smoke.log`, exit code 0 when all pass):
 python -m evlab --smoke build/smoke
 ```
 
+Look: `gui/theme.py` holds one palette per theme (light, dark) used by the Qt
+stylesheet `gui/style.qss`, the pyqtgraph plots and the matplotlib figures (the PDF
+always uses the light one); every text colour pair is tested for a contrast ≥ 4,5:1.
+*Affichage → Thème clair / sombre* switches it, remembered with QSettings.
+
 ## Test
 
 ```bash

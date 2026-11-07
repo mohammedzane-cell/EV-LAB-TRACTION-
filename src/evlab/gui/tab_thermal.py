@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from evlab.core import thermal
 from evlab.core.session import Session
+from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed, power_of_ten
 from evlab.gui.widgets import KpiTile, card, chip, french_spin, set_demo_chip
 from evlab.gui.workers import CoreWorker
@@ -75,7 +76,7 @@ class ThermalTab(QWidget):
         form.addRow("R carcasse → air", self.spin_rsa)
         form.addRow("Température ambiante", self.spin_ta)
         self.lbl_tau = QLabel("")
-        self.lbl_tau.setStyleSheet("color: #555;")
+        self.lbl_tau.setProperty("role", "muted")
         form.addRow(self.lbl_tau)
         lv.addWidget(box)
 
@@ -101,10 +102,7 @@ class ThermalTab(QWidget):
 
         self.btn_run = QPushButton("Calculer les températures")
         self.btn_run.setMinimumHeight(34)
-        self.btn_run.setStyleSheet(
-            "QPushButton { background: #2f6fd6; color: white; font-weight: bold; border-radius: 4px; }"
-            "QPushButton:disabled { background: #9db7e6; }"
-        )
+        self.btn_run.setProperty("role", "primary")
         self.btn_run.clicked.connect(self.compute)
         lv.addWidget(self.btn_run)
         lv.addStretch(1)
@@ -124,11 +122,9 @@ class ThermalTab(QWidget):
         plot_card, lay, head = card("Températures du bobinage et de la carcasse")
         self.chip_demo = chip("paramètres démo")
         head.addWidget(self.chip_demo)
-        self.chip_r1 = chip(R1_ZERO_NOTE)
-        self.chip_r1.setStyleSheet(self.chip_r1.styleSheet().replace("color: #555", "color: #b3261e"))
+        self.chip_r1 = chip(R1_ZERO_NOTE, "alert")
         head.addWidget(self.chip_r1)
         self.on_motor_changed()
-        pg.setConfigOptions(antialias=True, background="w", foreground="#333")
         self.plot = pg.PlotWidget()
         self.plot.setLabel("bottom", "Temps (min)")
         self.plot.setLabel("left", "Température (°C)")
@@ -138,7 +134,7 @@ class ThermalTab(QWidget):
         self.lbl_note = QLabel("La durée de vie suit la règle des 10 K : c'est un ordre de grandeur, "
                                "le point chaud est plus chaud que la moyenne du bobinage calculée ici.")
         self.lbl_note.setWordWrap(True)
-        self.lbl_note.setStyleSheet("color: #666;")
+        self.lbl_note.setProperty("role", "muted")
         lay.addWidget(self.lbl_note)
         right.addWidget(plot_card, 1)
         root.addLayout(right, 1)
@@ -222,17 +218,17 @@ class ThermalTab(QWidget):
         self.tiles["t_mean"].set_value(fr_fixed(s.t_mean - T_ZERO_C, 1))
         self.tiles["margin"].set_value(fr_fixed(s.margin, 1))
         self.tiles["life"].set_value("≈ " + power_of_ten(thermal.order_of_magnitude(s.life_hours)))
-        self.tiles["margin"].value.setStyleSheet("color: #b3261e;" if s.margin < 0 else "")
+        theme.set_role(self.tiles["margin"].value, "error" if s.margin < 0 else None)
         _res, emap, cycle, veh = self.cycle
         set_demo_chip(self.chip_demo, demo_labels(motor=self.session.motor, drive_settings=emap.envelope.settings,
                                                   thermal_params=self.params(), vehicle=veh, cycle=cycle))
         self.plot.clear()
         minutes = r.t / 60.0
-        self.plot.plot(minutes, r.t_w - T_ZERO_C, pen=pg.mkPen("#d62728", width=2), name="bobinage")
-        self.plot.plot(minutes, r.t_s - T_ZERO_C, pen=pg.mkPen("#1b4fa8", width=2), name="fer / carcasse")
+        self.plot.plot(minutes, r.t_w - T_ZERO_C, pen=pg.mkPen(theme.color("red"), width=2), name="bobinage")
+        self.plot.plot(minutes, r.t_s - T_ZERO_C, pen=pg.mkPen(theme.color("blue"), width=2), name="fer / carcasse")
         t_class = thermal.INSULATION_CLASSES[s.insulation_class]
         self.plot.plot([minutes[0], minutes[-1]], [t_class, t_class],
-                       pen=pg.mkPen("#e08a1e", width=1.5, style=Qt.PenStyle.DashLine),
+                       pen=pg.mkPen(theme.color("orange"), width=1.5, style=Qt.PenStyle.DashLine),
                        name=f"classe {s.insulation_class} ({fr_fixed(t_class, 0)} °C)")
         self.status_message.emit(f"Température max du bobinage : {fr_fixed(s.t_max - T_ZERO_C, 1)} °C")
         self.thermal_done.emit(r)

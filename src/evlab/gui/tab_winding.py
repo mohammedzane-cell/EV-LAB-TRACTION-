@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from evlab.core import winding as wd
 from evlab.core.session import Session
+from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
 from evlab.gui.widgets import card, french_spin
 from evlab.io import femm_model
@@ -82,7 +83,7 @@ class WindingTab(QWidget):
         form.addRow("Pas y (encoches)", self.spin_y)
         self.lbl_geom = QLabel("")
         self.lbl_geom.setWordWrap(True)
-        self.lbl_geom.setStyleSheet("color: #555;")
+        self.lbl_geom.setProperty("role", "muted")
         form.addRow(self.lbl_geom)
         lv.addWidget(box)
 
@@ -111,6 +112,7 @@ class WindingTab(QWidget):
         self.slider.setValue(20)
         self.slider.valueChanged.connect(self._set_speed)
         self.lbl_speed = QLabel("")
+        self.lbl_speed.setWordWrap(True)
         av.addWidget(self.btn_play)
         av.addWidget(QLabel("Vitesse d'animation"))
         av.addWidget(self.slider)
@@ -125,7 +127,7 @@ class WindingTab(QWidget):
         self.lbl_fem = QLabel(reason if ok else
                               f"FEMM indisponible : {reason} — le reste de l'onglet fonctionne{cached}")
         self.lbl_fem.setWordWrap(True)
-        self.lbl_fem.setStyleSheet("color: #1e7d3a;" if ok else "color: #8a5208;")
+        theme.set_role(self.lbl_fem, "success" if ok else "note")
         self.btn_fem = QPushButton("Ouvrir l'animation FEM…")
         self.btn_fem.clicked.connect(self.open_fem)
         fv.addWidget(self.lbl_fem)
@@ -135,7 +137,7 @@ class WindingTab(QWidget):
 
         self.lbl_error = QLabel("")
         self.lbl_error.setWordWrap(True)
-        self.lbl_error.setStyleSheet("color: #b3261e; font-weight: bold;")
+        self.lbl_error.setProperty("role", "error")
         lv.addWidget(self.lbl_error)
         lv.addStretch(1)
         root.addWidget(left)
@@ -143,6 +145,7 @@ class WindingTab(QWidget):
         right = QVBoxLayout()
         strip_card, sl, _ = card("Tableau des encoches (couche haute / basse)")
         self.strip = QTableWidget(2, 36)
+        self.strip.setObjectName("slotTable")  # style.qss: smaller font, 36 columns fit
         self.strip.setVerticalHeaderLabels(["haut", "bas"])
         self.strip.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.strip.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
@@ -163,7 +166,6 @@ class WindingTab(QWidget):
         kl.addWidget(self.kw_table)
         mid.addWidget(kw_card, 1)
         spec_card, spl, _ = card("Spectre de la FMM d'une phase (relatif au fondamental)")
-        pg.setConfigOptions(antialias=True, background="w", foreground="#333")
         self.plot_spec = pg.PlotWidget()
         self.plot_spec.setLabel("bottom", "rang ν")
         self.plot_spec.setLabel("left", "|F_ν| / |F_1|")
@@ -187,8 +189,8 @@ class WindingTab(QWidget):
             plots.addWidget(pw)
         self.curves: dict[str, tuple] = {}
         for key, pw in (("full", self.plot_full), ("short", self.plot_short)):
-            stepped = pw.plot(pen=pg.mkPen("#1b4fa8", width=2), name="FMM en escalier")
-            fund = pw.plot(pen=pg.mkPen("#d62728", width=1.5, style=Qt.PenStyle.DashLine), name="fondamental")
+            stepped = pw.plot(pen=pg.mkPen(theme.color("blue"), width=2), name="FMM en escalier")
+            fund = pw.plot(pen=pg.mkPen(theme.color("red"), width=1.5, style=Qt.PenStyle.DashLine), name="fondamental")
             self.curves[key] = (stepped, fund)
         fl.addLayout(plots)
         right.addWidget(field_card, 2)
@@ -246,6 +248,7 @@ class WindingTab(QWidget):
                 item = QTableWidgetItem(label)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 item.setBackground(QBrush(QColor(PHASE_COLOURS[ph])))
+                item.setForeground(QBrush(QColor(theme.color("cell_text"))))  # dark text on the pastel phase colour
                 item.setToolTip(f"encoche {s + 1}, couche {'haute' if r == 0 else 'basse'} : phase {label}")
                 self.strip.setItem(r, s, item)
 
@@ -272,8 +275,8 @@ class WindingTab(QWidget):
         n_theta = w.z * N_THETA_PER_SLOT * 4
         nus = np.arange(3, nu_max + 1, 2)
         self.spectra = {}
-        for key, ww, dx, colour, name in (("full", self.full, -0.35, "#9db7e6", f"y = {w.tau} (FFT)"),
-                                          ("short", w, 0.35, "#1b4fa8", f"y = {w.y} (FFT)")):
+        for key, ww, dx, colour, name in (("full", self.full, -0.35, theme.color("light_blue"), f"y = {w.tau} (FFT)"),
+                                          ("short", w, 0.35, theme.color("blue"), f"y = {w.y} (FFT)")):
             _, f_a = wd.phase_mmf(ww, "A", n_theta)
             spec = wd.mmf_spectrum(ww, f_a, nu_max)
             self.spectra[key] = spec
@@ -282,7 +285,7 @@ class WindingTab(QWidget):
             self.plot_spec.addItem(bars)
         an = wd.analytical_spectrum(w, nu_max)
         self.plot_spec.plot(nus + 0.35, [an[n] for n in nus], pen=None, symbol="x", symbolSize=8,
-                            symbolPen=pg.mkPen("#d62728", width=1.5), name=f"|kw_ν|/ν (y = {w.y})")
+                            symbolPen=pg.mkPen(theme.color("red"), width=1.5), name=f"|kw_ν|/ν (y = {w.y})")
         self.plot_spec.getAxis("bottom").setTicks([[(int(n), str(int(n))) for n in nus]])
 
     def _show_emf(self) -> None:

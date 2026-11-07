@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 from evlab.core import circuit
 from evlab.core import identification as ident
 from evlab.core.session import Session
+from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed, fr_pct
 from evlab.gui.widgets import card, chip, french_spin
 from evlab.gui.workers import CoreWorker
@@ -64,7 +65,7 @@ ROW_LABELS = {"classical": "Formules classiques", "fit": "Optimisation"}
 COLUMNS = (("r_fe", "Rf (Ω)"), ("x_m", "Xm (Ω)"), ("x_leak", "X fuites (Ω)"), ("r2p", "R'2 (Ω)"))
 PARAM_LABELS = {"x_m": "Xm", "x_leak": "X", "r2p": "R'2", "r_fe": "Rf"}
 STAGES = {"classical": "Formules classiques…", "fit": "Optimisation (moindres carrés, 10 départs)…"}
-COLORS = {"classical": "#e08a1e", "fit": "#2e9e5b", "points": "#2f6fd6"}
+COLORS = {"classical": theme.color("orange"), "fit": theme.color("green"), "points": theme.color("blue")}
 VALUE_ROLE = Qt.ItemDataRole.UserRole
 
 
@@ -121,10 +122,7 @@ class IdentificationTab(QWidget):
         buttons = QHBoxLayout()
         self.btn_identify = QPushButton("Identifier")
         self.btn_identify.setMinimumHeight(34)
-        self.btn_identify.setStyleSheet(
-            "QPushButton { background: #2f6fd6; color: white; font-weight: bold; border-radius: 4px; }"
-            "QPushButton:disabled { background: #9db7e6; }"
-        )
+        self.btn_identify.setProperty("role", "primary")
         self.btn_identify.clicked.connect(self.identify)
         self.btn_pdf = QPushButton("Exporter PDF")
         self.btn_pdf.setMinimumHeight(34)
@@ -170,11 +168,10 @@ class IdentificationTab(QWidget):
         form.addRow("R1 (DC)", self.spin_r1)
         form.addRow("Température R1", self.spin_t_r1)
         form.addRow("Schéma", self.combo_layout)
-        self.lbl_layout_note = QLabel("Le schéma (TP3 / bornes) ne change pas les formules classiques ; "
-                                      "il fixe le circuit de l'optimisation sur les points en charge "
-                                      "et celui des onglets 2 à 7.")
+        self.lbl_layout_note = QLabel("Le schéma ne change pas les formules classiques ; il fixe le "
+                                      "circuit de l'optimisation et des onglets 2 à 7.")
         self.lbl_layout_note.setWordWrap(True)
-        self.lbl_layout_note.setStyleSheet("color: #666; font-size: 11px;")
+        self.lbl_layout_note.setProperty("role", "hint")
         form.addRow(self.lbl_layout_note)
         form.addRow("Vitesse nominale", self.lbl_speed)
         return box
@@ -229,13 +226,12 @@ class IdentificationTab(QWidget):
 
     def _plot_card(self) -> QFrame:
         card, lay, head = _card("Caractéristiques : modèle et points d'essai")
-        self.lbl_legend = QLabel("")  # one legend shared by the four plots
+        self.lbl_legend = QLabel("")  # one legend shared by the four plots, on its own row under the title
         self.lbl_legend.setTextFormat(Qt.TextFormat.RichText)
-        head.insertWidget(1, self.lbl_legend)
+        lay.addWidget(self.lbl_legend)
         self.chip_demo = chip("points synthétiques (démo)")
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
-        pg.setConfigOptions(antialias=True, background="w", foreground="#333")
         self.plot_grid = QGridLayout()
         self.plot_grid.setSpacing(4)
         self.plots: dict[str, pg.PlotWidget] = {}
@@ -255,7 +251,7 @@ class IdentificationTab(QWidget):
     def _table_card(self) -> QFrame:
         card, lay, head = _card("Paramètres identifiés")
         self.lbl_table_note = QLabel("")
-        self.lbl_table_note.setStyleSheet("color: #666;")
+        self.lbl_table_note.setProperty("role", "muted")
         head.insertWidget(1, self.lbl_table_note)
         self.table = QTableWidget(len(ROWS), 1 + len(COLUMNS))
         self.table.setHorizontalHeaderLabels(["Méthode"] + [label for _, label in COLUMNS])
@@ -277,7 +273,7 @@ class IdentificationTab(QWidget):
 
     def _set_status(self, label: QLabel, ok: bool, text: str) -> None:
         label.setText(text)
-        label.setStyleSheet("color: #1e7d3a;" if ok else "color: #b3261e;")
+        theme.set_role(label, "success" if ok else "error")
 
     def load_bench_file(self, path) -> bool:
         """Load the bench-test CSV; on error, show the loader's French message. Returns success."""
@@ -523,11 +519,11 @@ class IdentificationTab(QWidget):
                 legend.append(f"<span style='color:{COLORS[row]}'>━━</span> {name}")
             g_c, t_max = circuit.breakdown(res.published)
             text = pg.TextItem(f"C_max = {fr(t_max, 4)} N·m\ng_c = {fr_fixed(g_c, 2)}",
-                               color="#333", anchor=(-0.1, 1.1))
+                               color=theme.color("plot_fg"), anchor=(-0.1, 1.1))
             text.setPos(g_c, t_max)
             self.plot_torque.addItem(text)
             self.plot_torque.plot([g_c], [t_max], pen=None, symbol="+", symbolSize=12,
-                                  symbolPen=pg.mkPen("#333"))
+                                  symbolPen=pg.mkPen(theme.color("plot_fg")))
         if self.points_file is not None:
             pts = self.points_file.points
             demo = " (démo)" if self.points_file.is_demo else ""
@@ -546,6 +542,9 @@ class IdentificationTab(QWidget):
         if t_top > 0:  # headroom above the curves for the C_max / g_c label, same scale on both torque plots
             for key in ("torque_speed", "torque_slip"):
                 self.plots[key].setYRange(0.0, 1.35 * t_top, padding=0)
+
+    def on_theme_changed(self) -> None:
+        self._refresh_plots()
 
     def _plate_motor(self):
         """Session motor with the pole pairs of the Machine fields (point speeds before identification)."""

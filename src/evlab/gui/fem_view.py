@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 from evlab.core import circuit
 from evlab.core import winding as wd
 from evlab.core.session import MotorParams
+from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed, fr_pct
 from evlab.gui.widgets import french_spin
 from evlab.gui.workers import CoreWorker
@@ -111,24 +112,24 @@ class FemDialog(QDialog):
             self.lbl_imu = QLabel(f"I_µ = V/Xm = {fr(circuit.magnetising_current(motor))} A eff → "
                                   f"{fr(self.i_mu_peak)} A crête ; moteur : {motor.source}{demo}")
             self.lbl_imu.setWordWrap(True)
-            self.lbl_imu.setStyleSheet("color: #555;")
+            self.lbl_imu.setProperty("role", "muted")
         form.addRow("Spires / bobine", self.spin_nc)
         form.addRow("Images / période", self.spin_frames)
         self.lbl_geom = QLabel(f"Z = {winding.z}, 2p = {winding.poles}, y = {winding.y} (onglet 6) ; "
                                "géométrie : hypothèse A32 (démo)")
         self.lbl_geom.setWordWrap(True)
-        self.lbl_geom.setStyleSheet("color: #555;")
+        self.lbl_geom.setProperty("role", "muted")
         lv.addWidget(box)
         if motor is not None:
             lv.addWidget(self.lbl_imu)
         lv.addWidget(self.lbl_geom)
         self.lbl_note = QLabel(NOTE)
         self.lbl_note.setWordWrap(True)
-        self.lbl_note.setStyleSheet("color: #8a5208;")
+        self.lbl_note.setProperty("role", "note")
         lv.addWidget(self.lbl_note)
         self.lbl_status = QLabel(self.reason if self.available else f"FEMM indisponible : {self.reason}")
         self.lbl_status.setWordWrap(True)
-        self.lbl_status.setStyleSheet("color: #1e7d3a;" if self.available else "color: #b3261e; font-weight: bold;")
+        theme.set_role(self.lbl_status, "success" if self.available else "error")
         lv.addWidget(self.lbl_status)
         self.btn_run = QPushButton("Calculer avec FEMM")
         self.btn_run.setEnabled(self.available)
@@ -168,15 +169,14 @@ class FemDialog(QDialog):
         self.image = QLabel("Aucune image : lancer le calcul FEMM.")
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.image.setMinimumSize(420, 360)
-        pg.setConfigOptions(antialias=True, background="w", foreground="#333")
         self.plot = pg.PlotWidget(title="Induction radiale au milieu de l'entrefer")
         self.plot.setLabel("bottom", "position θ (degrés mécaniques)")
         self.plot.setLabel("left", "B_r (T)")
         self.plot.getAxis("left").enableAutoSIPrefix(False)
         self.plot.showGrid(x=True, y=True, alpha=0.25)
         self.plot.addLegend(offset=(-10, 10))
-        self.curve_fem = self.plot.plot(pen=pg.mkPen("#1b4fa8", width=1.2), name="FEM (FEMM)")
-        self.curve_an = self.plot.plot(pen=pg.mkPen("#d62728", width=1.5, style=Qt.PenStyle.DashLine),
+        self.curve_fem = self.plot.plot(pen=pg.mkPen(theme.color("blue"), width=1.2), name="FEM (FEMM)")
+        self.curve_an = self.plot.plot(pen=pg.mkPen(theme.color("red"), width=1.5, style=Qt.PenStyle.DashLine),
                                        name="fondamental analytique μ0·F1/(kc·g)")
         top = QHBoxLayout()
         top.addWidget(self.image, 1)
@@ -326,10 +326,10 @@ class FemDialog(QDialog):
         if result.cached:
             self.lbl_status.setText(f"Résultats FEM pré-calculés ({self._case_label(case)} ; {how} ; "
                                     f"géométrie démo).")
-            self.lbl_status.setStyleSheet("color: #1b4fa8; font-weight: bold;")
+            theme.set_role(self.lbl_status, "info")
         else:
             self.lbl_status.setText(f"{n} image(s) en {fr(result.solve_seconds)} s : {how}.")
-            self.lbl_status.setStyleSheet("color: #1e7d3a;")
+            theme.set_role(self.lbl_status, "success")
         self.frame = 0
         self._draw()
         self.fem_done.emit(result)

@@ -6,10 +6,19 @@ import datetime as dt
 from pathlib import Path
 
 from PySide6.QtCore import QThreadPool, Signal
-from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QFileDialog, QInputDialog, QLabel, QMainWindow, QProgressBar, QTabWidget
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QInputDialog,
+    QLabel,
+    QMainWindow,
+    QProgressBar,
+    QTabWidget,
+)
 
 from evlab.core.session import Session
+from evlab.gui import theme
 from evlab.gui.tab_efficiency import EfficiencyTab
 from evlab.gui.tab_envelope import EnvelopeTab
 from evlab.gui.tab_identification import IdentificationTab
@@ -43,8 +52,10 @@ class MainWindow(QMainWindow):
     export_done = Signal(object)  # Path of the written file
     export_failed = Signal(str)
 
-    def __init__(self, session: Session | None = None) -> None:
+    def __init__(self, session: Session | None = None, theme_name: str | None = None) -> None:
+        """theme_name: "light" or "dark"; None: the theme remembered by QSettings (Affichage menu)."""
         super().__init__()
+        theme.apply(QApplication.instance(), theme_name if theme_name is not None else theme.saved())
         self.session = session if session is not None else Session()
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(1280, 800)
@@ -94,6 +105,18 @@ class MainWindow(QMainWindow):
             opt_tab.load_design.connect(self.load_design)
         self.refresh_status()
 
+    # --- theme ---------------------------------------------------------------------
+
+    def set_theme(self, name: str) -> None:
+        """Switch to the light or dark theme now and remember it (QSettings)."""
+        theme.apply(QApplication.instance(), name)
+        theme.save(name)
+        self.theme_actions[name].setChecked(True)
+        for k in range(self.tabs.count()):
+            tab = self.tabs.widget(k)
+            if hasattr(tab, "on_theme_changed"):
+                tab.on_theme_changed()
+
     # --- reports -------------------------------------------------------------------
 
     def _build_menu(self) -> None:
@@ -111,6 +134,17 @@ class MainWindow(QMainWindow):
         menu.addAction(self.act_excel)
         menu.addSeparator()
         menu.addAction(act_quit)
+        view = self.menuBar().addMenu("Affichage")
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        self.theme_actions: dict[str, QAction] = {}
+        for name in theme.THEMES:
+            act = QAction(theme.THEME_LABELS[name], self, checkable=True)
+            act.setChecked(name == theme.current())
+            act.triggered.connect(lambda _checked=False, n=name: self.set_theme(n))
+            group.addAction(act)
+            view.addAction(act)
+            self.theme_actions[name] = act
         tab1 = self.tabs.widget(0)
         if hasattr(tab1, "btn_pdf"):
             tab1.btn_pdf.setEnabled(True)

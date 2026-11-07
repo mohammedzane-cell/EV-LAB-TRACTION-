@@ -36,6 +36,11 @@ Excel…* (une feuille par module, tableaux bruts en unités SI). Les résultats
 encore calculés sont calculés pour l'export ; l'optimisation est notée « non
 calculée » tant qu'elle n'a pas été lancée.
 
+**Menu Affichage** : *Thème clair* (par défaut) ou *Thème sombre* ; le choix est
+appliqué tout de suite et retenu au prochain démarrage. Les pastilles ambre
+signalent les valeurs démo (le survol liste lesquelles), les pastilles rouges
+une alerte (« R1 ≈ 0 … »). Le rapport PDF est toujours en thème clair.
+
 ---
 
 ## 1. Identification

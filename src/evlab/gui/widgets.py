@@ -1,4 +1,8 @@
-"""Small shared widgets: French spin boxes, cards, KPI tiles. Presentation only."""
+"""Small shared widgets: French spin boxes, cards, KPI tiles, chips. Presentation only.
+
+Their look comes from gui/style.qss (object names #card, #cardTitle, #kpi, #kpiLabel,
+#kpiValue and the chip / role properties), applied by gui/theme.py.
+"""
 
 from __future__ import annotations
 
@@ -21,16 +25,13 @@ def french_spin(lo: float, hi: float, decimals: int, suffix: str, value: float) 
 
 
 def card(title: str) -> tuple[QFrame, QVBoxLayout, QHBoxLayout]:
-    """White rounded card with a bold title; returns (card, body layout, header layout)."""
+    """Rounded card with a bold title (style.qss #card); returns (card, body layout, header layout)."""
     frame = QFrame()
     frame.setObjectName("card")
-    frame.setStyleSheet("#card { background: white; border: 1px solid #d9dce1; border-radius: 6px; }")
     lay = QVBoxLayout(frame)
     head = QHBoxLayout()
     label = QLabel(title)
-    f = label.font()
-    f.setBold(True)
-    label.setFont(f)
+    label.setObjectName("cardTitle")
     head.addWidget(label)
     head.addStretch(1)
     lay.addLayout(head)
@@ -43,10 +44,18 @@ def set_demo_chip(lbl: QLabel, labels: list[str]) -> None:
     lbl.setToolTip("Valeurs démo : " + " ; ".join(labels) if labels else "")
 
 
-def chip(text: str) -> QLabel:
-    """Rounded label, e.g. "points synthétiques (démo)"."""
+def chip(text: str, kind: str = "demo") -> QLabel:
+    """Rounded label: "demo" (amber, e.g. "points synthétiques (démo)") or "alert" (red)."""
+    if kind not in ("demo", "alert"):
+        raise ValueError(f"chip kind must be 'demo' or 'alert', got {kind!r}")
     lbl = QLabel(text)
-    lbl.setStyleSheet("QLabel { border: 1px solid #c9ccd2; border-radius: 10px; padding: 2px 10px; color: #555; }")
+    lbl.setProperty("chip", kind)
+    return lbl
+
+
+def muted(lbl: QLabel) -> QLabel:
+    """Secondary text in the muted colour of the theme."""
+    lbl.setProperty("role", "muted")
     return lbl
 
 
@@ -56,15 +65,13 @@ class KpiTile(QFrame):
     def __init__(self, title: str, unit: str) -> None:
         super().__init__()
         self.setObjectName("kpi")
-        self.setStyleSheet("#kpi { background: white; border: 1px solid #d9dce1; border-radius: 6px; }")
         lay = QVBoxLayout(self)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(2)
         self.title = QLabel(title)
-        self.title.setStyleSheet("color: #666;")
+        self.title.setObjectName("kpiLabel")
         self.value = QLabel("—")
-        f = self.value.font()
-        f.setPointSize(f.pointSize() + 7)
-        f.setBold(True)
-        self.value.setFont(f)
+        self.value.setObjectName("kpiValue")
         self.unit = unit
         lay.addWidget(self.title)
         lay.addWidget(self.value)

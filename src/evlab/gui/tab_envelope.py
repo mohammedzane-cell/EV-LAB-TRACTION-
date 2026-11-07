@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPush
 
 from evlab.core import drive
 from evlab.core.session import Session
+from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
 from evlab.gui.widgets import KpiTile, card, chip, french_spin, set_demo_chip
 from evlab.gui.workers import CoreWorker
@@ -70,10 +71,7 @@ class EnvelopeTab(QWidget):
 
         self.btn_compute = QPushButton("Calculer l'enveloppe")
         self.btn_compute.setMinimumHeight(34)
-        self.btn_compute.setStyleSheet(
-            "QPushButton { background: #2f6fd6; color: white; font-weight: bold; border-radius: 4px; }"
-            "QPushButton:disabled { background: #9db7e6; }"
-        )
+        self.btn_compute.setProperty("role", "primary")
         self.btn_compute.clicked.connect(self.compute)
         lv.addWidget(self.btn_compute)
         lv.addStretch(1)
@@ -95,7 +93,6 @@ class EnvelopeTab(QWidget):
         self.chip_demo = chip("démo")
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
-        pg.setConfigOptions(antialias=True, background="w", foreground="#333")
         self.plot_torque = pg.PlotWidget(title="Couple disponible")
         self.plot_power = pg.PlotWidget(title="Puissance disponible")
         for pw, ylab in ((self.plot_torque, "Couple électromagnétique (N·m)"), (self.plot_power, "Puissance (kW)")):
@@ -108,11 +105,11 @@ class EnvelopeTab(QWidget):
         plots.addWidget(self.plot_power)
         lay.addLayout(plots)
         self.lbl_zones = QLabel("")
-        self.lbl_zones.setStyleSheet("color: #555;")
+        self.lbl_zones.setProperty("role", "muted")
         lay.addWidget(self.lbl_zones)
         self.lbl_flux = QLabel("")
         self.lbl_flux.setWordWrap(True)
-        self.lbl_flux.setStyleSheet("color: #b3261e;")
+        self.lbl_flux.setProperty("role", "error")
         self.lbl_flux.setVisible(False)
         lay.addWidget(self.lbl_flux)
         right.addWidget(plot_card, 1)
@@ -210,13 +207,13 @@ class EnvelopeTab(QWidget):
                 if b > a:
                     pw.addItem(pg.LinearRegionItem((a, b), movable=False, brush=pg.mkBrush(*ZONE_BRUSHES[z]),
                                                    pen=pg.mkPen(None)))
-        self.plot_torque.plot(n, env.torque, pen=pg.mkPen("#1b4fa8", width=2.5), name="couple disponible")
-        self.plot_torque.plot(n, env.torque_current, pen=pg.mkPen("#2e9e5b", width=1, style=Qt.PenStyle.DashLine),
+        self.plot_torque.plot(n, env.torque, pen=pg.mkPen(theme.color("blue"), width=2.5), name="couple disponible")
+        self.plot_torque.plot(n, env.torque_current, pen=pg.mkPen(theme.color("green"), width=1, style=Qt.PenStyle.DashLine),
                               name="limite courant", connect="finite")
         self.plot_torque.plot(n, env.settings.margin * env.torque_breakdown,
-                              pen=pg.mkPen("#e08a1e", width=1, style=Qt.PenStyle.DashLine),
+                              pen=pg.mkPen(theme.color("orange"), width=1, style=Qt.PenStyle.DashLine),
                               name=f"{fr_fixed(100 * env.settings.margin, 0)} % du décrochage")
-        self.plot_power.plot(n, env.power / 1000.0, pen=pg.mkPen("#1b4fa8", width=2.5), name="puissance")
+        self.plot_power.plot(n, env.power / 1000.0, pen=pg.mkPen(theme.color("blue"), width=2.5), name="puissance")
         self.plot_torque.setYRange(0, 1.15 * float(env.torque.max()))
         self.lbl_zones.setText(" · ".join(
             f"zone {z} : {ZONE_NAMES[z]} {fr_fixed(a, 0)}–{fr_fixed(b, 0)} tr/min"
