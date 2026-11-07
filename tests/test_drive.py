@@ -208,19 +208,49 @@ def test_demo_fields_one_flag_per_field():
     assert drive.demo_fields(drive.DriveSettings(i_max=35.0, boost=5.0, margin=0.9, f_max=120.0)) == ()
 
 
-# --- flux level of the V/f law (linear magnetic circuit, A33) --------------------------
+# --- air-gap flux E/f along the envelope (linear magnetic circuit, A33) ----------------
 
-def test_flux_ratio_of_the_vf_law(m):
-    fn, vn = m.f_rated, m.v_phase
-    assert drive.flux_ratio(m, fn, boost=0.0) == pytest.approx(1.0)
-    assert np.allclose(drive.flux_ratio(m, np.array([1.0, 10.0, 49.0]), boost=0.0), 1.0)
-    # boost: V/f = (V0 + (Vn − V0)·f/fn)/f, i.e. ratio 1 + (V0/Vn)·(fn/f − 1)
-    assert drive.flux_ratio(m, 5.0, boost=23.0) == pytest.approx(1 + (23.0 / vn) * (fn / 5.0 - 1))
-    assert drive.flux_ratio(m, 100.0, boost=23.0) == pytest.approx(0.5)  # field weakening above fn
+DEMO_R1 = replace(td5_ex1(), r1=0.49)
+MOTORS = [td5_ex1(), DEMO_R1, replace(DEMO_R1, layout="terminals")]
+MOTOR_IDS = ["TD5", "R1=0,49", "terminals"]
 
 
-def test_max_flux_ratio_at_the_lowest_drive_frequency(m):
-    assert drive.max_flux_ratio(m, 0.0) == pytest.approx(1.0)
-    f_min = drive.F_MIN_RATIO * m.f_rated
-    assert drive.max_flux_ratio(m, 10.0) == pytest.approx(drive.flux_ratio(m, f_min, 10.0))
-    assert drive.max_flux_ratio(m, 10.0) > 1.0
+def test_rated_emf_is_the_rated_no_load_air_gap_voltage():
+    assert drive.rated_emf(td5_ex1()) == pytest.approx(230.0)  # R1 = 0: E = V
+    m = DEMO_R1
+    assert drive.rated_emf(m) == pytest.approx(float(circuit.operating_point(m, 0.0).e))
+    assert drive.rated_emf(m) < m.v_phase  # R1 drop of the magnetising current
+
+
+def test_flux_ratio_definition():
+    m = DEMO_R1
+    en, fn = drive.rated_emf(m), m.f_rated
+    assert drive.flux_ratio(m, en, fn) == pytest.approx(1.0)
+    assert drive.flux_ratio(m, 0.5 * en, 0.25 * fn) == pytest.approx(2.0)
+    assert np.allclose(drive.flux_ratio(m, np.array([en, en]), np.array([fn, 2 * fn])), [1.0, 0.5])
+
+
+@pytest.mark.parametrize("m", MOTORS, ids=MOTOR_IDS)
+def test_no_boost_never_overfluxes(m):
+    env = drive.envelope(m, drive.demo_settings())
+    assert np.all(env.flux <= 1.0 + 1e-9)  # E/f <= En/fn at every speed
+    assert env.max_flux_ratio <= 1.0 + 1e-9
+
+
+@pytest.mark.parametrize("m", MOTORS, ids=MOTOR_IDS)
+def test_flux_is_the_worst_of_full_torque_and_no_load(m):
+    env = drive.envelope(m, replace(drive.demo_settings(), boost=2.0))
+    loaded = drive.flux_ratio(m, circuit.operating_point(m, env.slip, v_phase=env.v, f=env.f).e, env.f)
+    no_load = drive.flux_ratio(m, circuit.operating_point(m, 0.0 * env.f, v_phase=env.v, f=env.f).e, env.f)
+    assert np.allclose(env.emf, circuit.operating_point(m, env.slip, v_phase=env.v, f=env.f).e)
+    assert np.allclose(env.flux, np.maximum(loaded, no_load))
+    assert env.max_flux_ratio == pytest.approx(float(np.max(env.flux)))
+    assert env.max_flux_ratio > 1.0  # the boost over-fluxes at light load, low speed
+
+
+def test_full_torque_r1_drop_absorbs_the_boost():
+    # at the available torque the R1·I1 drop takes the boost: only the no-load case over-fluxes
+    m = DEMO_R1
+    env = drive.envelope(m, replace(drive.demo_settings(), boost=5.0))
+    loaded = drive.flux_ratio(m, env.emf, env.f)
+    assert np.max(loaded) < 1.0 < env.max_flux_ratio

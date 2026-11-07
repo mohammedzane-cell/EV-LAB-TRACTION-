@@ -100,13 +100,15 @@ def test_demo_chip_follows_the_drive_settings(qtbot, win, tab):
 
 
 def test_boost_overflux_warning(qtbot, win, tab):
-    assert not tab.lbl_flux.isVisibleTo(tab)  # boost 0: V/f = Vn/fn below fn
+    assert not tab.lbl_flux.isVisibleTo(tab)  # boost 0: E/f <= En/fn everywhere
     tab.spin_boost.setValue(2.0)
-    with qtbot.waitSignal(tab.envelope_done, timeout=TIMEOUT):
+    with qtbot.waitSignal(tab.envelope_done, timeout=TIMEOUT) as b:
         tab.compute()
+    env = b.args[0]
+    assert env.max_flux_ratio > 1.0
     assert tab.lbl_flux.isVisibleTo(tab)
-    ratio = drive.max_flux_ratio(win.session.motor, 2.0)
-    assert fr(ratio) in tab.lbl_flux.text() and "saturation" in tab.lbl_flux.text()
+    text = tab.lbl_flux.text()
+    assert fr(env.max_flux_ratio) in text and "E/f" in text and "saturation" in text
 
 
 def test_tab1_says_layout_does_not_change_classical_formulas(win):

@@ -163,8 +163,10 @@ up to fn, then V = Vn (field weakening). Every reactance scales with f. At each
 speed the available torque is min(current-limited torque, margin·breakdown
 torque, the speed's own torque peak), found over the rotor frequency by a
 vectorised golden-section search and bisections (A17).
-The magnetic circuit is linear (A33): when the boost makes V/f exceed Vn/fn the
-tab shows the flux ratio at f_min (`drive.max_flux_ratio`) and warns that
+The magnetic circuit is linear (A33). The air-gap flux is checked on E/f, with
+E = |V − R1·I1| from the circuit, against E_n/fn at the rated no-load point; along
+the envelope the worse of the full-torque and no-load points is kept
+(`Envelope.flux`, `max_flux_ratio`). When it exceeds 1 (boost) the tab warns that
 saturation is not modelled.
 The three zones (constant torque, constant power, breakdown-limited) are read
 from the curve: the log–log slope d ln T/d ln Ω and the binding limit (A18).

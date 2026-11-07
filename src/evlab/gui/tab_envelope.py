@@ -139,15 +139,13 @@ class EnvelopeTab(QWidget):
         self._update_demo_chip()
         self.compute()
 
-    def _update_flux_note(self, boost: float) -> None:
-        """Warn when the boost raises V/f above Vn/fn: over-fluxing that the linear circuit cannot saturate."""
-        m = self.session.motor
-        ratio = drive.max_flux_ratio(m, boost)
-        over = ratio > 1.0
+    def _update_flux_note(self, env: drive.Envelope | None) -> None:
+        """Warn when the air-gap flux E/f exceeds En/fn somewhere on the envelope (linear circuit: no saturation)."""
+        over = env is not None and env.max_flux_ratio > 1.0 + 1e-9
         self.lbl_flux.setVisible(over)
         self.lbl_flux.setText(
-            f"⚠ Boost : V/f atteint {fr(ratio)} × Vn/fn à {fr(drive.F_MIN_RATIO * m.f_rated)} Hz — "
-            "surexcitation, saturation non modélisée (circuit magnétique linéaire, A33) : "
+            f"⚠ Boost : E/f atteint {fr(env.max_flux_ratio)} × En/fn à {fr_fixed(env.speed_of_max_flux * RPM, 0)} "
+            "tr/min — surexcitation, saturation non modélisée (circuit magnétique linéaire, A33) : "
             "le couple à basse vitesse est surestimé." if over else "")
 
     def _update_demo_chip(self, settings: drive.DriveSettings | None = None) -> None:
@@ -170,10 +168,6 @@ class EnvelopeTab(QWidget):
             self.envelope_failed.emit(msg)
             return False
         motor = self.session.motor
-        try:
-            self._update_flux_note(st.boost)
-        except ValueError:  # boost >= Vn: refused by the envelope itself below
-            self.lbl_flux.setVisible(False)
         worker = CoreWorker(lambda progress: drive.envelope(motor, st))
         worker.signals.finished.connect(self._on_done)
         worker.signals.failed.connect(self._on_failed)
@@ -194,10 +188,12 @@ class EnvelopeTab(QWidget):
         self.tiles["t_vmax"].set_value(fr(env.torque_at_max_speed))
         self._draw(env)
         self._update_demo_chip(env.settings)
+        self._update_flux_note(env)
         self.status_message.emit(f"Enveloppe calculée : vitesse max {fr_fixed(env.omega_max * RPM, 0)} tr/min")
         self.envelope_done.emit(env)
 
     def _on_failed(self, message: str) -> None:
+        self._update_flux_note(None)
         self.btn_compute.setEnabled(True)
         self.busy.emit(False)
         msg = f"Échec du calcul de l'enveloppe : {message}"

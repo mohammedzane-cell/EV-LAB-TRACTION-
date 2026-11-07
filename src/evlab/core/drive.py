@@ -112,23 +112,28 @@ def vf_voltage(m: MotorParams, f: ArrayLike, boost: float = 0.0) -> float | NDAr
     return float(v) if v.ndim == 0 else v
 
 
-def flux_ratio(m: MotorParams, f: ArrayLike, boost: float = 0.0) -> float | NDArray[np.float64]:
-    """Flux level of the V/f law relative to rated, (V(f)/f)/(Vn/fn) (dimensionless).
+def rated_emf(m: MotorParams) -> float:
+    """E_n = |E| at the rated no-load point (g = 0, V = Vn, f = fn): the rated air-gap EMF, V.
 
-    1 at rated flux; 1 + (V0/Vn)·(fn/f − 1) > 1 below fn with a boost V0 > 0 (over-fluxing,
-    which the linear magnetic circuit cannot show as saturation, A33); fn/f < 1 in field weakening.
+    E is the voltage across the magnetising branch (V − R1·I1 in the tp3 layout, V in the
+    terminals layout); E/f measures the air-gap flux.
+    """
+    return float(circuit.operating_point(m, 0.0).e)
+
+
+def flux_ratio(m: MotorParams, e: ArrayLike, f: ArrayLike) -> float | NDArray[np.float64]:
+    """Air-gap flux relative to rated, (E/f)/(E_n/fn) (dimensionless; 1 = rated flux).
 
     Args:
-        m: motor.  f: stator frequency, Hz (> 0).  boost: V/f boost V0, V.
+        m: motor.  e: air-gap EMF |E|, V (≥ 0).  f: stator frequency, Hz (> 0).
     """
-    ff = np.asarray(f, dtype=float)
-    r = (np.asarray(vf_voltage(m, ff, boost)) / ff) / (m.v_phase / m.f_rated)
+    ee, ff = np.asarray(e, dtype=float), np.asarray(f, dtype=float)
+    if not np.all(np.isfinite(ee)) or np.any(ee < 0):
+        raise ValueError(f"e must be finite and >= 0 V, got {e!r}")
+    if not np.all(np.isfinite(ff)) or np.any(ff <= 0):
+        raise ValueError(f"f must be finite and > 0 Hz, got {f!r}")
+    r = (ee / ff) / (rated_emf(m) / m.f_rated)
     return float(r) if r.ndim == 0 else r
-
-
-def max_flux_ratio(m: MotorParams, boost: float = 0.0) -> float:
-    """Highest flux ratio the drive reaches: at its lowest stator frequency F_MIN_RATIO·fn (A17), dimensionless."""
-    return float(flux_ratio(m, F_MIN_RATIO * m.f_rated, boost))
 
 
 def breakdown_torque(m: MotorParams, f: ArrayLike, boost: float = 0.0) -> float | NDArray[np.float64]:
@@ -186,6 +191,9 @@ class Envelope:
         binding: limit that sets the torque: "current", "margin", "peak" or "frequency".
         breakdown_binds: True where the breakdown limits ("margin" or "peak").
         slope: log–log slope d ln T / d ln Ω (≈ 0, −1, −2 in zones 1, 2, 3; NaN at Ω = 0).
+        emf: air-gap EMF |E| at the available torque, V.
+        flux: air-gap flux (E/f)/(E_n/fn), the worse of the full-torque point and the no-load
+            point (g = 0) at the same V and f: a boost over-fluxes most at light load (A33).
         base_speed: end of the constant-torque zone, rad/s.
         end_constant_power: start of the breakdown-limited zone, rad/s
             (= omega[-1] if the breakdown limit never binds).
@@ -206,6 +214,8 @@ class Envelope:
     binding: np.ndarray
     breakdown_binds: np.ndarray
     slope: np.ndarray
+    emf: np.ndarray
+    flux: np.ndarray
     base_speed: float
     end_constant_power: float
     settings: DriveSettings
@@ -219,6 +229,16 @@ class Envelope:
     def p_max(self) -> float:
         """Maximum power on the envelope, W."""
         return float(self.power.max())
+
+    @property
+    def max_flux_ratio(self) -> float:
+        """Highest air-gap flux ratio (E/f)/(E_n/fn) along the envelope (dimensionless)."""
+        return float(np.max(self.flux))
+
+    @property
+    def speed_of_max_flux(self) -> float:
+        """Speed where the flux ratio is highest, rad/s."""
+        return float(self.omega[int(np.argmax(self.flux))])
 
     @property
     def torque_at_max_speed(self) -> float:
@@ -318,10 +338,13 @@ def envelope(m: MotorParams, settings: DriveSettings) -> Envelope:
     base = float(om[knee[0] - 1]) if knee.size and knee[0] > 0 else float(om[-1])
     above = (om > base) & breakdown_binds
     end_cp = float(om[np.argmax(above)]) if above.any() else float(om[-1])
+    emf = np.asarray(circuit.operating_point(m, g_op, v_phase=v_op, f=f_op).e)
+    emf_0 = np.asarray(circuit.operating_point(m, np.zeros_like(g_op), v_phase=v_op, f=f_op).e)
+    flux = np.maximum(np.asarray(flux_ratio(m, emf, f_op)), np.asarray(flux_ratio(m, emf_0, f_op)))
     return Envelope(
         omega=om, torque=t_op, power=t_op * om, f=f_op, v=v_op, slip=g_op,
         i1=np.asarray(circuit.stator_current(m, g_op, v_phase=v_op, f=f_op)),
         torque_current=t_i, torque_breakdown=t_bd, slip_breakdown=g_c,
         rotor_freq_peak=fr_peak[sl], binding=binding, breakdown_binds=breakdown_binds,
-        slope=slope, base_speed=base, end_constant_power=end_cp, settings=s,
+        slope=slope, emf=emf, flux=flux, base_speed=base, end_constant_power=end_cp, settings=s,
     )
