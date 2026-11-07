@@ -241,3 +241,19 @@ def test_wltc_class_for_the_motor(motor, env):
     assert vehicle.wltc_class_for(motor, env, st, heavy) == 1
     light = replace(veh, mass=vehicle.rated_power(motor, env, st) / 40.0)  # 40 W/kg
     assert vehicle.wltc_class_for(motor, env, st, light) == 3
+
+
+def test_coasting_losses_read_at_zero_torque(emap):
+    table = vehicle.LossTable(emap)
+    assert emap.torque[0] == 0.0
+    j = 5
+    assert table(0.0, emap.speed[j]) == pytest.approx(emap.p_in[0, j] - emap.p_out[0, j], rel=1e-12)
+
+
+def test_acceleration_time_uses_the_vehicle_grade(motor, env):
+    flat = vehicle.demo_quadricycle(gear_ratio=4.0)
+    up = replace(flat, grade=math.atan(0.05))  # 5 % uphill
+    down = replace(flat, grade=-math.atan(0.05))
+    t_flat = vehicle.acceleration_time(flat, motor, env, LOSS, 50 / 3.6)
+    assert vehicle.acceleration_time(down, motor, env, LOSS, 50 / 3.6) < t_flat
+    assert vehicle.acceleration_time(up, motor, env, LOSS, 50 / 3.6) > t_flat

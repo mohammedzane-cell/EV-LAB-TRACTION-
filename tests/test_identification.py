@@ -296,6 +296,12 @@ def test_r1_at_temperature_validation(args):
         ident.r1_at_temperature(*args)
 
 
+@pytest.mark.parametrize("t_meas, t", [(20.0, 348.15), (293.15, 273.15 - 234.5), (273.15 - 235.0, 293.15)])
+def test_r1_at_temperature_rejects_below_the_copper_zero(t_meas, t):
+    with pytest.raises(ValueError, match="234,5"):
+        ident.r1_at_temperature(1.0, t_meas, t)
+
+
 def test_no_hot_temperature_means_no_correction():
     rec = replace(make_records(CASE_B), t_hot_k=None)  # TD5 style: "hot resistance" measured directly
     rep = ident.run_identification(rec)
@@ -548,6 +554,14 @@ def test_load_fit_validation():
         ident.LoadTestPoint(slip=0.05, i_line=0.0, torque=40.0, power_factor=0.8, v_phase=230, f=50)
     with pytest.raises(ValueError, match="slip"):
         ident.LoadTestPoint(slip=math.nan, i_line=1.0, torque=40.0, power_factor=0.8, v_phase=230, f=50)
+
+
+@pytest.mark.parametrize("g", [1.0, 1.2])
+def test_load_fit_rejects_points_at_or_below_standstill(g):
+    pts = list(make_load_points(CASE_A.motor))
+    pts[3] = replace(pts[3], slip=g)  # Ω = Ω_s·(1 − g) <= 0: shaft torque T_em − p_mec/Ω undefined
+    with pytest.raises(ValueError, match="Ω"):
+        ident.fit_load_points(pts, td5_ex1(), p_mech=60.0)
 
 
 # --- helpers for tab 1: R1 from the Machine fields, errors, method comparison -------

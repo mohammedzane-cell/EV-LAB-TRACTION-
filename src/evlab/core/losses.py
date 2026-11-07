@@ -67,10 +67,8 @@ class LossSettings:
     def __post_init__(self) -> None:
         if not math.isfinite(self.beta) or not 0 < self.beta <= 3:
             raise ValueError(f"beta must be in (0, 3], got {self.beta!r}")
-        if self.winding_temperature_k is not None and (
-            not math.isfinite(self.winding_temperature_k) or self.winding_temperature_k <= 0
-        ):
-            raise ValueError(f"winding_temperature_k must be > 0 K, got {self.winding_temperature_k!r}")
+        if self.winding_temperature_k is not None:
+            circuit.check_copper_temperature("winding_temperature_k", self.winding_temperature_k)
         if not math.isfinite(self.friction_share) or not 0 <= self.friction_share <= 1:
             raise ValueError(f"friction_share must be in [0, 1], got {self.friction_share!r}")
         if not math.isfinite(self.inverter_fixed_w) or self.inverter_fixed_w < 0:
@@ -241,10 +239,12 @@ def efficiency_map(
 
     p_motor = np.asarray(op.p_in)
     p_out = np.asarray(op.p_mech) - p_mec  # shaft power of the solved point: balance is exact
+    # zero shaft torque (coasting): the requested output is exactly 0; the bisection leaves ~1e-12 W
+    p_out = np.where(tt == 0.0, 0.0, p_out)
     p_inv = (settings.inverter_fixed_w + settings.inverter_fraction * p_motor) if settings.inverter \
         else np.zeros_like(p_motor)
     p_in = p_motor + p_inv
-    valid &= (p_out > 0) & (p_in > 0)
+    valid &= ((p_out > 0) | (tt == 0.0)) & (p_in > 0)
 
     def mask(a) -> np.ndarray:
         return np.where(valid, np.asarray(a, dtype=float), np.nan)
@@ -261,7 +261,9 @@ def efficiency_map(
 
 def default_grid(m: MotorParams, env: drive.Envelope, st: LossSettings,
                  n_torque: int = 160, n_speed: int = 120) -> tuple[np.ndarray, np.ndarray]:
-    """Map grid covering the envelope: shaft torque 1 %…105 % of its maximum, speed 1 %…100 % of Ω_max.
+    """Map grid covering the envelope: shaft torque 0…105 % of its maximum, speed 1 %…100 % of Ω_max.
+
+    The zero-torque row gives the no-load losses of coasting (η = 0 there).
 
     Args:
         m: motor.  env: drive envelope.  st: loss settings (for the shaft torque limit).
@@ -273,7 +275,7 @@ def default_grid(m: MotorParams, env: drive.Envelope, st: LossSettings,
     if n_torque < 2 or n_speed < 2:
         raise ValueError(f"grid sizes must be >= 2, got {n_torque} × {n_speed}")
     t_max = float(np.max(shaft_torque_limit(m, env, st)))
-    return (np.linspace(0.01 * t_max, 1.05 * t_max, n_torque),
+    return (np.linspace(0.0, 1.05 * t_max, n_torque),
             np.linspace(0.01 * env.omega_max, env.omega_max, n_speed))
 
 

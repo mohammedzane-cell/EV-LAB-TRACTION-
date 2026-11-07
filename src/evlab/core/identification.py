@@ -40,7 +40,7 @@ from scipy.optimize import least_squares
 from scipy.stats import t as student_t
 
 from evlab.core import circuit
-from evlab.core.circuit import COPPER_T0, T_ZERO_C
+from evlab.core.circuit import COPPER_T0, T_ZERO_C, check_copper_temperature
 from evlab.core.session import LAYOUTS, Layout, MotorParams
 
 Method = Literal["classical", "exact"]
@@ -168,12 +168,12 @@ def r1_at_temperature(r_measured: float, t_measured_k: float, t_k: float) -> flo
 
     Args:
         r_measured: resistance measured at t_measured_k, Ω (> 0).
-        t_measured_k: temperature of the measurement, K (> 0).
-        t_k: temperature to convert to, K (> 0).
+        t_measured_k: temperature of the measurement, K (above −234,5 °C).
+        t_k: temperature to convert to, K (above −234,5 °C).
     """
     _pos("r_measured", r_measured)
-    _pos("t_measured_k", t_measured_k)
-    _pos("t_k", t_k)
+    check_copper_temperature("t_measured_k", t_measured_k)
+    check_copper_temperature("t_k", t_k)
     return r_measured * (COPPER_T0 + t_k - T_ZERO_C) / (COPPER_T0 + t_measured_k - T_ZERO_C)
 
 
@@ -642,7 +642,7 @@ def fit_load_points(
     They do not include the uncertainty of the fixed R1 and Rf.
 
     Args:
-        points: load-test points, at least 3.
+        points: load-test points, at least 3, all with Ω > 0 (g < 1).
         start: initial circuit (classical result); gives R1, Rf, p, layout, rating.
         p_mech: mechanical losses, W (≥ 0), to convert T_em to shaft torque.
         n_starts: multistart runs (≥ 1): `start`, then log-uniform draws in [¼, 4]×start.
@@ -663,6 +663,12 @@ def fit_load_points(
     if not math.isfinite(p_mech) or p_mech < 0:
         raise ValueError(f"p_mech must be a finite number >= 0 W, got {p_mech!r}")
 
+    for k, p in enumerate(pts):
+        if p.slip >= 1.0:  # Ω = (2πf/p)·(1 − g) <= 0: the shaft torque T_em − p_mec/Ω is undefined
+            raise ValueError(
+                f"load point {k + 1}: g = {p.slip:g} gives Ω = {2 * math.pi * p.f / start.pole_pairs * (1 - p.slip):.2f} "
+                "rad/s <= 0; load points must turn (g < 1)"
+            )
     g = np.array([p.slip for p in pts])
     meas = {
         "i": np.array([p.i_line for p in pts]),

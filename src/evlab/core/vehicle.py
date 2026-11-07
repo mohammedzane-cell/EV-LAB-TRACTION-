@@ -270,10 +270,11 @@ class LossTable:
 
 def acceleration_time(veh: Vehicle, m: MotorParams, env: drive.Envelope, st: losses.LossSettings,
                       v_target: float, n: int = 400) -> float:
-    """Time from standstill to v_target at full torque on a flat road, s (inf if unreachable).
+    """Time from standstill to v_target at full torque on the vehicle's road slope θ = veh.grade, s (inf if unreachable).
 
     t = ∫₀^v m·dv / (F_max(v) − F_res(v)), with F_max = T_shaft,max(ωm)·G·ηg/r from the
-    envelope and F_res = ½ρCxS·v² + Crr·m·g·cosθ + m·g·sinθ; midpoint rule on n speed steps.
+    envelope and F_res = ½ρCxS·v² + Crr·m·g·cosθ + m·g·sinθ (flat road when θ = 0, uphill θ > 0);
+    midpoint rule on n speed steps.
     Rotating inertia is not included (A30).
 
     Args:

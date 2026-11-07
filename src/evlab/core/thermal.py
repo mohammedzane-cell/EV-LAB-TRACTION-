@@ -34,6 +34,7 @@ from numpy.typing import ArrayLike
 from scipy.integrate import solve_ivp
 
 from evlab.core import losses, vehicle
+from evlab.core.circuit import check_copper_temperature
 from evlab.core.session import MotorParams
 
 T_ZERO_C = 273.15
@@ -104,7 +105,7 @@ def _copper_factor(copper_ref_k: float | None) -> tuple[float, float]:
     """P_w(T) = P0·(k0 + k1·T): (k0, k1); without a reference temperature P_w is constant."""
     if copper_ref_k is None:
         return 1.0, 0.0
-    _pos("copper_ref_k", copper_ref_k)
+    check_copper_temperature("copper_ref_k", copper_ref_k)
     den = COPPER_T0 + copper_ref_k - T_ZERO_C
     return (COPPER_T0 - T_ZERO_C) / den, 1.0 / den
 

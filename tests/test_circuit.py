@@ -279,6 +279,17 @@ def test_copper_resistance_validation(r, t):
         circuit.copper_resistance(r, t)
 
 
+@pytest.mark.parametrize("t_k", [20.0, 273.15 - 234.5, 273.15 - 240.0])
+def test_copper_resistance_rejects_below_the_copper_zero(t_k):
+    # 0 < T <= −234,5 °C would give R <= 0: refused, never a negative resistance
+    with pytest.raises(ValueError, match="234,5"):
+        circuit.copper_resistance(1.0, t_k)
+
+
+def test_copper_resistance_just_above_the_copper_zero():
+    assert 0 < circuit.copper_resistance(1.0, 273.15 - 234.0) < 0.01
+
+
 # --- broadcasting over supply arrays (needed by drive and losses maps) -------------
 
 @pytest.mark.parametrize("layout", LAYOUTS)

@@ -165,12 +165,27 @@ def test_default_grid_and_best_point(m):
     t, w = losses.default_grid(motor, env, st, 40, 30)
     assert t.shape == (40,) and w.shape == (30,)
     assert w[-1] == env.omega_max and t[-1] == pytest.approx(1.05 * losses.shaft_torque_limit(motor, env, st).max())
+    assert t[0] == 0.0  # the map covers coasting (zero shaft torque)
     emap = losses.efficiency_map(motor, t, w, DRIVE, st, envelope=env)
     eta, tb, wb = losses.best_point(emap)
     assert eta == np.nanmax(emap.eta)
     assert tb in t and wb in w
     with pytest.raises(ValueError):
         losses.default_grid(motor, env, st, 1, 30)
+
+
+@pytest.mark.parametrize("p_mech", [0.0, 60.0])
+def test_zero_torque_row_is_valid_with_zero_output(m, p_mech):
+    motor = replace(_demo(m), p_mech=p_mech)
+    env = drive.envelope(motor, DRIVE)
+    st = losses.LossSettings(winding_temperature_k=348.15)
+    t, w = losses.default_grid(motor, env, st, 20, 15)
+    emap = losses.efficiency_map(motor, t, w, DRIVE, st, envelope=env)
+    assert emap.valid[0].all()
+    assert np.all(emap.p_out[0] == 0.0) and np.all(emap.eta[0] == 0.0)
+    assert np.all(emap.p_in[0] > 0)  # no-load losses: iron, inverter P_0, mechanical
+    total = emap.p_cu1 + emap.p_cu2 + emap.p_fe + emap.p_mech + emap.p_inv
+    assert np.allclose(emap.p_in[0] - emap.p_out[0], total[0], rtol=1e-9)
 
 
 def test_shaft_limit_below_electromagnetic(m):

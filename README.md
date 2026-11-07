@@ -179,6 +179,8 @@ It returns η and every term; NaN outside the envelope. A point is kept only if 
 map's own circuit (R1 at the winding temperature, Rf(f)) also respects the drive
 limits: I1 ≤ i_max and T_em ≤ margin·T_bd (the envelope of tab 2 uses the
 identified R1 and a constant Rf, so a hot winding shrinks the map slightly).
+The default grid starts at zero shaft torque: that row holds the no-load losses
+(iron, inverter P_0, mechanical) that tab 4 charges while coasting, with η = 0.
 
 The tab draws the contour map with % labels, the shaft-torque envelope, the
 best-efficiency point, the cycle points (from stage 5) and exports a PNG. It

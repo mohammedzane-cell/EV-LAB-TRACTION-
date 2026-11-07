@@ -471,16 +471,27 @@ def operating_point(
 
 # --- temperature ----------------------------------------------------------------
 
+def check_copper_temperature(name: str, temperature_k: float) -> None:
+    """Raise ValueError unless temperature_k (K) is finite and above the copper zero −234,5 °C (38,65 K),
+    where the linear copper law R ∝ (234,5 + T°C) would give R <= 0."""
+    if not math.isfinite(temperature_k) or temperature_k <= 0:
+        raise ValueError(f"{name} must be a finite temperature > 0 K, got {temperature_k!r}")
+    if temperature_k - T_ZERO_C <= -COPPER_T0:
+        raise ValueError(
+            f"{name} = {temperature_k - T_ZERO_C:.2f} °C is at or below −234,5 °C: "
+            "the copper law would give a resistance <= 0"
+        )
+
+
 def copper_resistance(r_20c: float, temperature_k: float) -> float:
     """R(T) = R20·(234.5 + T°C)/254.5: copper resistance is linear in T, zero at −234.5 °C, Ω.
 
     Args:
         r_20c: resistance measured at 20 °C, Ω (> 0).
-        temperature_k: winding temperature, K (> 0).
+        temperature_k: winding temperature, K (above −234,5 °C).
     """
     if not math.isfinite(r_20c) or r_20c <= 0:
         raise ValueError(f"r_20c must be a finite number > 0 Ω, got {r_20c!r}")
-    if not math.isfinite(temperature_k) or temperature_k <= 0:
-        raise ValueError(f"temperature_k must be a finite number > 0 K, got {temperature_k!r}")
+    check_copper_temperature("temperature_k", temperature_k)
     t_c = temperature_k - T_ZERO_C
     return r_20c * (COPPER_T0 + t_c) / (COPPER_T0 + 20.0)
