@@ -21,18 +21,18 @@ from evlab.core.drive import Envelope
 from evlab.core.losses import EfficiencyMap
 from evlab.core.session import MotorParams
 from evlab.core.vehicle import Cycle, DriveResult
-from evlab.gui.theme import SERIES as S
-from evlab.gui.theme import mpl_rc
+from evlab.palette import SERIES as S
+from evlab.palette import mpl_rc
 from evlab.io.format import fr_fixed
 
 RPM = 60.0 / (2.0 * math.pi)
-LIGHT_RC = mpl_rc("light")  # printed report: always the light theme of gui/theme.py (Qt-free palette)
+LIGHT_RC = mpl_rc("light")  # printed report: always the light theme of evlab.palette
 KMH = 3.6
 LEVELS = (50, 60, 70, 75, 78, 80, 82, 84, 86, 88, 90, 92, 94)
 
 
 def _light(fn):
-    """Draw a report figure with the light palette (rcParams of gui/theme.py)."""
+    """Draw a report figure with the light palette (rcParams of evlab.palette)."""
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         with matplotlib.rc_context(LIGHT_RC):

@@ -33,3 +33,15 @@ def test_core_does_not_print_or_open_files():
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                 assert node.func.id not in FORBIDDEN_CALLS, f"{path.name} calls {node.func.id}()"
+
+
+def test_palette_is_qt_free_and_io_does_not_need_the_gui():
+    """The colours live in evlab/palette.py (no Qt); io/figures.py takes them from there, not from gui/."""
+    src = CORE.parent
+    tree = ast.parse((src / "palette.py").read_text(encoding="utf-8"))
+    names = [a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names]
+    names += [n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module]
+    assert not [n for n in names if n.startswith(("PySide6", "PyQt", "pyqtgraph", "evlab.gui"))], names
+    for path in sorted((src / "io").glob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        assert "evlab.gui" not in text, f"{path.name} imports from gui/"
