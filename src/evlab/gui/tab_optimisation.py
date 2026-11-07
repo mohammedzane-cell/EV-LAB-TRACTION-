@@ -54,7 +54,7 @@ KPI_ROWS = (  # key, label, unit, converter for display
     ("t_winding_max", "T max bobinage", "°C", lambda v: fr_fixed(v - T_ZERO_C, 1)),
     ("min_margin", "Marge couple (cycle)", "", lambda v: fr(v)),
     ("i_cycle_max", "Courant max (cycle)", "A", lambda v: fr(v)),
-    ("flux_max", "E/f max (× En/fn)", "", lambda v: fr(v)),
+    ("flux_max", "E/f max (× En/fn)", "", lambda v: fr_fixed(v, 2)),
 )
 
 

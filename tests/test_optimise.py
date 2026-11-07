@@ -29,6 +29,7 @@ def test_rewinding_scales_every_impedance(problem):
         assert getattr(r, n) == pytest.approx(1.44 * getattr(m, n))
     assert r.v_phase == m.v_phase and r.p_mech == m.p_mech
     assert op.rewound(m, 1.0) == m
+    assert r.source.endswith("rebobiné k_N = 1,200")  # displayed label: decimal comma
 
 
 def test_evaluation_uses_the_tested_models(problem):

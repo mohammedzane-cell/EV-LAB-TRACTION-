@@ -115,33 +115,39 @@ onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
 ## 4:20 – 5:00 · Onglet 7 — Optimisation
 
 - **Régler** *Points de Pareto* = 3, *Évaluations / point* = 300, *Processus* = 4
-  (900 évaluations, ≈ 15 s), puis *Lancer l'optimisation*.
+  (900 évaluations, ≈ 17 s), puis *Lancer l'optimisation*.
 - **Dire** : « Démo rapide ; calcul complet : 1500 évaluations par point »
   (réglage par défaut : 6 points × 1500 = 9000 évaluations, environ 3 min sur
   4 cœurs). Les chiffres ci-dessous sont ceux de la démo rapide ; le calcul
   complet peut trouver un front un peu meilleur.
 - **Dire** : « Quatre variables : rapport G, boost V/f, marge de défluxage et
   rebobinage k_N. Deux objectifs : Wh/km et 0–50 km/h. Les contraintes sont
-  l'enveloppe, T bobinage ≤ classe − 20 K et le courant onduleur. Aucune
+  l'enveloppe, T bobinage ≤ classe − 20 K, le courant onduleur et le flux
+  d'entrefer E/f ≤ 1,10 × En/fn (circuit magnétique linéaire, A33). Aucune
   physique nouvelle ici : chaque évaluation enchaîne les modèles déjà testés. »
 - **Cliquer** le point le plus à gauche du front (consommation minimale) et
   montrer le tableau :
 
   | | Base | Design | Gain |
   |---|---|---|---|
-  | Consommation | 75,4 Wh/km | 73,2 Wh/km | −3,0 % |
-  | 0–50 km/h | 12,2 s | 10,9 s | −10,7 % |
-  | T max bobinage | 61,5 °C | 56,7 °C | −4,8 K |
-  | G / boost / marge / k_N | 3,53 / 0 V / 0,80 / 1,00 | 4,32 / 7,3 V / 0,90 / 1,01 | |
+  | Consommation | 75,4 Wh/km | 73,4 Wh/km | −2,7 % |
+  | 0–50 km/h | 12,2 s | 11,2 s | −8,0 % |
+  | T max bobinage | 61,5 °C | 57,2 °C | −4,3 K |
+  | E/f max (× En/fn) | 1,00 | 1,07 | +7,3 % |
+  | G / boost / marge / k_N | 3,53 / 0 V / 0,80 / 1,000 | 4,21 / 4,3 V / 0,88 / 1,026 | |
 
-- **Dire** : « Ce design domine la base : il consomme moins et accélère mieux. »
+- **Dire** : « Ce design domine la base : il consomme moins et accélère mieux.
+  Sans la contrainte de flux, l'optimiseur prenait 7,3 V de boost (10,9 s) :
+  1,16 × En/fn à faible charge, hors du domaine du modèle linéaire. »
   **Cliquer** *Charger ce design dans tous les onglets* : les onglets 2 à 5 se
   recalculent avec ce moteur. À l'onglet 2, montrer l'avertissement rouge :
-  « Boost : V/f atteint 4,14 × Vn/fn à 0,500 Hz — surexcitation, saturation non
-  modélisée (circuit magnétique linéaire, A33) ». **Dire** : « Le gain à basse
-  vitesse de ce design est optimiste : le modèle ne sature pas. » Nouvelles
-  tuiles : base 1245 tr/min, fin de puissance constante 1935 tr/min, P max
-  8,98 kW.
+  « Boost : E/f atteint 1,07 × En/fn à 0 tr/min — surexcitation, saturation non
+  modélisée (circuit magnétique linéaire, A33) » (`02b_enveloppe_design.png`).
+  **Dire** : « E/f, c'est le flux d'entrefer : V moins la chute R1·I1. 7 %
+  au-dessus du nominal, sous la limite de 10 % imposée à l'optimisation, mais le
+  modèle ne sature pas : le gain à basse vitesse reste un peu optimiste. »
+  Nouvelles tuiles : base 1238 tr/min, fin de puissance constante 1808 tr/min,
+  P max 8,90 kW.
 - **Conclure** : *Fichier → Exporter PDF…* : rapport de 2 à 3 pages, sections 1
   à 6, hypothèses, et pied de page listant ce qui est démo.
 
@@ -149,4 +155,4 @@ onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
 
 **Si une question porte sur la validation** : renvoyer au tableau « What is
 validated / what is démo » du README (circuit TD5, facteurs de bobinage,
-bilans d'énergie, comparaison avec un balayage exhaustif à 1 % près, 546 tests).
+bilans d'énergie, comparaison avec un balayage exhaustif à 1 % près, 554 tests).

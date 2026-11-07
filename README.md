@@ -291,6 +291,20 @@ max air-gap flux E/f over the envelope ≤ 1,10·En/fn (linear magnetic circuit,
 Fixed budget: 1500 evaluations per Pareto point whatever the number of free
 variables (generations = budget / (population × variables) − 1, no early stop).
 
+Demo run (tab 1 démo identification, quick budget 3 points × 300 evaluations,
+seed 0), minimum-consumption point of the front against the base design:
+
+| | Base | Optimum |
+|---|---|---|
+| G / boost / margin / k_N | 3,53 / 0 V / 0,80 / 1,000 | 4,21 / 4,3 V / 0,88 / 1,026 |
+| Wh/km | 75,4 | 73,4 (−2,7 %) |
+| 0–50 km/h | 12,2 s | 11,2 s (−8,0 %) |
+| T max winding | 61,5 °C | 57,2 °C |
+| E/f max | 1,00 × En/fn | 1,07 × En/fn |
+
+Before the E/f constraint the same run chose a 7,3 V boost (G = 4,32, 73,2 Wh/km,
+10,9 s), i.e. 1,16 × En/fn at light load: the constraint costs 0,2 Wh/km and 0,3 s.
+
 The tab takes the bounds of each variable (min = max fixes it) and the budget,
 runs in a worker with progress and cancel, plots the front with the baseline
 and every admissible evaluation, and shows baseline vs the selected design with

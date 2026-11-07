@@ -109,7 +109,7 @@ def rewound(m: MotorParams, k_n: float) -> MotorParams:
     if not math.isfinite(k_n) or k_n <= 0:
         raise ValueError(f"k_n must be > 0, got {k_n!r}")
     k2 = k_n * k_n
-    src = m.source if k_n == 1.0 else f"{m.source} · rebobiné k_N = {k_n:.3f}"
+    src = m.source if k_n == 1.0 else f"{m.source} · rebobiné k_N = {k_n:.3f}".replace(".", ",")  # label, decimal comma
     return replace(m, r1=m.r1 * k2, r2p=m.r2p * k2, x_leak=m.x_leak * k2, x_m=m.x_m * k2,
                    r_fe=m.r_fe * k2, source=src)
 

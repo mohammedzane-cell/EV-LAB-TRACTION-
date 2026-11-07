@@ -76,6 +76,10 @@ si deux paramètres sont trop corrélés (|ρ| > 0,95).
 
 *Enveloppe du moteur identifié, trois zones.*
 
+![Capture — onglet 2 après chargement du design optimal](images/02b_enveloppe_design.png)
+
+*Après « Charger ce design dans tous les onglets » (onglet 7) : boost 4,3 V, avertissement de flux d'entrefer E/f = 1,07 × En/fn (circuit magnétique linéaire, A33).*
+
 **But** : enveloppe couple–vitesse du moteur sous loi V/f puis défluxage.
 
 **Entrées** (*Variateur*, valeurs démo, A16) : courant max, boost basse vitesse,
