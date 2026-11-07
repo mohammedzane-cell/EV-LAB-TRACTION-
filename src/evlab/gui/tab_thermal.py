@@ -28,6 +28,7 @@ from evlab.core.session import Session
 from evlab.gui.format import fr, fr_fixed, power_of_ten
 from evlab.gui.widgets import KpiTile, card, chip, french_spin
 from evlab.gui.workers import CoreWorker
+from evlab.io.notes import R1_ZERO_NOTE
 
 TITLE = "5 · Thermique"
 LEFT_WIDTH = 300
@@ -122,6 +123,10 @@ class ThermalTab(QWidget):
         plot_card, lay, head = card("Températures du bobinage et de la carcasse")
         self.chip_demo = chip("paramètres démo")
         head.addWidget(self.chip_demo)
+        self.chip_r1 = chip(R1_ZERO_NOTE)
+        self.chip_r1.setStyleSheet(self.chip_r1.styleSheet().replace("color: #555", "color: #b3261e"))
+        head.addWidget(self.chip_r1)
+        self.on_motor_changed()
         pg.setConfigOptions(antialias=True, background="w", foreground="#333")
         self.plot = pg.PlotWidget()
         self.plot.setLabel("bottom", "Temps (min)")
@@ -147,6 +152,10 @@ class ThermalTab(QWidget):
         vals = (self.spin_cw.value(), self.spin_cs.value(), self.spin_rws.value(), self.spin_rsa.value())
         return thermal.ThermalParams(*vals, t_ambient_k=self.spin_ta.value() + T_ZERO_C,
                                      is_demo=vals == (d.c_w, d.c_s, d.r_ws, d.r_sa))
+
+    def on_motor_changed(self) -> None:
+        """Tab 1 published a motor: warn when it has no stator copper losses (R1 = 0)."""
+        self.chip_r1.setVisible(thermal.stator_copper_missing(self.session.motor))
 
     def _show_tau(self) -> None:
         try:

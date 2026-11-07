@@ -32,6 +32,7 @@ from evlab.core import thermal
 from evlab.core import winding as wd
 from evlab.io import figures
 from evlab.io.format import fr, fr_fixed, fr_pct
+from evlab.io.notes import R1_ZERO_NOTE
 from evlab.io.snapshot import Snapshot
 
 T_ZERO_C = 273.15
@@ -231,6 +232,8 @@ def build_report(s: Snapshot, path: str | Path) -> Path:
 
     # 4 thermal
     sec = [Paragraph("4. Thermique", st["h"])]
+    if thermal.stator_copper_missing(s.motor):
+        sec.append(Paragraph(f"<font color='#b3261e'>{R1_ZERO_NOTE}.</font>", st["base"]))
     if s.thermal is not None:
         ts = s.thermal.summary
         fast, slow = thermal.time_constants(s.thermal_params)

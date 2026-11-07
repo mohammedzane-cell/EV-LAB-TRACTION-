@@ -200,3 +200,8 @@ def test_simulate_validation():
         thermal.simulate(P, np.ones(3), np.ones(4))
     with pytest.raises(ValueError, match="n_cycles"):
         thermal.simulate(P, np.ones(3), np.ones(3), n_cycles=0)
+
+
+def test_stator_copper_missing_when_r1_is_zero():
+    assert thermal.stator_copper_missing(td5_ex1())  # TD5 Ex 1: R1 ≈ 0
+    assert not thermal.stator_copper_missing(replace(td5_ex1(), r1=0.5))

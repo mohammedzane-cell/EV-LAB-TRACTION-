@@ -32,10 +32,12 @@ from PySide6.QtWidgets import (
 )
 
 from evlab.core import optimise as op
+from evlab.core import thermal
 from evlab.core.session import Session
 from evlab.gui.format import fr, fr_fixed, fr_pct
 from evlab.gui.widgets import card, chip, french_spin
 from evlab.gui.workers import CoreWorker
+from evlab.io.notes import R1_ZERO_NOTE
 
 TITLE = "7 · Optimisation"
 LEFT_WIDTH = 300
@@ -159,6 +161,10 @@ class OptimisationTab(QWidget):
         self.chip_demo = chip("démo")
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
+        self.chip_r1 = chip(R1_ZERO_NOTE)
+        self.chip_r1.setStyleSheet(self.chip_r1.styleSheet().replace("color: #555", "color: #b3261e"))
+        head.addWidget(self.chip_r1)
+        self.on_motor_changed()
         pg.setConfigOptions(antialias=True, background="w", foreground="#333")
         self.plot = pg.PlotWidget()
         self.plot.setLabel("bottom", "0–50 km/h (s)")
@@ -203,6 +209,10 @@ class OptimisationTab(QWidget):
         return t
 
     # --- inputs -------------------------------------------------------------------
+
+    def on_motor_changed(self) -> None:
+        """Tab 1 published a motor: warn that the thermal constraint is not meaningful when R1 = 0."""
+        self.chip_r1.setVisible(thermal.stator_copper_missing(self.session.motor))
 
     def bounds(self) -> op.Bounds:
         vals = {name: (lo.value() / sc, hi.value() / sc) for name, (lo, hi, sc) in self.bound_spins.items()}

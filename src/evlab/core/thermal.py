@@ -34,6 +34,7 @@ from numpy.typing import ArrayLike
 from scipy.integrate import solve_ivp
 
 from evlab.core import losses, vehicle
+from evlab.core.session import MotorParams
 
 T_ZERO_C = 273.15
 COPPER_T0 = 234.5  # °C
@@ -71,6 +72,12 @@ class ThermalParams:
 def demo_thermal() -> ThermalParams:
     """Démo network for a ~9 kW totally enclosed motor (A26)."""
     return ThermalParams(c_w=3000.0, c_s=25_000.0, r_ws=0.10, r_sa=0.04, t_ambient_k=298.15, is_demo=True)
+
+
+def stator_copper_missing(m: MotorParams) -> bool:
+    """True when the motor has R1 = 0 (TD5 Ex 1 hypothesis): the map has no stator copper
+    losses, so the winding node is heated only through the frame (results not meaningful)."""
+    return m.r1 == 0
 
 
 def time_constants(p: ThermalParams) -> tuple[float, float]:

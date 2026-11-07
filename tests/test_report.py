@@ -54,3 +54,22 @@ def test_missing_sections_are_reported(tmp_path):
     text = " ".join(p.extract_text() for p in pypdf.PdfReader(str(path)).pages)
     assert "Non calculée : lancer l'optimisation" in text
     assert "Non calculé : simuler un cycle" in text
+
+
+def _text(path) -> str:
+    pypdf = pytest.importorskip("pypdf")
+    return " ".join(p.extract_text() for p in pypdf.PdfReader(str(path)).pages)
+
+
+def test_r1_zero_line_in_the_pdf(tmp_path, pdf):
+    from dataclasses import replace
+
+    from evlab.io.notes import R1_ZERO_NOTE
+
+    s = demo_snapshot()
+    assert s.motor.r1 > 0
+    assert "R1 ≈ 0" not in _text(pdf)
+    path = build_report(replace(s, motor=replace(s.motor, r1=0.0)), tmp_path / "r1_zero.pdf")
+    assert 1 <= _pages(path.read_bytes()) <= 3
+    text = " ".join(_text(path).split())
+    assert " ".join(R1_ZERO_NOTE.split()) in text

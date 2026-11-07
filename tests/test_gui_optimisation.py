@@ -117,3 +117,15 @@ def test_budget_is_fixed_per_pareto_point(tab):
     lo, hi, _ = tab.bound_spins["k_n"]
     hi.setValue(lo.value())  # k_N fixed: still ≈ 1500 per point
     assert "3 variable(s) libre(s) → 32 générations, 1485 évaluations par point" in tab.lbl_budget.text()
+
+
+def test_r1_zero_chip_follows_the_motor(tab, win):
+    from dataclasses import replace
+
+    from evlab.io.notes import R1_ZERO_NOTE
+
+    assert win.session.motor.r1 == 0
+    assert tab.chip_r1.isVisibleTo(tab) and tab.chip_r1.text() == R1_ZERO_NOTE
+    win.session.set_motor(replace(win.session.motor, r1=0.5, r1_temperature_k=348.15))
+    win._on_motor_published(win.session.motor)
+    assert not tab.chip_r1.isVisibleTo(tab)

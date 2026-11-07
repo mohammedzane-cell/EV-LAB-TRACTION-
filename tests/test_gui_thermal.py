@@ -82,3 +82,17 @@ def test_needs_a_cycle(qtbot):
     with qtbot.waitSignal(t.thermal_failed, timeout=TIMEOUT) as b:
         t.compute()
     assert "onglet 4" in b.args[0]
+
+
+def test_r1_zero_chip_follows_the_motor(tab, win):
+    from dataclasses import replace
+
+    from evlab.io.notes import R1_ZERO_NOTE
+
+    assert win.session.motor.r1 == 0  # default TD5 Ex 1
+    assert tab.chip_r1.isVisibleTo(tab)
+    assert tab.chip_r1.text() == R1_ZERO_NOTE
+    assert R1_ZERO_NOTE == "R1 ≈ 0 : pas de pertes cuivre stator — lancez l'identification (onglet 1)"
+    win.session.set_motor(replace(win.session.motor, r1=0.5, r1_temperature_k=348.15))
+    win._on_motor_published(win.session.motor)
+    assert not tab.chip_r1.isVisibleTo(tab)

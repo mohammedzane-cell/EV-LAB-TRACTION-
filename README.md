@@ -217,6 +217,10 @@ constant to timed resistance readings when TP3 provides them.
 The tab shows the parameters (with the two time constants), the insulation
 class, the cycle count, T(t) with the class line, and KPI tiles (T max,
 T mean, margin, life).
+When the Session motor has R1 = 0 (TD5 Ex 1), the map has no stator copper
+losses: tabs 5 and 7 show the chip « R1 ≈ 0 : pas de pertes cuivre stator —
+lancez l'identification (onglet 1) », and the PDF prints the same line in its
+thermal section.
 
 ## Tab 6 · Bobinage (`core/winding.py`, `gui/tab_winding.py`)
 
