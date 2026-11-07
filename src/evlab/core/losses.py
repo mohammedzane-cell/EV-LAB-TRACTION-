@@ -3,7 +3,8 @@
 Same circuit, same drive as tab 2. For each grid point (shaft torque T, speed Ω)
 the operating point is solved: rotor frequency f_r such that the circuit gives
 T_em = T + P_mec(Ω)/Ω at stator frequency f = p·Ω/(2π) + f_r and V = V(f)
-(core.drive.vf_voltage). At fixed Ω, T(f_r) rises to a peak then falls (raising
+(core.drive.vf_voltage). A point is valid if it is inside the envelope and, with
+the map's own circuit (R1 at T_w, Rf(f)), I1 ≤ i_max and T_em ≤ margin·T_bd. At fixed Ω, T(f_r) rises to a peak then falls (raising
 f_r raises f, deeper into field weakening). All points at once: a vectorised
 golden-section search finds each peak, then a vectorised bisection on
 [0, peak] finds the stable solution.
@@ -219,6 +220,13 @@ def efficiency_map(
         hi = np.where(below, hi, mid)
     g, v, f, rfe = solve(0.5 * (lo + hi))
     op = circuit.operating_point(mt, g, v_phase=v, f=f, r_fe=rfe)
+
+    # the drive limits, checked with the map's own circuit (hot R1, Rf(f)): the envelope
+    # boundary above is computed with the identified R1 and a constant Rf (A17)
+    tol = 1.0 + 1e-6
+    valid &= np.asarray(op.i1) <= drive_settings.i_max * tol
+    t_bd = np.asarray(circuit.max_torque(mt, v_phase=v, f=f, r_fe=rfe))
+    valid &= t_em <= drive_settings.margin * t_bd * tol
 
     p_motor = np.asarray(op.p_in)
     p_out = np.asarray(op.p_mech) - p_mec  # shaft power of the solved point: balance is exact

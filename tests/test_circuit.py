@@ -320,3 +320,13 @@ def test_magnetising_impedance(m):
     assert zm == pytest.approx(1.0 / (1.0 / 230.0 + 1.0 / 46j))
     assert circuit.magnetising_impedance(m, f=25.0) == pytest.approx(1.0 / (1.0 / 230.0 + 1.0 / 23j))
     assert circuit.magnetising_impedance(m, r_fe=1e12) == pytest.approx(46j, rel=1e-9)
+
+
+@pytest.mark.parametrize("layout", ["tp3", "terminals"])
+def test_max_torque_with_r_fe_override_matches_scan(layout):
+    m = replace(td5_ex1(), r1=0.8, layout=layout)
+    g = np.logspace(-4, 1, 200_001)
+    for r_fe in (50.0, 230.0, 2000.0):
+        t_scan = float(np.max(circuit.torque(m, g, r_fe=r_fe)))
+        assert circuit.max_torque(m, r_fe=r_fe) == pytest.approx(t_scan, rel=1e-6)
+    assert circuit.max_torque(m, r_fe=m.r_fe) == pytest.approx(circuit.max_torque(m))

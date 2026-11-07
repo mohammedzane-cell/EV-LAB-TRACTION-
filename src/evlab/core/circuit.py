@@ -320,7 +320,10 @@ def breakdown_slip(m: MotorParams, f: ArrayLike | None = None) -> FloatOrArray:
     return _out(m.r2p / np.hypot(z_th.real, z_th.imag + s.x))
 
 
-def max_torque(m: MotorParams, v_phase: ArrayLike | None = None, f: ArrayLike | None = None) -> FloatOrArray:
+def max_torque(
+    m: MotorParams, v_phase: ArrayLike | None = None, f: ArrayLike | None = None,
+    r_fe: ArrayLike | None = None,
+) -> FloatOrArray:
     """Closed form T_max = 3p·|V_th|² / (2ω·(R_th + sqrt(R_th² + (X_th + X)²))), N·m (maximum power transfer).
 
     With R1 = 0 this is the course formula 3p·V² / (2·X·ω).
@@ -329,9 +332,10 @@ def max_torque(m: MotorParams, v_phase: ArrayLike | None = None, f: ArrayLike | 
         m: motor circuit.
         v_phase: phase voltage override, V.
         f: supply frequency override, Hz.
+        r_fe: iron-loss resistance override, Ω (e.g. Rf(f) of core.losses).
     """
-    s = _supply(m, v_phase, f)
-    v_th, z_th = thevenin(m, v_phase, f)
+    s = _supply(m, v_phase, f, r_fe)
+    v_th, z_th = thevenin(m, v_phase, f, r_fe=r_fe)
     z_th = np.asarray(z_th)
     r_th, x_tot = z_th.real, z_th.imag + s.x
     return _out(3.0 * m.pole_pairs * np.abs(v_th) ** 2 / (2.0 * s.w * (r_th + np.hypot(r_th, x_tot))))

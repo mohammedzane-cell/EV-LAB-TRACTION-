@@ -178,3 +178,37 @@ def test_shaft_limit_below_electromagnetic(m):
     env = drive.envelope(motor, DRIVE)
     lim = losses.shaft_torque_limit(motor, env, losses.LossSettings())
     assert np.all(lim[1:] < env.torque[1:]) and lim[0] == env.torque[0]
+
+
+# --- the map honours the drive limits with its own (hot R1, Rf(f)) circuit -------------
+
+@pytest.mark.parametrize("t_w", [None, 423.15], ids=["T_id", "150C"])
+@pytest.mark.parametrize("beta", [1.0, 1.5, 2.0])
+def test_map_respects_current_and_margin_limits(beta, t_w):
+    motor = _demo(td5_ex1())
+    st = losses.LossSettings(beta=beta, winding_temperature_k=t_w)
+    env = drive.envelope(motor, DRIVE)
+    t, w = losses.default_grid(motor, env, st, 80, 60)
+    emap = losses.efficiency_map(motor, t, w, DRIVE, st, envelope=env)
+    ok = emap.valid
+    assert ok.sum() > 1000
+    assert np.nanmax(emap.i1) <= DRIVE.i_max * (1 + 1e-6)
+    # electromagnetic torque below margin·T_bd of the same circuit (hot R1, Rf(f))
+    hot = replace(motor, r1=losses.stator_resistance(motor, st))
+    rfe = losses.iron_resistance(motor, emap.f[ok], st)
+    t_bd = circuit.max_torque(hot, v_phase=emap.v[ok], f=emap.f[ok], r_fe=rfe)
+    tt, ww = np.meshgrid(emap.torque, emap.speed, indexing="ij")
+    t_em = tt[ok] + emap.p_mech[ok] / ww[ok]
+    assert np.all(t_em <= DRIVE.margin * t_bd * (1 + 1e-6))
+
+
+def test_hot_winding_shrinks_the_map():
+    motor = _demo(td5_ex1())
+    env = drive.envelope(motor, DRIVE)
+    cold = losses.LossSettings(beta=2.0)
+    hot = losses.LossSettings(beta=2.0, winding_temperature_k=423.15)
+    t, w = losses.default_grid(motor, env, cold, 80, 60)
+    a = losses.efficiency_map(motor, t, w, DRIVE, cold, envelope=env)
+    b = losses.efficiency_map(motor, t, w, DRIVE, hot, envelope=env)
+    assert b.valid.sum() < a.valid.sum()
+    assert not np.any(b.valid & ~a.valid)

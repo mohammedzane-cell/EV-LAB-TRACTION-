@@ -169,7 +169,10 @@ the V/f law of tab 2 (vectorised golden-section + bisection on the rotor
 frequency, no loop over points; 160 × 120 in about 0,3 s). Loss terms: copper
 3·R1(T)·I1² + 3·R'2·I'2², iron by Steinmetz (β, A19), mechanical a·Ω + b·Ω²
 from the p_mec identified in tab 1 (A20), inverter P_0 + k·P (démo, A21).
-It returns η and every term; NaN outside the envelope.
+It returns η and every term; NaN outside the envelope. A point is kept only if the
+map's own circuit (R1 at the winding temperature, Rf(f)) also respects the drive
+limits: I1 ≤ i_max and T_em ≤ margin·T_bd (the envelope of tab 2 uses the
+identified R1 and a constant Rf, so a hot winding shrinks the map slightly).
 
 The tab draws the contour map with % labels, the shaft-torque envelope, the
 best-efficiency point, the cycle points (from stage 5) and exports a PNG. It
