@@ -6,14 +6,24 @@ l'application en suivant exactement ce parcours (fichiers démo, réglages par
 défaut, graine 0). Ils ont été relevés sur l'application elle-même.
 
 **Avant de commencer** : lancer `EVLab.exe` (ou `python -m evlab`), fenêtre
-maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
+maximisée, onglet 1 ouvert. Prévoir environ 15 s de calcul à l'onglet 7
 (4 cœurs, démo rapide). Captures de chaque étape : `docs/images/`.
+
+**Ordre impératif : onglet 1 « Identifier » d'abord.** Le moteur de départ
+(TD5 Ex 1) a R1 = 0, donc aucune perte cuivre stator : les onglets 5 et 7
+affichent alors la pastille rouge « R1 ≈ 0 : pas de pertes cuivre stator —
+lancez l'identification (onglet 1) » et leurs résultats thermiques ne sont pas
+significatifs. Après l'identification (R1 ≈ 0,40 Ω à 20 °C), la pastille
+disparaît. Les pastilles « démo » listent, au survol, les valeurs démo
+utilisées par l'onglet (champ par champ : I max, boost, marge, f max ; pertes
+onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
 
 ---
 
 ## 0:00 – 0:30 · Ouverture
 
-- **Montrer** la barre d'état : « Moteur : TD5 Ex 1 » et « Python 3 · PySide6 ».
+- **Montrer** la barre d'état : « Moteur : TD5 Ex 1 » et « Python 3 · PySide6 »
+  (`00_fenetre.png`).
 - **Dire** : « Sept onglets, un seul moteur. Au démarrage, c'est le schéma en Γ du
   TD5 Ex 1 : Rf = 230 Ω, Xm = 46 Ω, X = 4 Ω, R'2 = 2 Ω, R1 = 0. Il donne
   g_c = R'2/X = 0,5 et T_max = 3pV²/(2Xω) = 126,3 N·m, nos valeurs de référence
@@ -42,6 +52,8 @@ maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
   température du bobinage pendant l'essai. Le couple maximal tombe alors à
   C_max = 109,4 N·m (g_c = 0,48, affichés sur la courbe) : c'est la chute de tension
   dans R1.
+- **Montrer** la note sous *Schéma* : le choix TP3 / bornes ne change pas les
+  formules classiques, il fixe le circuit de l'optimisation et des onglets 2 à 7.
 
 ## 1:30 – 2:10 · Onglet 2 — Enveloppe
 
@@ -50,12 +62,17 @@ maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
 - **Dire** : « Loi V/f jusqu'à 50 Hz, puis défluxage à tension constante. Les trois
   zones se lisent sur la courbe : couple constant jusqu'à 1253 tr/min, puissance
   constante jusqu'à 1695 tr/min, puis limitation par le décrochage jusqu'à
-  2648 tr/min. Le variateur (20 A, marge 80 %, 100 Hz) est une hypothèse démo. »
+  2648 tr/min. Le variateur (20 A, boost 0 V, marge 80 %, 100 Hz) est une
+  hypothèse démo » : survoler la pastille « démo » (réglages variateur I max,
+  boost, marge, f max, A16).
 
 ## 2:10 – 2:40 · Onglet 3 — Rendement
 
 - **Montrer** la carte η(C, n) et le point de meilleur rendement :
-  **≈ 78 %** vers 21 N·m et 2270 tr/min.
+  **78,3 %** à 20,8 N·m et 2273 tr/min.
+- **Dire** : « La carte commence à couple nul : c'est la ligne des pertes à vide
+  (fer, onduleur, mécanique) comptées en roue libre à l'onglet 4. Chaque point
+  respecte aussi I1 ≤ 20 A et la marge au décrochage avec R1 à 75 °C. »
 - **Dire** : « Chaque point est un point de fonctionnement du même circuit : cuivre
   avec R1(T), fer par Steinmetz (β = 1,5), mécanique à partir du p_méc de
   l'onglet 1, onduleur démo. À 50 Hz la carte redonne exactement le rendement du
@@ -73,12 +90,15 @@ maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
 
 ## 3:20 – 3:50 · Onglet 5 — Thermique
 
-- **Montrer** : T max bobinage **61,4 °C**, classe F (155 °C), marge **93,6 K**,
-  durée de vie **≈ 10⁷ h**.
+- **Montrer** : T max bobinage **61,4 °C**, T moyenne (dernier cycle) **60,8 °C**,
+  classe F (155 °C), marge **93,6 K**, durée de vie **≈ 10⁷ h**. Pas de pastille
+  « R1 ≈ 0 » : le moteur identifié a R1 = 0,49 Ω à 75 °C.
 - **Dire** : « Réseau à deux nœuds alimenté par les pertes du cycle. R1 est
   recalculée à chaque pas avec la température. Les paramètres du réseau sont
   démo, faute de relevés de refroidissement au TP3. La durée de vie n'est qu'un
-  ordre de grandeur : ici l'isolation n'est pas une limite. »
+  ordre de grandeur, calculé sur le vieillissement moyen du dernier cycle
+  (règle des 10 K appliquée au taux, pas à la température moyenne) : ici
+  l'isolation n'est pas une limite. »
 
 ## 3:50 – 4:20 · Onglet 6 — Bobinage
 
@@ -94,8 +114,8 @@ maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
 
 ## 4:20 – 5:00 · Onglet 7 — Optimisation
 
-- **Régler** *Points de Pareto* = 3, *Évaluations / point* = 300 (900 évaluations,
-  ≈ 20 s), puis *Lancer l'optimisation*.
+- **Régler** *Points de Pareto* = 3, *Évaluations / point* = 300, *Processus* = 4
+  (900 évaluations, ≈ 15 s), puis *Lancer l'optimisation*.
 - **Dire** : « Démo rapide ; calcul complet : 1500 évaluations par point »
   (réglage par défaut : 6 points × 1500 = 9000 évaluations, environ 3 min sur
   4 cœurs). Les chiffres ci-dessous sont ceux de la démo rapide ; le calcul
@@ -116,7 +136,12 @@ maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
 
 - **Dire** : « Ce design domine la base : il consomme moins et accélère mieux. »
   **Cliquer** *Charger ce design dans tous les onglets* : les onglets 2 à 5 se
-  recalculent avec ce moteur.
+  recalculent avec ce moteur. À l'onglet 2, montrer l'avertissement rouge :
+  « Boost : V/f atteint 4,14 × Vn/fn à 0,500 Hz — surexcitation, saturation non
+  modélisée (circuit magnétique linéaire, A33) ». **Dire** : « Le gain à basse
+  vitesse de ce design est optimiste : le modèle ne sature pas. » Nouvelles
+  tuiles : base 1245 tr/min, fin de puissance constante 1935 tr/min, P max
+  8,98 kW.
 - **Conclure** : *Fichier → Exporter PDF…* : rapport de 2 à 3 pages, sections 1
   à 6, hypothèses, et pied de page listant ce qui est démo.
 
@@ -124,4 +149,4 @@ maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
 
 **Si une question porte sur la validation** : renvoyer au tableau « What is
 validated / what is démo » du README (circuit TD5, facteurs de bobinage,
-bilans d'énergie, comparaison avec un balayage exhaustif à 1 % près, 491 tests).
+bilans d'énergie, comparaison avec un balayage exhaustif à 1 % près, 546 tests).
