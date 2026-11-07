@@ -36,9 +36,10 @@ from typing import Callable
 import numpy as np
 
 from evlab.core import winding as wd
+from evlab.io.paths import data_dir
 
 MATERIALS = ("M-19 Steel", "linear")
-CACHE_DIR = Path(__file__).resolve().parents[3] / "data" / "fem_cache"
+CACHE_DIR = data_dir() / "fem_cache"
 SQRT2 = math.sqrt(2.0)
 
 
@@ -255,6 +256,13 @@ def slot_angles(w: wd.Winding) -> np.ndarray:
     return 2.0 * math.pi * np.arange(w.z) / w.z
 
 
+def lua_args(*args) -> str:
+    """Lua argument list as pyfemm writes it (pyfemm's doargs): strings in double quotes, numbers by str(),
+    complex j → *I. Local copy so that the model can be written without pyfemm installed."""
+    parts = [f'"{a}"' if isinstance(a, str) else str(a).replace("j", "*I") for a in args]
+    return "(" + ",".join(parts) + ")"
+
+
 class LuaRecorder:
     """Records pyfemm-style calls as FEMM Lua lines, so the whole geometry is sent as one dofile.
 
@@ -278,10 +286,9 @@ class LuaRecorder:
     def __getattr__(self, name: str):
         if not name.startswith(("mi_", "newdocument")):
             raise AttributeError(name)
-        from femm import doargs
 
         def call(*args) -> None:
-            self.lines.append(f"{name}{doargs(*args)}")
+            self.lines.append(f"{name}{lua_args(*args)}")
 
         return call
 

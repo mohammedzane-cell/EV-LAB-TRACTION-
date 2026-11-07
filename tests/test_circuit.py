@@ -313,3 +313,10 @@ def test_broadcast_validation(m):
 
 def test_magnetising_current(m):
     assert circuit.magnetising_current(m) == pytest.approx(230.0 / 46.0)  # TD5 Ex 1: 5 A RMS
+
+
+def test_magnetising_impedance(m):
+    zm = circuit.magnetising_impedance(m)  # Rf ∥ jXm = 230 Ω ∥ j46 Ω
+    assert zm == pytest.approx(1.0 / (1.0 / 230.0 + 1.0 / 46j))
+    assert circuit.magnetising_impedance(m, f=25.0) == pytest.approx(1.0 / (1.0 / 230.0 + 1.0 / 23j))
+    assert circuit.magnetising_impedance(m, r_fe=1e12) == pytest.approx(46j, rel=1e-9)

@@ -320,9 +320,9 @@ class IdentificationTab(QWidget):
         return True
 
     def load_demo(self) -> None:
-        from pathlib import Path
+        from evlab.io.paths import data_dir
 
-        data = Path(__file__).resolve().parents[3] / "data"
+        data = data_dir()
         self.load_bench_file(data / demo_data.BENCH_FILE)
         self.load_points_file(data / demo_data.LOAD_FILE)
 

@@ -102,19 +102,19 @@ def _out(x: np.ndarray):
     return float(x) if np.ndim(x) == 0 else x
 
 
-def distribution_factor(w: Winding, nu: ArrayLike = 1):
+def distribution_factor(w: Winding, nu: ArrayLike = 1) -> float | np.ndarray:
     """kd_ν = sin(ν·q·α/2)/(q·sin(ν·α/2)): the q slot EMFs of a belt add as phasors α apart."""
     n = _nu(nu)
     return _out(np.sin(n * w.q * w.alpha / 2.0) / (w.q * np.sin(n * w.alpha / 2.0)))
 
 
-def pitch_factor(w: Winding, nu: ArrayLike = 1):
+def pitch_factor(w: Winding, nu: ArrayLike = 1) -> float | np.ndarray:
     """kp_ν = sin(ν·(y/τ)·π/2): a coil spanning y < τ slots links less than a full pole."""
     n = _nu(nu)
     return _out(np.sin(n * (w.y / w.tau) * math.pi / 2.0))
 
 
-def winding_factor(w: Winding, nu: ArrayLike = 1):
+def winding_factor(w: Winding, nu: ArrayLike = 1) -> float | np.ndarray:
     """kw_ν = kd_ν·kp_ν (signed: the sign is the harmonic's phase relative to the fundamental)."""
     return _out(np.asarray(distribution_factor(w, nu)) * np.asarray(pitch_factor(w, nu)))
 

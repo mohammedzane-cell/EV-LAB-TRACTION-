@@ -22,6 +22,7 @@ import math
 from dataclasses import dataclass, field
 
 import numpy as np
+from numpy.typing import ArrayLike
 from scipy.interpolate import RegularGridInterpolator
 
 from evlab.core import drive, losses
@@ -118,7 +119,7 @@ def demo_quadricycle(gear_ratio: float = 4.0, regen: bool = True) -> Vehicle:
                    name="quadricycle léger (démo)", is_demo=True)
 
 
-def road_force(veh: Vehicle, v, a, grade: float | None = None):
+def road_force(veh: Vehicle, v: ArrayLike, a: ArrayLike, grade: float | None = None) -> float | np.ndarray:
     """F = m·a + ½·ρ·Cx·S·v² + Crr·m·g·cosθ + m·g·sinθ, N (0 when the vehicle is held at rest)."""
     th = veh.grade if grade is None else grade
     v, a = np.asarray(v, dtype=float), np.asarray(a, dtype=float)
@@ -128,13 +129,13 @@ def road_force(veh: Vehicle, v, a, grade: float | None = None):
     return float(f) if f.ndim == 0 else f
 
 
-def motor_speed(veh: Vehicle, v):
+def motor_speed(veh: Vehicle, v: ArrayLike) -> float | np.ndarray:
     """ωm = G·v/r, rad/s."""
     w = veh.gear_ratio * np.asarray(v, dtype=float) / veh.wheel_radius
     return float(w) if w.ndim == 0 else w
 
 
-def motor_torque(veh: Vehicle, force):
+def motor_torque(veh: Vehicle, force: ArrayLike) -> float | np.ndarray:
     """Shaft torque for a wheel force: F·r/(G·ηg) in traction, F·r·ηg/G in braking, N·m."""
     f = np.asarray(force, dtype=float)
     k = veh.wheel_radius / veh.gear_ratio
@@ -181,7 +182,7 @@ GEAR_SCAN = np.linspace(0.25, 1.0, 301)  # × gear_ratio_max
 
 
 def torque_margin(cycle: Cycle, veh: Vehicle, m: MotorParams, env: drive.Envelope,
-                  st: losses.LossSettings, gear_ratios: np.ndarray) -> np.ndarray:
+                  st: losses.LossSettings, gear_ratios: ArrayLike) -> np.ndarray:
     """Smallest T_limit(ωm)/T_demand over the traction points, for each gear ratio (0 beyond Ω_max)."""
     v = 0.5 * (cycle.v[1:] + cycle.v[:-1])
     a = np.diff(cycle.v) / np.diff(cycle.t)

@@ -8,7 +8,6 @@ Every number comes from core/; this module only converts units for display
 
 from __future__ import annotations
 
-import math
 
 import pyqtgraph as pg
 from PySide6.QtCore import QThreadPool, Qt, Signal
@@ -26,20 +25,14 @@ from PySide6.QtWidgets import (
 
 from evlab.core import thermal
 from evlab.core.session import Session
-from evlab.gui.format import fr, fr_fixed
+from evlab.gui.format import fr, fr_fixed, power_of_ten
 from evlab.gui.widgets import KpiTile, card, chip, french_spin
 from evlab.gui.workers import CoreWorker
 
 TITLE = "5 · Thermique"
 LEFT_WIDTH = 300
 T_ZERO_C = 273.15  # K ↔ °C (display only)
-SUPERSCRIPT = str.maketrans("-0123456789", "⁻⁰¹²³⁴⁵⁶⁷⁸⁹")
 METHODS = (("implicit", "Euler implicite (1 s)"), ("rk45", "solve_ivp RK45 (contrôle)"))
-
-
-def power_of_ten(x: float) -> str:
-    """1e7 → "10⁷" (display of an order of magnitude)."""
-    return "10" + str(int(round(math.log10(x)))).translate(SUPERSCRIPT)
 
 
 class ThermalTab(QWidget):

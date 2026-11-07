@@ -185,6 +185,7 @@ def test_generations_give_a_fixed_budget_per_point():
         assert abs(op.run_evaluations(15, n_free, g) - 1500) <= 15 * n_free / 2  # ≈ 1500 for any n_free
     assert op.generations(1500, 15, 4) == 24 and op.run_evaluations(15, 4, 24) == 1500
     assert op.generations(10, 15, 4) == 1  # at least one generation
+    assert op.population(2, 1) == 5 and op.run_evaluations(2, 1, 1) == 10  # scipy keeps >= 5 members
     with pytest.raises(ValueError, match="budget"):
         op.generations(0, 15, 4)
     with pytest.raises(ValueError, match="n_free"):
@@ -197,5 +198,7 @@ def test_budget_is_spent_whatever_the_free_variables(problem):
     two = op.Bounds(gear_ratio=(2.5, 4.5), margin=(0.6, 0.95))
     assert len(op.optimise(problem, one, seed=0, popsize=5, workers=1, budget=40).log) == 40
     assert len(op.optimise(problem, two, seed=0, popsize=5, workers=1, budget=40).log) == 40
+    small = op.optimise(problem, one, seed=0, popsize=2, workers=1, budget=10)  # 5 members × 2
+    assert len(small.log) == 10 == op.run_evaluations(2, 1, op.generations(10, 2, 1))
     pr = op.pareto_front(problem, one, n_points=2, seed=0, popsize=5, workers=1, budget=40)
     assert [len(r.log) for r in pr.runs] == [40, 40]

@@ -48,12 +48,17 @@ def generations(budget: int, popsize: int, n_free: int) -> int:
     for name, v in (("budget", budget), ("popsize", popsize), ("n_free", n_free)):
         if not isinstance(v, int) or v < 1:
             raise ValueError(f"{name} must be an integer >= 1, got {v!r}")
-    return max(1, round(budget / (popsize * n_free)) - 1)
+    return max(1, round(budget / population(popsize, n_free)) - 1)
+
+
+def population(popsize: int, n_free: int) -> int:
+    """Members of the differential-evolution population: max(5, popsize·n_free) (scipy's minimum is 5)."""
+    return max(5, popsize * n_free)
 
 
 def run_evaluations(popsize: int, n_free: int, maxiter: int) -> int:
-    """Evaluations of one run (fixed: no early stop): popsize·n_free·(maxiter + 1)."""
-    return popsize * n_free * (maxiter + 1)
+    """Evaluations of one run (fixed: no early stop): population·(maxiter + 1)."""
+    return population(popsize, n_free) * (maxiter + 1)
 
 
 @dataclass(frozen=True)

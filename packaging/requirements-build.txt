@@ -1,0 +1,2 @@
+# Build tool for packaging/EVLab.spec (not needed to run or test the app from source)
+pyinstaller==6.22.3

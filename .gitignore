@@ -19,3 +19,11 @@ Thumbs.db
 # Generated outputs
 *.log
 reports/
+
+# Windows build venv (packaging/build_windows.bat)
+.venv-build/
+
+# Coverage data
+.coverage
+coverage.json
+htmlcov/

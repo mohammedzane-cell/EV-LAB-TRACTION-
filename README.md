@@ -1,15 +1,22 @@
 # EV-Traction Lab
 
-PROJECT ME3 — ENP Alger, Machines électriques. Laboratoire virtuel d'une chaîne
+Mini-projet ME3 — ENP Alger, Machines électriques. Laboratoire virtuel d'une chaîne
 de traction de véhicule électrique à moteur asynchrone.
 
-One motor, one chain: the Γ circuit identified in tab 1 (default TD5 Ex 1) feeds
-every other module. See `CLAUDE.md` for the full specification and
-`docs/roadmap.md` for the stages.
+## Purpose
+
+A desktop virtual lab (PySide6, French interface) that follows **one motor through
+one chain**: the Γ equivalent circuit identified in tab 1 from bench tests
+(default TD5 Ex 1, or the TP3-style démo files) is the motor that every other tab
+uses. Its circuit gives the V/f + field-weakening envelope, the efficiency map, the
+energy of a driving cycle, the winding temperature, and the design optimisation.
+Tab 6 covers the stator winding (factors, MMF, rotating field, optional FEM). A PDF
+report and an Excel workbook export the whole session. Specification: `CLAUDE.md`;
+user guide (French): `docs/user_guide.md`; 5-minute demo: `docs/demo_script.md`.
 
 ## Install
 
-Python 3.11 or 3.12 (3.13 also works). Exact versions are pinned in `requirements.txt`.
+From source: Python 3.11 or 3.12 (3.13 also works), versions pinned in `requirements.txt`.
 
 ```bash
 pip install -r requirements.txt
@@ -19,11 +26,17 @@ pip install -r requirements.txt
 pip install -e ".[dev]"
 ```
 
-On a headless Linux machine Qt also needs system libraries (Debian/Ubuntu):
+Use the editable install (`-e`): the app reads `data/` next to the source tree
+(or the folder named by the `EVLAB_DATA` environment variable). On a headless
+Linux machine Qt also needs (Debian/Ubuntu):
 
 ```bash
 sudo apt-get install libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
 ```
+
+Windows build (no Python needed on the target PC): copy the `dist\EVLab` folder and
+run `EVLab.exe`; see **Build** below. The optional FEM part needs pyfemm and FEMM 4.2;
+without them tab 6 replays the pre-computed FEM runs.
 
 ## Run
 
@@ -31,8 +44,13 @@ sudo apt-get install libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3
 python -m evlab
 ```
 
-The `evlab` command does the same. The window has seven tabs (1 · Identification …
-7 · Optimisation) and a status bar showing which motor the whole chain uses.
+The `evlab` command (or `EVLab.exe`) does the same. Start-up self-test, without
+using the window (7 tabs, data folder, envelope, cycle, two-process optimisation,
+PDF and Excel export; log in `<dossier>/smoke.log`, exit code 0 when all pass):
+
+```bash
+python -m evlab --smoke build/smoke
+```
 
 ## Test
 
@@ -40,18 +58,74 @@ The `evlab` command does the same. The window has seven tabs (1 · Identificatio
 pytest
 ```
 
+```bash
+pytest --cov=evlab --cov-report=term
+```
+
 GUI tests run headless (`QT_QPA_PLATFORM=offscreen`, set in `tests/conftest.py`).
+The FEM tests run only where FEMM is installed; three WLTC tests skip until the
+official files are in `data/`.
 
-## Layout
+## Build (PyInstaller, one folder)
 
+On Windows, from the repository root (creates a clean `.venv-build`, builds, runs
+the self-test of the result):
+
+```bat
+packaging\build_windows.bat
 ```
-src/evlab/core/   pure physics (no Qt, no I/O)
-src/evlab/io/     loaders and exports
-src/evlab/gui/    PySide6 tabs
-tests/            pytest
-docs/             roadmap, assumptions, data notes (course PDFs local only)
-data/             input files (*_demo.csv for demo data)
+
+Any platform, in an environment with `requirements.txt` and
+`packaging/requirements-build.txt` installed:
+
+```bash
+pyinstaller --noconfirm --clean packaging/EVLab.spec
 ```
+
+Result: `dist/EVLab/EVLab(.exe)` with `_internal/` (Python, Qt, numpy, scipy …) and
+`data/` next to the executable (démo files, FEM cache; put the official WLTC files
+there). PyInstaller does not cross-compile: build the Windows version on Windows.
+
+## Module overview and key equations
+
+| Module | Tab | Key equations / method |
+|---|---|---|
+| `core/circuit.py`, `core/session.py` | all | Γ circuit (TP3 layout): V → R1 → (Rf ∥ jXm) → jX + R'2/g. T = (3p/ω)·(R'2/g)·I'2². Breakdown from the Thévenin source V_th = V·Z_m/(R1 + Z_m), Z_th = R1 ∥ Z_m: g_c = R'2/√(R_th² + (X_th + X)²), T_max = 3p·V_th²/(2ω·(R_th + √(R_th² + (X_th + X)²))); R1 = 0: g_c = R'2/X, T_max = 3pV²/(2Xω). R(T) = R20·(234,5 + T)/254,5 |
+| `core/identification.py` | 1 | R1 = U_dc/(2I_dc); P0 − 3R1I0² vs U0² → p_mec (intercept); Rf = 3V0²/P_fe, Xm = 3V0²/Q0; R'2 = Pcc/(3Icc²) − R1, X = √(Zcc² − Rcc²) (classical) or exact inversion; load-point fit of (Xm, X, R'2) by `least_squares` (soft_l1, multistart, 95 % CI) |
+| `core/drive.py` | 2 | V/f law V = V0 + (Vn − V0)·f/fn up to fn, then V = Vn (field weakening); per speed: T = max over f_r of min(T_I(i_max), margin·T_bd, T_peak) |
+| `core/losses.py` | 3 | P_cu = 3R1(T)I1² + 3R'2I'2²; iron P_fe ∝ f^β·B² → Rf(f) = Rf·(f/fn)^(2−β), β = 1,5; P_mec = aΩ + bΩ²; P_inv = P0 + k·P; η = P_out/P_in |
+| `core/vehicle.py`, `io/cycles.py` | 4 | F = m·a + ½ρC_xS·v² + C_rr·m·g; T = F·r/(G·η_g) (traction), F·r·η_g/G (regen); ω_m = G·v/r; Wh/km = ∫P_batt dt / distance; WLTC class by W/kg (≤ 22 → 1, ≤ 34 → 2, else 3) |
+| `core/thermal.py` | 5 | C_w·dT_w/dt = P_cu(T_w) − (T_w − T_s)/R_ws; C_s·dT_s/dt = P_fe + P_cu2 + (T_w − T_s)/R_ws − (T_s − T_a)/R_sa; life L = L_ref·2^((T_class − T)/10) |
+| `core/winding.py` | 6 | q = Z/(2pm), α = 2πp/Z; k_d = sin(qνα/2)/(q·sin(να/2)), k_p = sin(νπy/(2τ)), k_w = k_d·k_p; stepped MMF and FFT ∝ k_wν/ν; E = 4,44·f·N·k_w1·Φ; Carter k_c = τ_s/(τ_s − γg) |
+| `io/femm_model.py` (optional) | 6 | FEMM 4.2 magnetostatic stator model; B_r fundamental vs μ0·F1/(k_c·g); field at t + T/6 = field turned by q slots |
+| `core/optimise.py` | 7 | Variables G, boost, margin, k_N (impedances × k_N²); min Wh/km and t_0–50 under envelope, T_w ≤ class − 20 K, I1 ≤ i_max; differential evolution + ε-constraint sweep, 1500 evaluations per Pareto point |
+| `io/report.py`, `io/excel.py`, `io/snapshot.py` | menu | A4 PDF (reportlab, 6 sections, assumptions box, démo footer); Excel sheet per module (SI arrays, units in headers) |
+
+## What is validated / what is démo
+
+| Item | Status | Evidence |
+|---|---|---|
+| Γ circuit on TD5 Ex 1: g_c = 0,5, T_max = 126,3 N·m, torque formula, R(T) | **validated** | `tests/test_circuit.py` (numeric = closed form) |
+| Identification chain (exact method) | **validated** | noise-free TD5 records → circuit recovered within 1 %; load fit within 0,1 %; 95 % CI coverage checked on 500 noisy draws (A14) |
+| Classical locked-rotor formula bias (R'2 −13,1 %, X −7,7 % on TD5) | **validated** (known course-formula error) | `tests/test_identification.py`, A9 / A15 |
+| Winding factors y = 9 and y = 7, MMF harmonics, TD2 Ex 1 EMF (1023 V) | **validated** | `tests/test_winding.py`: CLAUDE.md reference values |
+| Envelope = best torque at each speed; T_bd·Ω_s² constant above fn (R1 = 0) | **validated** | brute-force scan, `tests/test_drive.py` |
+| Efficiency map = circuit at fn; loss terms sum to P_in − P_out | **validated** | `tests/test_losses.py` |
+| Vehicle: road-load terms, energy balance (1e-6), constant-speed analytical case, WLTC class thresholds | **validated** | `tests/test_vehicle.py` |
+| Thermal: steady state, time constants = eigenvalues, implicit = RK45, 10 K rule | **validated** | `tests/test_thermal.py` |
+| Optimisation: 1-variable optimum = brute force within 1 %; constraints met; same seed → same result | **validated** | `tests/test_optimise.py` |
+| FEM air-gap fundamental vs analytical MMF (−6,5 % linear, 6 A); T/6 symmetry < 1 % | **validated** where FEMM is installed | `tests/test_femm_model.py`, A32 |
+| Bench and load-point files `data/*_demo.csv` (TD5 Ex 1 + R1 = 0,5 Ω, p_mec = 60 W, 2,5 % noise) | **démo** | `docs/data_notes.md` |
+| Driving cycle `data/cycle_demo.csv` (synthetic urban, not WLTC) | **démo** | A25; official WLTC files not yet provided |
+| Vehicle (600 kg quadricycle, C_xS, C_rr, r) | **démo** | A22 |
+| Drive limits (i_max 20 A, margin 80 %, f_max 100 Hz), inverter losses (50 W + 2 %) | **démo** | A16, A21 |
+| Steinmetz β = 1,5; friction/windage split 0,5 | assumption | A19, A20 |
+| Thermal network (C_w, C_s, R_ws, R_sa), insulation life L_ref | **démo** | A26, A28 (no timed TP3 readings) |
+| FEM geometry and 10 turns per coil | **démo** | A32 |
+
+---
+
+# Module details
 
 ## Tab 1 · Identification (`gui/tab_identification.py`)
 
@@ -59,8 +133,8 @@ Left panel: **Machine** (V, f, p, R1 and its temperature, layout TP3 / Bornes;
 rated speed read from the file's nameplate), **Essais (CSV)** (bench tests and
 load points, each with a status line and a preview; "Charger la démo" loads the
 two `data/*_demo.csv` files), **Méthode** (Formules classiques, Optimisation,
-Comparer les deux), then **Identifier** (and Exporter PDF, disabled until
-stage 9). Right: torque–slip and current–slip plots (model curves from the
+Comparer les deux), then **Identifier** and **Exporter PDF** (the whole
+session report, same as Fichier → Exporter PDF). Right: torque–slip and current–slip plots (model curves from the
 core, measured points, breakdown point; chip "points synthétiques (démo)"), and
 the table Référence / Formules classiques / Optimisation with error % and the
 95 % interval of the fit as tooltip.

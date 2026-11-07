@@ -44,6 +44,22 @@ def test_lua_recorder_expands_pyfemm_composites():
         rec.not_a_femm_call
 
 
+def test_lua_args_match_pyfemm(monkeypatch):
+    """Same text as pyfemm's doargs (checked against it when pyfemm is installed)."""
+    args = ("Cu", 1, 0.0, -10, 2.5e-3, 3 + 4j)
+    assert fm.lua_args(*args) == '("Cu",1,0.0,-10,0.0025,(3+4*I))'
+    assert fm.lua_args() == "()"
+    femm = pytest.importorskip("femm")
+    assert fm.lua_args(*args) == femm.doargs(*args)
+
+
+def test_no_pyfemm_needed_to_write_the_model(monkeypatch):
+    monkeypatch.setitem(sys.modules, "femm", None)  # import femm now raises ImportError
+    rec = fm.LuaRecorder()
+    fm._build(rec, fm.FemCase(), fm.Path("/tmp/x.fem"))
+    assert len(rec.lines) > 500
+
+
 def test_model_uses_the_slot_table():
     rec = fm.LuaRecorder()
     fm._build(rec, fm.FemCase(), fm.Path("/tmp/x.fem"))

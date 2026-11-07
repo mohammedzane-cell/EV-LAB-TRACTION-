@@ -17,3 +17,4 @@ One stage = one commit (see Definition of done in CLAUDE.md).
 | 8 | `core/optimise.py`: Pareto Wh/km vs acceleration (scipy differential evolution + ε-constraint); tab 7 | done (pymoo not used, pending approval) |
 | 9 | PDF report (reportlab) + Excel export (openpyxl), Fichier menu | done |
 | 10 | FEM stretch goal: `io/femm_model.py` (FEMM 4.2 stator model, \|B\| frames, air-gap fundamental vs analytical MMF), tab 6 Animation FEM | done (optional, skipped without FEMM) |
+| 11 | Hand-in: PyInstaller one-folder build (`packaging/`), `--smoke` self-test, `io/paths.py`, README overview + validated/démo table, `docs/user_guide.md`, `docs/demo_script.md`, coverage | done (Windows build to run on Windows) |

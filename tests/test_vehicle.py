@@ -217,3 +217,16 @@ def test_acceleration_time_constant_force(motor, env):
 def test_acceleration_time_unreachable(motor, env):
     veh = vehicle.demo_quadricycle(gear_ratio=12.0)  # top speed below 50 km/h
     assert vehicle.acceleration_time(veh, motor, env, LOSS, 50 * KMH) == math.inf
+
+
+def test_torque_margin(motor, env, emap, demo_cycle):
+    """T_limit/T_demand over the traction points: ≥ 1 ⇔ the cycle stays inside the envelope."""
+    veh = vehicle.demo_quadricycle()
+    s = vehicle.size_vehicle(motor, env, LOSS, veh, demo_cycle)
+    g = np.array([s.gear_ratio, 1.0, 50.0])
+    margin = vehicle.torque_margin(demo_cycle, veh, motor, env, LOSS, g)
+    assert margin.shape == (3,) and margin[0] == pytest.approx(s.min_margin) and margin[0] >= 1.0
+    assert margin[2] == 0.0  # G = 50: top speed beyond Ω_max
+    assert margin[1] < 1.0  # G = 1: not enough torque at the wheel
+    short = vehicle.simulate(demo_cycle, replace(veh, gear_ratio=1.0), motor, env, emap, LOSS)
+    assert short.summary.n_outside > 0

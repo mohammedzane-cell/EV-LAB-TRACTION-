@@ -6,7 +6,7 @@ import pytest
 from evlab.core import thermal
 from evlab.gui.format import fr_fixed
 from evlab.gui.main_window import MainWindow
-from evlab.gui.tab_thermal import power_of_ten
+from evlab.io.format import power_of_ten
 
 TIMEOUT = 30_000
 

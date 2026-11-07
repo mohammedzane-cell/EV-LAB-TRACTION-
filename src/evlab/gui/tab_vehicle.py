@@ -33,10 +33,11 @@ from evlab.gui.widgets import KpiTile, card, chip, french_spin
 from evlab.gui.workers import CoreWorker
 from evlab.io.cycles import load_cycle, wltc_file
 from evlab.io.demo_data import CYCLE_FILE
+from evlab.io.paths import data_dir
 
 TITLE = "4 · Véhicule & WLTC"
 LEFT_WIDTH = 300
-DATA = Path(__file__).resolve().parents[3] / "data"
+DATA = data_dir()
 KMH = 3.6  # m/s → km/h (display only)
 DEFAULT_DRIVE = drive.DriveSettings(i_max=20.0)
 

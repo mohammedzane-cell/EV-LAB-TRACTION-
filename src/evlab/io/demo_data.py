@@ -171,7 +171,9 @@ def write_demo_files(directory: Path, spec: DemoSpec = DemoSpec()) -> tuple[Path
 
 
 if __name__ == "__main__":
-    root = Path(__file__).resolve().parents[3] / "data"
+    from evlab.io.paths import data_dir
+
+    root = data_dir()
     for p in write_demo_files(root):
         print(p)
     print(root / CYCLE_FILE)

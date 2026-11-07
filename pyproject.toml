@@ -21,7 +21,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=9.2", "pytest-qt>=4.5", "pypdf>=6.17"]
+dev = ["pytest>=9.2", "pytest-qt>=4.5", "pypdf>=6.17", "pytest-cov>=7.1"]
+build = ["pyinstaller>=6.22"]
 nsga = ["pymoo"]
 
 [project.gui-scripts]
@@ -36,3 +37,7 @@ pythonpath = ["src"]
 addopts = "-q"
 # QT_QPA_PLATFORM=offscreen is set in tests/conftest.py (no extra plugin needed).
 qt_api = "pyside6"
+
+[tool.coverage.run]
+source = ["evlab"]
+branch = false
