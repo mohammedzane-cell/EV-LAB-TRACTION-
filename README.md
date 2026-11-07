@@ -68,6 +68,9 @@ GUI tests run headless (`QT_QPA_PLATFORM=offscreen`, set in `tests/conftest.py`)
 The FEM tests run only where FEMM is installed; three WLTC tests skip until the
 official files are in `data/`.
 
+Screenshots: `python tools/capture_screenshots.py` redoes every `docs/images/*.png` by driving the
+app along `docs/demo_script.md` (headless, about 1 min) and prints the numbers the script quotes.
+
 ## Build (PyInstaller, one folder)
 
 On Windows, from the repository root (creates a clean `.venv-build`, builds, runs
