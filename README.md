@@ -208,7 +208,9 @@ fed by the per-second losses of the tab 4 cycle read from the tab 3 map: stator
 copper to the winding (recomputed every step with R1(T), 234,5 rule), iron and
 rotor copper to the frame. Integrated over N cycles back to back by implicit
 Euler (exact 2×2 solve per step) or `solve_ivp` RK45. Insulation life uses the
-10 K rule from the mean winding temperature, as an order of magnitude (A28).
+10 K rule with the mean ageing rate over the last cycle, L = L_ref/mean(2^((T_w −
+T_class)/10)), as an order of magnitude (A28); `steady_state` raises « emballement
+thermique » when the R1(T) feedback has no steady state.
 The network values are démo (A26); `fit_cooling_curve` fits the winding time
 constant to timed resistance readings when TP3 provides them.
 

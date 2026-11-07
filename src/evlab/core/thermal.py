@@ -16,10 +16,12 @@ C_w, C_s, R_ws, R_sa are démo values (A26): TP3 gives no timed hot/cold
 resistance readings. fit_cooling_curve is ready to fit the winding time
 constant when such readings exist.
 
-Insulation life uses the 10 K rule (Montsinger): L = L_ref·2^((T_class − T_mean)/10),
-with L_ref = 20 000 h at the class temperature. It is an ORDER OF MAGNITUDE only:
-the rule is empirical, the hot spot is hotter than the winding average computed
-here, and real ageing depends on the whole temperature history.
+Insulation life uses the 10 K rule (Montsinger): at constant T, L = L_ref·2^((T_class − T)/10),
+with L_ref = 20 000 h at the class temperature. Under a varying T_w(t) the ageing
+RATES add (Miner): L = L_ref / mean(2^((T_w − T_class)/10)) over the last cycle,
+which is shorter than the life at the mean temperature (the rule is convex in T).
+It is an ORDER OF MAGNITUDE only: the rule is empirical and the hot spot is hotter
+than the winding average computed here.
 """
 
 from __future__ import annotations
@@ -93,22 +95,53 @@ def _copper_factor(copper_ref_k: float | None) -> tuple[float, float]:
 
 
 def steady_state(p: ThermalParams, p_w: float, p_s: float, copper_ref_k: float | None = None) -> tuple[float, float]:
-    """(T_w, T_s) at constant losses, K: the network's linear steady state (with the R1(T) feedback if asked)."""
+    """(T_w, T_s) at constant losses, K: the network's linear steady state (with the R1(T) feedback if asked).
+
+    With the R1(T) feedback the copper losses grow with T_w; when they grow faster than
+    the network removes heat (det ≤ 0, i.e. p_w·k1 ≥ 1/(R_ws + R_sa)) there is no steady
+    state: ValueError("emballement thermique").
+
+    Args:
+        p: network.  p_w: stator copper losses at copper_ref_k, W (≥ 0).
+        p_s: iron + rotor losses, W (≥ 0).  copper_ref_k: temperature of p_w, K (None: constant p_w).
+    """
+    for name, x in (("p_w", p_w), ("p_s", p_s)):
+        if not math.isfinite(x) or x < 0:
+            raise ValueError(f"{name} must be a finite number >= 0 W, got {x!r}")
     k0, k1 = _copper_factor(copper_ref_k)
     g_ws, g_sa = 1.0 / p.r_ws, 1.0 / p.r_sa
     # g_ws (T_w − T_s) = p_w (k0 + k1 T_w) ;  g_sa (T_s − T_a) = p_w (k0 + k1 T_w) + p_s
     a = np.array([[g_ws - p_w * k1, -g_ws], [-p_w * k1, g_sa]])
     b = np.array([p_w * k0, p_w * k0 + p_s + g_sa * p.t_ambient_k])
+    det = float(np.linalg.det(a))
+    if det <= 0 or a[0, 0] <= 0:
+        raise ValueError(
+            f"emballement thermique : {p_w:.0f} W de pertes cuivre croissent plus vite avec T "
+            "que le réseau ne les évacue (pas de régime permanent)"
+        )
     tw, ts = np.linalg.solve(a, b)
+    if tw < p.t_ambient_k or ts < p.t_ambient_k:
+        raise ValueError("emballement thermique : pas de régime permanent physique")
     return float(tw), float(ts)
 
 
-def insulation_life(t_mean_k: float, insulation_class: str = "F", l_ref_h: float = L_REF_HOURS) -> float:
-    """L = L_ref·2^((T_class − T_mean)/10), hours — 10 K rule, an order of magnitude only."""
+def insulation_life(t_w_k: ArrayLike, insulation_class: str = "F", l_ref_h: float = L_REF_HOURS) -> float:
+    """Insulation life by the 10 K rule, hours — an order of magnitude only.
+
+    L = L_ref / mean(2^((T_w − T_class)/10)): the mean ageing rate over the samples of
+    T_w (equally spaced in time); for a single temperature, L = L_ref·2^((T_class − T)/10).
+
+    Args:
+        t_w_k: winding temperature, K: a scalar or a 1-D profile (non-empty, > 0).
+        insulation_class: A, E, B, F or H.  l_ref_h: life at the class temperature, h.
+    """
     if insulation_class not in INSULATION_CLASSES:
         raise ValueError(f"insulation class must be one of {tuple(INSULATION_CLASSES)}, got {insulation_class!r}")
-    _pos("t_mean_k", t_mean_k)
-    return l_ref_h * 2.0 ** ((INSULATION_CLASSES[insulation_class] + T_ZERO_C - t_mean_k) / 10.0)
+    t = np.atleast_1d(np.asarray(t_w_k, dtype=float))
+    if t.ndim != 1 or t.size == 0 or not np.all(np.isfinite(t)) or np.any(t <= 0):
+        raise ValueError(f"t_w_k must be a finite temperature > 0 K or a non-empty 1-D profile, got {t_w_k!r}")
+    rate = np.mean(2.0 ** ((t - INSULATION_CLASSES[insulation_class] - T_ZERO_C) / 10.0))
+    return float(l_ref_h / rate)
 
 
 def order_of_magnitude(x: float) -> float:
@@ -119,7 +152,8 @@ def order_of_magnitude(x: float) -> float:
 
 @dataclass(frozen=True)
 class ThermalSummary:
-    """t_max (K, winding, whole run), t_mean (K, winding, last cycle), margin to the class (K), life (h)."""
+    """t_max (K, winding, whole run), t_mean (K, winding, last cycle), margin to the class (K),
+    life (h, from the mean ageing rate over the last cycle)."""
 
     t_max: float
     t_mean: float
@@ -218,7 +252,7 @@ def simulate(
         t_max=t_max,
         t_mean=t_mean,
         margin=INSULATION_CLASSES[insulation_class] + T_ZERO_C - t_max,
-        life_hours=insulation_life(t_mean, insulation_class),
+        life_hours=insulation_life(t_w[start + 1:], insulation_class),
         insulation_class=insulation_class,
     )
     return ThermalResult(np.arange(n + 1) * dt, t_w, t_s, p_w, pf_all, method, summary)

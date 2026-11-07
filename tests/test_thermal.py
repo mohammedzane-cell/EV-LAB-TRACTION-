@@ -139,7 +139,37 @@ def test_summary(cycle_losses):
     s = res.summary
     assert s.t_max == pytest.approx(res.t_w.max())
     assert s.margin == pytest.approx(155 + 273.15 - s.t_max)
-    assert s.life_hours == pytest.approx(thermal.insulation_life(s.t_mean, "F"))
+    last_cycle = res.t_w[-p_cu1.size:]  # the samples at the end of each step of the last cycle
+    assert s.life_hours == pytest.approx(thermal.insulation_life(last_cycle, "F"), rel=1e-12)
+    assert s.life_hours <= thermal.insulation_life(s.t_mean, "F")  # ageing is convex in T
+
+
+def test_insulation_life_from_the_mean_ageing_rate_two_levels():
+    t = np.r_[np.full(50, 60 + 273.15), np.full(50, 160 + 273.15)]  # 50 % at 60 °C, 50 % at 160 °C
+    life = thermal.insulation_life(t, "F")
+    expected = thermal.L_REF_HOURS / (0.5 * 2 ** ((60 - 155) / 10) + 0.5 * 2 ** ((160 - 155) / 10))
+    assert life == pytest.approx(expected, rel=1e-12)
+    assert life == pytest.approx(28_257, rel=1e-4)
+    # the mean temperature (110 °C) would give 16 times more
+    assert thermal.insulation_life(110 + 273.15, "F") / life == pytest.approx(16.0, rel=0.01)
+    # constant profile = scalar rule
+    assert thermal.insulation_life(np.full(7, 145 + 273.15), "F") == pytest.approx(2 * thermal.L_REF_HOURS)
+
+
+@pytest.mark.parametrize("bad", [np.array([]), np.array([400.0, -1.0]), np.array([np.nan])])
+def test_insulation_life_profile_validation(bad):
+    with pytest.raises(ValueError):
+        thermal.insulation_life(bad, "F")
+
+
+def test_steady_state_thermal_runaway_raises():
+    # 234,5 rule at 20 °C: P_w grows by P_w/254,5 per kelvin, while the network removes
+    # 1/(R_ws + R_sa) = 7,14 W/K: no steady state above 254,5/0,14 = 1818 W
+    for pw in (1900.0, 2400.0, 3000.0):
+        with pytest.raises(ValueError, match="emballement thermique"):
+            thermal.steady_state(P, pw, 100.0, copper_ref_k=293.15)
+    tw, ts = thermal.steady_state(P, 300.0, 900.0, copper_ref_k=293.15)  # normal case still solves
+    assert tw > ts > TA
 
 
 # --- cooling-curve fit (for TP3 timed resistance readings) ------------------------
