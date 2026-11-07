@@ -16,7 +16,9 @@ user guide (French): `docs/user_guide.md`; 5-minute demo: `docs/demo_script.md`.
 
 ## Install
 
-From source: Python 3.11 or 3.12 (3.13 also works), versions pinned in `requirements.txt`.
+From source: Python 3.12 or later (tested on 3.12 and 3.13), versions pinned in
+`requirements.txt`. Python 3.11 is not supported: the pinned PySide6 6.12.0 aborts
+on it (a reference-count error inside PySide6, reproduced without any project code).
 
 ```bash
 pip install -r requirements.txt
@@ -75,8 +77,8 @@ the self-test of the result):
 packaging\build_windows.bat
 ```
 
-Any platform, in an environment with `requirements.txt` and
-`packaging/requirements-build.txt` installed:
+Any platform, in an environment with `requirements.txt` installed (it pins the
+optional dev tools, PyInstaller included; or `pip install -e ".[dev]"`):
 
 ```bash
 pyinstaller --noconfirm --clean packaging/EVLab.spec

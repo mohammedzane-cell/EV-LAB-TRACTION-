@@ -20,7 +20,7 @@ Six modules, seven GUI tabs:
 Plus: PDF report (reportlab) and Excel export (openpyxl).
 
 ## Stack
-Python 3.11/3.12 · numpy · scipy · pandas · matplotlib · pyqtgraph · PySide6 ·
+Python 3.12/3.13 (tested on 3.12 and 3.13) · numpy · scipy · pandas · matplotlib · pyqtgraph · PySide6 ·
 pytest · pytest-qt · reportlab · openpyxl. No other dependency without asking me.
 Optional, behind a feature flag: pymoo (NSGA-II), pyfemm + FEMM 4.2 (Windows, FEM stretch goal).
 

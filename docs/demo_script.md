@@ -7,7 +7,7 @@ défaut, graine 0). Ils ont été relevés sur l'application elle-même.
 
 **Avant de commencer** : lancer `EVLab.exe` (ou `python -m evlab`), fenêtre
 maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
-(4 cœurs).
+(4 cœurs, démo rapide). Captures de chaque étape : `docs/images/`.
 
 ---
 
@@ -38,8 +38,10 @@ maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
   L'ajustement sur les points en charge retrouve R'2 à 0,6 % près. » Survoler
   R'2 (optimisation) : intervalle à 95 % de [1,95 ; 2,03] Ω.
 - **Montrer** la barre d'état : « Moteur : Identification TP3 · optimisation
-  (démo) ». Avec R1 ≈ 0,49 Ω, le couple maximal tombe à environ 109 N·m
-  (g_c ≈ 0,48) : c'est la chute dans R1.
+  (démo) ». R1 = 0,40 Ω mesurée à 20 °C (essai DC), soit 0,49 Ω à 75 °C, la
+  température du bobinage pendant l'essai. Le couple maximal tombe alors à
+  C_max = 109,4 N·m (g_c = 0,48, affichés sur la courbe) : c'est la chute de tension
+  dans R1.
 
 ## 1:30 – 2:10 · Onglet 2 — Enveloppe
 
@@ -94,6 +96,10 @@ maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
 
 - **Régler** *Points de Pareto* = 3, *Évaluations / point* = 300 (900 évaluations,
   ≈ 20 s), puis *Lancer l'optimisation*.
+- **Dire** : « Démo rapide ; calcul complet : 1500 évaluations par point »
+  (réglage par défaut : 6 points × 1500 = 9000 évaluations, environ 3 min sur
+  4 cœurs). Les chiffres ci-dessous sont ceux de la démo rapide ; le calcul
+  complet peut trouver un front un peu meilleur.
 - **Dire** : « Quatre variables : rapport G, boost V/f, marge de défluxage et
   rebobinage k_N. Deux objectifs : Wh/km et 0–50 km/h. Les contraintes sont
   l'enveloppe, T bobinage ≤ classe − 20 K et le courant onduleur. Aucune

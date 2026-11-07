@@ -14,7 +14,7 @@ One stage = one commit (see Definition of done in CLAUDE.md).
 | 5 | `io/` WLTC loader + `core/vehicle.py` (class by W/kg, Wh/km, regen); tab 4 | done (official WLTC files to be added) |
 | 6 | `core/thermal.py`: two-node model, insulation life (10 K rule); tab 5 | done (démo network values) |
 | 7 | `core/winding.py`: kd, kp, kw, MMF harmonics, EMF, slot table, rotating field; tab 6 | done |
-| 8 | `core/optimise.py`: Pareto Wh/km vs acceleration (scipy differential evolution + ε-constraint); tab 7 | done (pymoo not used, pending approval) |
+| 8 | `core/optimise.py`: Pareto Wh/km vs acceleration (scipy differential evolution + ε-constraint); tab 7 | done (pymoo / NSGA-II not used: decided, DE + ε-constraint is enough) |
 | 9 | PDF report (reportlab) + Excel export (openpyxl), Fichier menu | done |
 | 10 | FEM stretch goal: `io/femm_model.py` (FEMM 4.2 stator model, \|B\| frames, air-gap fundamental vs analytical MMF), tab 6 Animation FEM | done (optional, skipped without FEMM) |
 | 11 | Hand-in: PyInstaller one-folder build (`packaging/`), `--smoke` self-test, `io/paths.py`, README overview + validated/démo table, `docs/user_guide.md`, `docs/demo_script.md`, coverage | done (Windows build to run on Windows) |

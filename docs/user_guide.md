@@ -2,8 +2,9 @@
 
 Mini-projet ME3 — ENP Alger, Machines électriques.
 
-Ce guide présente l'application onglet par onglet. Chaque page contient un
-emplacement pour une capture d'écran (`docs/images/…`, à insérer avant le rendu).
+Ce guide présente l'application onglet par onglet. Les captures d'écran
+(1280 × 800, `docs/images/`) suivent le parcours de démonstration : fichiers démo,
+« Comparer les deux », réglages par défaut.
 Les nombres affichés utilisent la virgule décimale ; toutes les valeurs « démo »
 sont signalées par une pastille ou la mention « (démo) ».
 
@@ -13,7 +14,7 @@ sont signalées par une pastille ou la mention « (démo) ».
 
 ![Capture — fenêtre principale](images/00_fenetre.png)
 
-*Capture à insérer : `docs/images/00_fenetre.png` (fenêtre complète au démarrage).*
+*Fenêtre au démarrage : moteur TD5 Ex 1, aucun essai chargé.*
 
 - **Version Windows** : ouvrir le dossier `EVLab` et lancer `EVLab.exe`. Aucune
   installation de Python n'est nécessaire. Le dossier `EVLab\data` contient les
@@ -41,7 +42,7 @@ calculée » tant qu'elle n'a pas été lancée.
 
 ![Capture — onglet 1](images/01_identification.png)
 
-*Capture à insérer : `docs/images/01_identification.png` (après « Comparer les deux »).*
+*Après « Charger la démo » et « Comparer les deux ».*
 
 **But** : obtenir le schéma équivalent en Γ (Rf, Xm, X, R'2, R1, p_méc) à partir
 des essais TP3 / TD5.
@@ -73,7 +74,7 @@ si deux paramètres sont trop corrélés (|ρ| > 0,95).
 
 ![Capture — onglet 2](images/02_enveloppe.png)
 
-*Capture à insérer : `docs/images/02_enveloppe.png`.*
+*Enveloppe du moteur identifié, trois zones.*
 
 **But** : enveloppe couple–vitesse du moteur sous loi V/f puis défluxage.
 
@@ -96,7 +97,7 @@ la puissance reste à peu près constante puis décroît quand le décrochage li
 
 ![Capture — onglet 3](images/03_rendement.png)
 
-*Capture à insérer : `docs/images/03_rendement.png` (carte avec les points du cycle).*
+*Carte de rendement avec les points du cycle.*
 
 **But** : carte de rendement η(C, n) à partir des pertes du circuit.
 
@@ -120,7 +121,7 @@ rendement chute à faible couple (pertes fer et onduleur fixes).
 
 ![Capture — onglet 4](images/04_vehicule.png)
 
-*Capture à insérer : `docs/images/04_vehicule.png`.*
+*Cycle démo simulé, classe WLTC 1.*
 
 **But** : véhicule dimensionné pour ce moteur, consommation sur cycle.
 
@@ -146,7 +147,7 @@ urbain synthétique `cycle_demo.csv` et l'indique (démo, A25).
 
 ![Capture — onglet 5](images/05_thermique.png)
 
-*Capture à insérer : `docs/images/05_thermique.png`.*
+*Dix cycles enchaînés, classe F.*
 
 **But** : échauffement du bobinage sur cycles enchaînés et durée de vie de
 l'isolation.
@@ -171,7 +172,9 @@ n'est qu'un ordre de grandeur loin de la température de classe.
 
 ![Capture — onglet 6](images/06_bobinage.png)
 
-*Capture à insérer : `docs/images/06_bobinage.png` ; et `docs/images/06b_fem.png` pour la fenêtre FEM.*
+![Capture — animation FEM](images/06b_fem.png)
+
+*36 encoches, 4 pôles, pas y = 7 ; en dessous, la fenêtre « Animation FEM » (résultats pré-calculés, acier M-19, 7,07 A crête).*
 
 **But** : bobinage triphasé double couche, facteurs, FMM, champ tournant, f.é.m.
 
@@ -201,7 +204,7 @@ kw7 = −0,1359.
 
 ![Capture — onglet 7](images/07_optimisation.png)
 
-*Capture à insérer : `docs/images/07_optimisation.png` (front de Pareto et tableau).*
+*Démo rapide (3 points × 300 évaluations), point de consommation minimale sélectionné.*
 
 **But** : choisir rapport G, boost V/f, marge de défluxage et rebobinage k_N pour
 minimiser la consommation et le temps 0–50 km/h, sur les modèles testés.
@@ -222,4 +225,5 @@ recalculent.
 
 **Sorties** : front de Pareto consommation vs 0–50 km/h avec la base et toutes
 les évaluations admissibles ; tableau *Base vs design sélectionné* avec le gain
-en % par indicateur (écart de température en K).
+en % par indicateur (écart de température en K). La capture est une démo rapide
+(3 points × 300 évaluations) ; le calcul complet utilise 1500 évaluations par point.
