@@ -26,6 +26,7 @@ THEME_LABELS = {LIGHT: "Thème clair", DARK: "Thème sombre"}
 FONT_POINT_SIZE = 10
 SETTINGS_ORG, SETTINGS_APP, SETTINGS_KEY = "ENP Alger", "EV-Traction Lab", "theme"
 QSS = Path(__file__).with_name("style.qss")
+ICONS = Path(__file__).with_name("icons")  # icons/<theme>/: spin and combo arrows, check mark
 
 _current = LIGHT
 
@@ -52,6 +53,7 @@ def stylesheet(name: str | None = None) -> str:
     for role in sorted(pal, key=len, reverse=True):  # @primary_hover before @primary
         text = text.replace(f"@{role}", pal[role])
     text = text.replace("@font", ", ".join(f'"{f}"' for f in FONT_FAMILIES))
+    text = text.replace("@icons", (ICONS / (_current if name is None else name)).resolve().as_posix())
     leftover = sorted(set(re.findall(r"@\w+", text)))
     if leftover:
         raise ValueError(f"style.qss uses unknown theme roles: {leftover}")

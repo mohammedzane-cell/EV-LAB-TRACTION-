@@ -60,6 +60,13 @@ and `io/figures.py` uses it for the PDF figures (always the light one); every te
 colour pair is tested for a contrast ≥ 4,5:1.
 *Affichage → Thème clair / sombre* switches it, remembered with QSettings.
 
+Screen sizes: the window works down to 1100 × 650 logical px and opens maximised on a
+screen smaller than 1440 × 900 (1366 × 768, or 1920 × 1080 at 150 %). Left panels
+scroll, plots expand with a minimum height, KPI labels wrap, and every plot legend sits
+above its plot, never over a curve. `gui/layout_check.py` reports overlaps, widgets
+outside their parent and cut text; the GUI tests run it on every tab at 1100 × 650,
+1280 × 720, 1366 × 768 and 1920 × 1080 (`capture_screenshots.py --size WxH` for images).
+
 ## Test
 
 ```bash

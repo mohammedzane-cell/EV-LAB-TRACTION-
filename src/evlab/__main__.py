@@ -22,7 +22,7 @@ def main(argv: list[str] | None = None) -> int:
 
     app = QApplication.instance() or QApplication(sys.argv)
     window = MainWindow()
-    window.show()
+    window.show_for_screen()
     return app.exec()
 
 

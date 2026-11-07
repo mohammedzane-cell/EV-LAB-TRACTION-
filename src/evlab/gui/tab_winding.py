@@ -31,7 +31,7 @@ from evlab.core import winding as wd
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
-from evlab.gui.widgets import card, french_spin
+from evlab.gui.widgets import card, french_spin, scroll_panel
 from evlab.io import femm_model
 
 TITLE = "6 · Bobinage"
@@ -140,7 +140,7 @@ class WindingTab(QWidget):
         self.lbl_error.setProperty("role", "error")
         lv.addWidget(self.lbl_error)
         lv.addStretch(1)
-        root.addWidget(left)
+        root.addWidget(scroll_panel(left))
 
         right = QVBoxLayout()
         strip_card, sl, _ = card("Tableau des encoches (couche haute / basse)")

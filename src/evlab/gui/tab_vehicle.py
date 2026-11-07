@@ -30,7 +30,7 @@ from evlab.core import drive, losses, vehicle
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
-from evlab.gui.widgets import KpiTile, card, chip, french_spin, set_demo_chip
+from evlab.gui.widgets import card, chip, french_spin, KpiTile, scroll_panel, set_demo_chip
 from evlab.gui.workers import CoreWorker
 from evlab.io.cycles import load_cycle, wltc_file
 from evlab.io.demo_data import CYCLE_FILE
@@ -127,7 +127,7 @@ class VehicleTab(QWidget):
         self.btn_simulate.clicked.connect(self.simulate)
         lv.addWidget(self.btn_simulate)
         lv.addStretch(1)
-        root.addWidget(left)
+        root.addWidget(scroll_panel(left))
 
         right = QVBoxLayout()
         self.lbl_warning = QLabel("")

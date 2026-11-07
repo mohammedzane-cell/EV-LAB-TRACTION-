@@ -15,7 +15,7 @@ from evlab.core import drive
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
-from evlab.gui.widgets import KpiTile, card, chip, french_spin, set_demo_chip
+from evlab.gui.widgets import card, chip, french_spin, KpiTile, scroll_panel, set_demo_chip
 from evlab.gui.workers import CoreWorker
 from evlab.io.notes import demo_labels
 
@@ -75,7 +75,7 @@ class EnvelopeTab(QWidget):
         self.btn_compute.clicked.connect(self.compute)
         lv.addWidget(self.btn_compute)
         lv.addStretch(1)
-        root.addWidget(left)
+        root.addWidget(scroll_panel(left))
 
         right = QVBoxLayout()
         tiles = QHBoxLayout()
@@ -105,6 +105,7 @@ class EnvelopeTab(QWidget):
         plots.addWidget(self.plot_power)
         lay.addLayout(plots)
         self.lbl_zones = QLabel("")
+        self.lbl_zones.setWordWrap(True)
         self.lbl_zones.setProperty("role", "muted")
         lay.addWidget(self.lbl_zones)
         self.lbl_flux = QLabel("")

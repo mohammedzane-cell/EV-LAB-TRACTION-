@@ -5,10 +5,11 @@ Usage (from the repository root, app installed with `pip install -e .[dev]`):
     python tools/capture_screenshots.py                 # writes docs/images/*.png
     python tools/capture_screenshots.py --out /tmp/x --numbers numbers.json
     python tools/capture_screenshots.py --theme dark --out /tmp/sombre
+    python tools/capture_screenshots.py --size 1366x768 --out /tmp/portable
 
 Clicks the demo path (tab 1 démo data → "Comparer les deux" → Identifier, then tabs 2 to 7,
 the FEM window on its saved 7,07 A run, the quick Pareto run 3 points × 300 evaluations on
-4 processes, "Charger ce design dans tous les onglets"), grabs each view at 1280 × 800 and
+4 processes, "Charger ce design dans tous les onglets"), grabs each view at 1280 × 800 (--size WxH) and
 prints, as JSON, every number the demo script quotes, read from the widgets themselves.
 Runs headless (QT_QPA_PLATFORM=offscreen) unless a display platform is already set.
 Not part of the application: a documentation tool. The __main__ guard is required, since
@@ -34,8 +35,8 @@ def _table(t) -> list[list[str]]:
             for r in range(t.rowCount())]
 
 
-def capture(out: Path, theme_name: str = "light") -> dict:
-    """Drive the app in the given theme, save the PNGs in `out`, return the displayed numbers."""
+def capture(out: Path, theme_name: str = "light", size: tuple[int, int] = SIZE) -> dict:
+    """Drive the app in the given theme and window size, save the PNGs in `out`, return the displayed numbers."""
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtCore import QEventLoop, QTimer
     from PySide6.QtWidgets import QApplication, QLabel
@@ -77,7 +78,7 @@ def capture(out: Path, theme_name: str = "light") -> dict:
 
     nums: dict = {}
     w = MainWindow(theme_name=theme_name)  # never the remembered theme: captures are reproducible
-    w.resize(*SIZE)
+    w.resize(*size)
     w.show()
     pump(800)
     if w.tabs.widget(1).envelope is None:
@@ -130,7 +131,7 @@ def capture(out: Path, theme_name: str = "light") -> dict:
     pump(800)
     shot(w, "06_bobinage")
     dlg = t6.open_fem()
-    dlg.resize(*SIZE)
+    dlg.resize(*size)
     dlg.show()
     pump(800)
     runs = [i for i in range(dlg.combo_cache.count()) if FEM_RUN in dlg.combo_cache.itemText(i)]
@@ -168,13 +169,22 @@ def capture(out: Path, theme_name: str = "light") -> dict:
     return nums
 
 
+def _size(text: str) -> tuple[int, int]:
+    try:
+        w, h = (int(v) for v in text.lower().split("x"))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"size must be WxH, e.g. 1366x768, got {text!r}") from exc
+    return w, h
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", type=Path, default=ROOT / "docs" / "images", help="folder for the PNGs")
     ap.add_argument("--numbers", type=Path, help="also write the displayed numbers to this JSON file")
     ap.add_argument("--theme", choices=("light", "dark"), default="light", help="UI theme (default light)")
+    ap.add_argument("--size", type=_size, default=SIZE, help="window size WxH in logical px (default 1280x800)")
     args = ap.parse_args()
-    nums = capture(args.out, args.theme)
+    nums = capture(args.out, args.theme, args.size)
     text = json.dumps(nums, ensure_ascii=False, indent=1, default=str)
     if args.numbers:
         args.numbers.write_text(text, encoding="utf-8")

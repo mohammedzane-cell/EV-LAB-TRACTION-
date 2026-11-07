@@ -55,6 +55,8 @@ PALETTES: dict[str, dict[str, str]] = {
         "plot_fg": "#3A4350",
         "grid": "#C9D0DA",
         "cell_text": "#1F2733",
+        "disabled_text": "#9AA3AF",  # greyed-out controls (WCAG exempts inactive UI from 4.5:1)
+        "disabled_bg": "#ECEFF3",
     },
     DARK: {
         "bg": "#1E2128",
@@ -84,6 +86,8 @@ PALETTES: dict[str, dict[str, str]] = {
         "plot_fg": "#C9CFD8",
         "grid": "#4A515D",
         "cell_text": "#1F2733",  # winding table cells keep their pastel background
+        "disabled_text": "#6B7380",
+        "disabled_bg": "#23262D",
     },
 }
 

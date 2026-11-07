@@ -30,7 +30,7 @@ from evlab.core import drive, losses
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
-from evlab.gui.widgets import card, chip, french_spin, set_demo_chip
+from evlab.gui.widgets import card, chip, french_spin, scroll_panel, set_demo_chip
 from evlab.gui.workers import CoreWorker
 from evlab.io.notes import demo_labels
 
@@ -123,7 +123,7 @@ class EfficiencyTab(QWidget):
         lv.addWidget(self.btn_compute)
         lv.addWidget(self.btn_png)
         lv.addStretch(1)
-        root.addWidget(left)
+        root.addWidget(scroll_panel(left))
 
         map_card, lay, head = card("Carte de rendement η(C, n)")
         self.chip_demo = chip("démo")

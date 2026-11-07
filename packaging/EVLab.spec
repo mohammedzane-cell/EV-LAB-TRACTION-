@@ -16,7 +16,8 @@ WINDOWS = sys.platform == "win32"
 a = Analysis(
     [str(ROOT / "packaging" / "evlab_launcher.py")],
     pathex=[str(ROOT / "src")],
-    datas=[(str(ROOT / "src" / "evlab" / "gui" / "style.qss"), "evlab/gui")],  # UI theme (gui/theme.py)
+    datas=[(str(ROOT / "src" / "evlab" / "gui" / "style.qss"), "evlab/gui"),  # UI theme (gui/theme.py)
+           (str(ROOT / "src" / "evlab" / "gui" / "icons"), "evlab/gui/icons")],
     hiddenimports=["evlab.smoke"],
     excludes=["tkinter", "PyQt5", "PyQt6", "PySide2", "IPython", "pytest", "pytestqt", "femm", "pymoo"],
     noarchive=False,

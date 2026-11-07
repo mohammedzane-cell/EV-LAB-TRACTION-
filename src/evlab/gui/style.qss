@@ -151,8 +151,9 @@ QPushButton:pressed, QPushButton:checked {
 }
 
 QPushButton:disabled {
-    color: @muted;
-    background: @bg;
+    color: @disabled_text;
+    background: @disabled_bg;
+    border: 1px solid @disabled_bg;
 }
 
 QPushButton[role="primary"] {
@@ -194,13 +195,33 @@ QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
 }
 
 QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {
-    color: @muted;
-    background: @bg;
+    color: @disabled_text;
+    background: @disabled_bg;
+}
+
+QCheckBox:disabled, QRadioButton:disabled, QLabel:disabled {
+    color: @disabled_text;
+}
+
+QComboBox {
+    padding-right: 20px;
 }
 
 QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
     border: none;
     width: 18px;
+}
+
+QComboBox::down-arrow {
+    image: url(@icons/down.svg);
+    width: 10px;
+    height: 6px;
+}
+
+QComboBox::down-arrow:disabled {
+    image: url(@icons/down_off.svg);
 }
 
 QComboBox QAbstractItemView {
@@ -211,9 +232,44 @@ QComboBox QAbstractItemView {
     selection-color: @text;
 }
 
-QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+QSpinBox, QDoubleSpinBox {
+    padding-right: 18px;
+}
+
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
     border: none;
-    width: 14px;
+    width: 16px;
+    margin-top: 2px;
+}
+
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    border: none;
+    width: 16px;
+    margin-bottom: 2px;
+}
+
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    image: url(@icons/up.svg);
+    width: 8px;
+    height: 5px;
+}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    image: url(@icons/down.svg);
+    width: 8px;
+    height: 5px;
+}
+
+QSpinBox::up-arrow:disabled, QSpinBox::up-arrow:off, QDoubleSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:off {
+    image: url(@icons/up_off.svg);
+}
+
+QSpinBox::down-arrow:disabled, QSpinBox::down-arrow:off, QDoubleSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:off {
+    image: url(@icons/down_off.svg);
 }
 
 QCheckBox::indicator, QRadioButton::indicator {
@@ -230,6 +286,12 @@ QCheckBox::indicator {
 QCheckBox::indicator:checked {
     background: @primary;
     border: 1px solid @primary;
+    image: url(@icons/check.svg);
+}
+
+QCheckBox::indicator:disabled {
+    border: 1px solid @disabled_text;
+    background: @disabled_bg;
 }
 
 QRadioButton::indicator {
@@ -241,6 +303,15 @@ QRadioButton::indicator {
 QRadioButton::indicator:checked {
     background: @primary;
     border: 3px solid @input;
+}
+
+QRadioButton::indicator:disabled {
+    border: 1px solid @disabled_text;
+}
+
+QRadioButton::indicator:checked:disabled {
+    background: @disabled_text;
+    border: 3px solid @disabled_bg;
 }
 
 QSlider::groove:horizontal {
@@ -304,6 +375,15 @@ QHeaderView::section {
 QTableCornerButton::section {
     background: @tab;
     border: none;
+}
+
+QScrollArea#leftPanel, QWidget#leftContent {
+    background: transparent;
+    border: none;
+}
+
+QScrollArea#leftPanel > QWidget#qt_scrollarea_viewport {
+    background: transparent;
 }
 
 QScrollBar:vertical, QScrollBar:horizontal {

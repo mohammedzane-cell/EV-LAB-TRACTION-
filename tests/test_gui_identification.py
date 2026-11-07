@@ -58,7 +58,8 @@ def _run(qtbot, tab, method):
 
 def test_layout(tab):
     assert tab.findChildren(type(tab.spin_v))  # spin boxes exist
-    assert tab.layout().itemAt(0).widget().width() == 300
+    panel = tab.layout().itemAt(0).widget()  # left panel: a scroll area around the 300 px input column
+    assert panel.objectName() == "leftPanel" and panel.widget().width() == 300
     titles = [g.title() for g in tab.findChildren(__import__("PySide6.QtWidgets").QtWidgets.QGroupBox)]
     assert titles == ["Machine", "Essais (CSV)", "Méthode"]
     assert tab.btn_identify.text() == "Identifier"

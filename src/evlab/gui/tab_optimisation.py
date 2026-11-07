@@ -36,7 +36,7 @@ from evlab.core import thermal
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed, fr_pct
-from evlab.gui.widgets import card, chip, french_spin, set_demo_chip
+from evlab.gui.widgets import card, chip, french_spin, scroll_panel, set_demo_chip
 from evlab.gui.workers import CoreWorker
 from evlab.io.notes import R1_ZERO_NOTE, demo_labels
 
@@ -155,7 +155,7 @@ class OptimisationTab(QWidget):
         lv.addLayout(row)
         lv.addWidget(self.progress)
         lv.addStretch(1)
-        root.addWidget(left)
+        root.addWidget(scroll_panel(left))
 
         right = QVBoxLayout()
         plot_card, pl, head = card("Front de Pareto : consommation vs 0–50 km/h")
@@ -163,7 +163,7 @@ class OptimisationTab(QWidget):
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
         self.chip_r1 = chip(R1_ZERO_NOTE, "alert")
-        head.addWidget(self.chip_r1)
+        pl.addWidget(self.chip_r1, 0, Qt.AlignmentFlag.AlignLeft)  # own row: the header stays narrow
         self.on_motor_changed()
         self.plot = pg.PlotWidget()
         self.plot.setLabel("bottom", "0–50 km/h (s)")
@@ -205,6 +205,10 @@ class OptimisationTab(QWidget):
         t.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         t.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        # every row visible without an inner scroll bar: on a short screen the Pareto plot gives way
+        t.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        t.setMinimumHeight(t.horizontalHeader().sizeHint().height()
+                           + rows * t.verticalHeader().defaultSectionSize() + 2 * t.frameWidth() + 2)
         return t
 
     # --- inputs -------------------------------------------------------------------

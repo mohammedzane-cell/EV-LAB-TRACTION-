@@ -31,7 +31,7 @@ evlab = "evlab.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"evlab.gui" = ["style.qss"]
+"evlab.gui" = ["style.qss", "icons/*/*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

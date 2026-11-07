@@ -28,7 +28,7 @@ from evlab.core import thermal
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed, power_of_ten
-from evlab.gui.widgets import KpiTile, card, chip, french_spin, set_demo_chip
+from evlab.gui.widgets import card, chip, french_spin, KpiTile, scroll_panel, set_demo_chip
 from evlab.gui.workers import CoreWorker
 from evlab.io.notes import R1_ZERO_NOTE, demo_labels
 
@@ -106,7 +106,7 @@ class ThermalTab(QWidget):
         self.btn_run.clicked.connect(self.compute)
         lv.addWidget(self.btn_run)
         lv.addStretch(1)
-        root.addWidget(left)
+        root.addWidget(scroll_panel(left))
 
         right = QVBoxLayout()
         tiles = QHBoxLayout()
@@ -123,7 +123,7 @@ class ThermalTab(QWidget):
         self.chip_demo = chip("paramètres démo")
         head.addWidget(self.chip_demo)
         self.chip_r1 = chip(R1_ZERO_NOTE, "alert")
-        head.addWidget(self.chip_r1)
+        lay.addWidget(self.chip_r1, 0, Qt.AlignmentFlag.AlignLeft)  # own row: the header stays narrow
         self.on_motor_changed()
         self.plot = pg.PlotWidget()
         self.plot.setLabel("bottom", "Temps (min)")

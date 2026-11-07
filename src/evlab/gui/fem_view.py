@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QSlider,
     QSpinBox,
     QVBoxLayout,
@@ -36,7 +37,7 @@ from evlab.core import winding as wd
 from evlab.core.session import MotorParams
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed, fr_pct
-from evlab.gui.widgets import french_spin
+from evlab.gui.widgets import external_legends, flexible_plots, french_spin, scroll_panel
 from evlab.gui.workers import CoreWorker
 from evlab.io import femm_model as fm
 
@@ -163,12 +164,14 @@ class FemDialog(QDialog):
         self.lbl_cmp.setWordWrap(True)
         lv.addWidget(self.lbl_cmp)
         lv.addStretch(1)
-        root.addWidget(left)
+        root.addWidget(scroll_panel(left))
 
         right = QVBoxLayout()
         self.image = QLabel("Aucune image : lancer le calcul FEMM.")
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image.setMinimumSize(420, 360)
+        self.image.setMinimumSize(320, 260)
+        # the frame is scaled to the label, never the other way round: no overlap on a short screen
+        self.image.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
         self.plot = pg.PlotWidget(title="Induction radiale au milieu de l'entrefer")
         self.plot.setLabel("bottom", "position θ (degrés mécaniques)")
         self.plot.setLabel("left", "B_r (T)")
@@ -187,6 +190,8 @@ class FemDialog(QDialog):
         self.timer.setInterval(250)
         self.timer.timeout.connect(self.next_frame)
 
+        external_legends(self)  # legend above the B_r plot, never over the curves
+        flexible_plots(self)
         self.refresh_cache_list()
         if not self.available and self.combo_cache.count():
             self.load_cached(self._preferred_cache())

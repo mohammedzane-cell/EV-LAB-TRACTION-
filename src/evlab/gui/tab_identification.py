@@ -40,7 +40,7 @@ from evlab.core import identification as ident
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed, fr_pct
-from evlab.gui.widgets import card, chip, french_spin
+from evlab.gui.widgets import card, chip, french_spin, scroll_panel
 from evlab.gui.workers import CoreWorker
 from evlab.io import demo_data
 from evlab.io.loaders import (
@@ -132,7 +132,7 @@ class IdentificationTab(QWidget):
         buttons.addWidget(self.btn_pdf, 2)
         lv.addLayout(buttons)
         lv.addStretch(1)
-        root.addWidget(left)
+        root.addWidget(scroll_panel(left))
 
         right = QVBoxLayout()
         right.addWidget(self._plot_card(), 3)

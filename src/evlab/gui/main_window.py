@@ -26,9 +26,13 @@ from evlab.gui.tab_optimisation import OptimisationTab
 from evlab.gui.tab_thermal import ThermalTab
 from evlab.gui.tab_vehicle import VehicleTab
 from evlab.gui.tab_winding import WindingTab
+from evlab.gui.widgets import external_legends, flexible_plots
 from evlab.gui.workers import CoreWorker
 
 WINDOW_TITLE = "EV-Traction Lab : Laboratoire virtuel de traction (ME3)"
+MIN_SIZE = (1100, 650)  # logical px: every tab stays usable down to this size (left panels scroll)
+DEFAULT_SIZE = (1280, 800)
+SMALL_SCREEN = (1440, 900)  # available screen below this: open maximised (e.g. 1366×768, 1920×1080 at 150 %)
 
 TAB_CLASSES = (
     IdentificationTab,
@@ -39,6 +43,11 @@ TAB_CLASSES = (
     WindingTab,
     OptimisationTab,
 )
+
+
+def opens_maximised(avail_width: int, avail_height: int) -> bool:
+    """True on a small screen (available area below 1440 × 900 logical px): the window opens maximised."""
+    return avail_width < SMALL_SCREEN[0] or avail_height < SMALL_SCREEN[1]
 
 
 def tab_label(title: str) -> str:
@@ -58,7 +67,8 @@ class MainWindow(QMainWindow):
         theme.apply(QApplication.instance(), theme_name if theme_name is not None else theme.saved())
         self.session = session if session is not None else Session()
         self.setWindowTitle(WINDOW_TITLE)
-        self.resize(1280, 800)
+        self.setMinimumSize(*MIN_SIZE)
+        self.resize(*DEFAULT_SIZE)
 
         self.busy_bar = QProgressBar()
         self.busy_bar.setRange(0, 0)  # indeterminate
@@ -78,6 +88,8 @@ class MainWindow(QMainWindow):
             if hasattr(tab, "motor_published"):
                 tab.motor_published.connect(self._on_motor_published)
         self.setCentralWidget(self.tabs)
+        external_legends(self.tabs)  # legends above the plots, never over a curve
+        flexible_plots(self.tabs)
         self._build_menu()
         self._export_worker: CoreWorker | None = None
         self.group = "Groupe ME3"
@@ -104,6 +116,15 @@ class MainWindow(QMainWindow):
             opt_tab.problem_provider = self.optimisation_problem
             opt_tab.load_design.connect(self.load_design)
         self.refresh_status()
+
+    def show_for_screen(self) -> None:
+        """Show the window: maximised on a small screen (laptop), else at its default size."""
+        screen = self.screen() or QApplication.primaryScreen()
+        avail = screen.availableGeometry() if screen is not None else None
+        if avail is not None and opens_maximised(avail.width(), avail.height()):
+            self.showMaximized()
+        else:
+            self.show()
 
     # --- theme ---------------------------------------------------------------------
 
