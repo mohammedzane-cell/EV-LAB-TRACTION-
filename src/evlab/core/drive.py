@@ -112,6 +112,25 @@ def vf_voltage(m: MotorParams, f: ArrayLike, boost: float = 0.0) -> float | NDAr
     return float(v) if v.ndim == 0 else v
 
 
+def flux_ratio(m: MotorParams, f: ArrayLike, boost: float = 0.0) -> float | NDArray[np.float64]:
+    """Flux level of the V/f law relative to rated, (V(f)/f)/(Vn/fn) (dimensionless).
+
+    1 at rated flux; 1 + (V0/Vn)·(fn/f − 1) > 1 below fn with a boost V0 > 0 (over-fluxing,
+    which the linear magnetic circuit cannot show as saturation, A33); fn/f < 1 in field weakening.
+
+    Args:
+        m: motor.  f: stator frequency, Hz (> 0).  boost: V/f boost V0, V.
+    """
+    ff = np.asarray(f, dtype=float)
+    r = (np.asarray(vf_voltage(m, ff, boost)) / ff) / (m.v_phase / m.f_rated)
+    return float(r) if r.ndim == 0 else r
+
+
+def max_flux_ratio(m: MotorParams, boost: float = 0.0) -> float:
+    """Highest flux ratio the drive reaches: at its lowest stator frequency F_MIN_RATIO·fn (A17), dimensionless."""
+    return float(flux_ratio(m, F_MIN_RATIO * m.f_rated, boost))
+
+
 def breakdown_torque(m: MotorParams, f: ArrayLike, boost: float = 0.0) -> float | NDArray[np.float64]:
     """Breakdown torque T_bd at (V(f), f), N·m: circuit.max_torque on the V/f law.
 

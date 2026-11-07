@@ -110,6 +110,11 @@ class EnvelopeTab(QWidget):
         self.lbl_zones = QLabel("")
         self.lbl_zones.setStyleSheet("color: #555;")
         lay.addWidget(self.lbl_zones)
+        self.lbl_flux = QLabel("")
+        self.lbl_flux.setWordWrap(True)
+        self.lbl_flux.setStyleSheet("color: #b3261e;")
+        self.lbl_flux.setVisible(False)
+        lay.addWidget(self.lbl_flux)
         right.addWidget(plot_card, 1)
         root.addLayout(right, 1)
 
@@ -134,6 +139,17 @@ class EnvelopeTab(QWidget):
         self._update_demo_chip()
         self.compute()
 
+    def _update_flux_note(self, boost: float) -> None:
+        """Warn when the boost raises V/f above Vn/fn: over-fluxing that the linear circuit cannot saturate."""
+        m = self.session.motor
+        ratio = drive.max_flux_ratio(m, boost)
+        over = ratio > 1.0
+        self.lbl_flux.setVisible(over)
+        self.lbl_flux.setText(
+            f"⚠ Boost : V/f atteint {fr(ratio)} × Vn/fn à {fr(drive.F_MIN_RATIO * m.f_rated)} Hz — "
+            "surexcitation, saturation non modélisée (circuit magnétique linéaire, A33) : "
+            "le couple à basse vitesse est surestimé." if over else "")
+
     def _update_demo_chip(self, settings: drive.DriveSettings | None = None) -> None:
         if settings is None:
             try:
@@ -154,6 +170,10 @@ class EnvelopeTab(QWidget):
             self.envelope_failed.emit(msg)
             return False
         motor = self.session.motor
+        try:
+            self._update_flux_note(st.boost)
+        except ValueError:  # boost >= Vn: refused by the envelope itself below
+            self.lbl_flux.setVisible(False)
         worker = CoreWorker(lambda progress: drive.envelope(motor, st))
         worker.signals.finished.connect(self._on_done)
         worker.signals.failed.connect(self._on_failed)

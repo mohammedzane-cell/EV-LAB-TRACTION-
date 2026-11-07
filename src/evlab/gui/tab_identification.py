@@ -170,6 +170,12 @@ class IdentificationTab(QWidget):
         form.addRow("R1 (DC)", self.spin_r1)
         form.addRow("Température R1", self.spin_t_r1)
         form.addRow("Schéma", self.combo_layout)
+        self.lbl_layout_note = QLabel("Le schéma (TP3 / bornes) ne change pas les formules classiques ; "
+                                      "il fixe le circuit de l'optimisation sur les points en charge "
+                                      "et celui des onglets 2 à 7.")
+        self.lbl_layout_note.setWordWrap(True)
+        self.lbl_layout_note.setStyleSheet("color: #666; font-size: 11px;")
+        form.addRow(self.lbl_layout_note)
         form.addRow("Vitesse nominale", self.lbl_speed)
         return box
 

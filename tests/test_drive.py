@@ -206,3 +206,21 @@ def test_demo_fields_one_flag_per_field():
     assert drive.demo_fields(replace(s, i_max=35.0)) == ("boost", "margin", "f_max")
     assert drive.demo_fields(replace(s, n_points=50)) == drive.demo_fields(s)  # resolution is not a setting
     assert drive.demo_fields(drive.DriveSettings(i_max=35.0, boost=5.0, margin=0.9, f_max=120.0)) == ()
+
+
+# --- flux level of the V/f law (linear magnetic circuit, A33) --------------------------
+
+def test_flux_ratio_of_the_vf_law(m):
+    fn, vn = m.f_rated, m.v_phase
+    assert drive.flux_ratio(m, fn, boost=0.0) == pytest.approx(1.0)
+    assert np.allclose(drive.flux_ratio(m, np.array([1.0, 10.0, 49.0]), boost=0.0), 1.0)
+    # boost: V/f = (V0 + (Vn − V0)·f/fn)/f, i.e. ratio 1 + (V0/Vn)·(fn/f − 1)
+    assert drive.flux_ratio(m, 5.0, boost=23.0) == pytest.approx(1 + (23.0 / vn) * (fn / 5.0 - 1))
+    assert drive.flux_ratio(m, 100.0, boost=23.0) == pytest.approx(0.5)  # field weakening above fn
+
+
+def test_max_flux_ratio_at_the_lowest_drive_frequency(m):
+    assert drive.max_flux_ratio(m, 0.0) == pytest.approx(1.0)
+    f_min = drive.F_MIN_RATIO * m.f_rated
+    assert drive.max_flux_ratio(m, 10.0) == pytest.approx(drive.flux_ratio(m, f_min, 10.0))
+    assert drive.max_flux_ratio(m, 10.0) > 1.0

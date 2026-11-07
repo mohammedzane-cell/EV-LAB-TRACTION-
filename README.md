@@ -151,6 +151,9 @@ the table Référence / Formules classiques / Optimisation with error % and the
 worker; progress and any identifiability warning appear in the status bar. The
 identified motor is published to the `Session`, so tabs 2 to 7 use it
 (classical result, or the fit when there is one). Layout: `docs/mockup_tab1.png`.
+The layout choice (TP3 / bornes) does not change the classical formulas, which
+are layout-free course approximations; it sets the circuit fitted to the load
+points and the circuit used by tabs 2 to 7 (a note under the selector says so).
 
 ## Tab 2 · Enveloppe (`core/drive.py`, `gui/tab_envelope.py`)
 
@@ -160,6 +163,9 @@ up to fn, then V = Vn (field weakening). Every reactance scales with f. At each
 speed the available torque is min(current-limited torque, margin·breakdown
 torque, the speed's own torque peak), found over the rotor frequency by a
 vectorised golden-section search and bisections (A17).
+The magnetic circuit is linear (A33): when the boost makes V/f exceed Vn/fn the
+tab shows the flux ratio at f_min (`drive.max_flux_ratio`) and warns that
+saturation is not modelled.
 The three zones (constant torque, constant power, breakdown-limited) are read
 from the curve: the log–log slope d ln T/d ln Ω and the binding limit (A18).
 
