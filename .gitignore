@@ -1,0 +1,29 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.venv/
+venv/
+
+# Course PDFs: read locally, never committed
+docs/*.pdf
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated outputs
+*.log
+reports/
+
+# Windows build venv (packaging/build_windows.bat)
+.venv-build/
+
+# Coverage data
+.coverage
+coverage.json
+htmlcov/

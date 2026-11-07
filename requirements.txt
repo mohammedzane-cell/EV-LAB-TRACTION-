@@ -1,0 +1,17 @@
+# Pinned stack (CLAUDE.md). Python >= 3.12, tested on 3.12 and 3.13. These pins also
+# install on 3.11, but PySide6 6.12.0 aborts there (refcount error in the C extension
+# at interpreter shutdown, reproduced without project code), so 3.11 is not supported.
+numpy==2.4.6
+scipy==1.17.1
+pandas==3.1.1
+matplotlib==3.11.2
+pyqtgraph==0.14.0
+PySide6==6.12.0
+reportlab==5.1.0
+openpyxl==3.1.5
+# dev extras (optional): tests, coverage, Windows build
+pytest==9.2.0
+pytest-qt==4.5.0
+pypdf==6.17.0  # PDF text extraction in tests/test_report.py
+pytest-cov==7.1.0  # coverage report (pytest --cov)
+pyinstaller==6.22.3  # packaging/EVLab.spec (one-folder build)
