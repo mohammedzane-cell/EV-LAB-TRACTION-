@@ -139,11 +139,11 @@ def build_workbook(s: Snapshot, path: str | Path) -> Path:
     if s.pareto is not None:
         front = {id(p) for p in s.pareto.front}
         rows = [[ev.design.gear_ratio, ev.design.boost, ev.design.margin, ev.design.k_n, ev.wh_per_km, ev.t_0_50,
-                 ev.min_margin, ev.t_winding_max, ev.i_cycle_max, ev.feasible, id(ev) in front, ev.message]
+                 ev.min_margin, ev.t_winding_max, ev.i_cycle_max, ev.flux_max, ev.feasible, id(ev) in front, ev.message]
                 for ev in (s.pareto.baseline, *s.pareto.log)]
         rows[0][-1] = "base"
         _sheet(wb, "Optimisation", ["G [-]", "boost [V]", "marge [-]", "k_N [-]", "Wh/km [Wh/km]", "t_0_50 [s]",
-                                    "marge_couple [-]", "T_bobinage_max [K]", "I_cycle_max [A]", "admissible",
+                                    "marge_couple [-]", "T_bobinage_max [K]", "I_cycle_max [A]", "E/f_max [En/fn]", "admissible",
                                     "front", "message"], rows)
     path = Path(path)
     wb.save(path)

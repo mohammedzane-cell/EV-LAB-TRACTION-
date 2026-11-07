@@ -83,7 +83,10 @@ def test_identification_and_optimisation(wb):
     opt = list(wb["Optimisation"].iter_rows(values_only=True))
     assert opt[1][-1] == "base" and opt[1][4] == pytest.approx(s.pareto.baseline.wh_per_km, rel=REL)
     assert len(opt) == 1 + 1 + len(s.pareto.log)
-    assert sum(1 for r in opt[2:] if r[10]) == len(s.pareto.front)
+    head = opt[0]
+    front_col, flux_col = head.index("front"), head.index("E/f_max [En/fn]")
+    assert sum(1 for r in opt[2:] if r[front_col]) == len(s.pareto.front)
+    assert opt[1][flux_col] == pytest.approx(s.pareto.baseline.flux_max, rel=REL)
 
 
 def test_readme_lists_demo_values(wb):

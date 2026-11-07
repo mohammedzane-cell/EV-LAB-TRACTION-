@@ -9,7 +9,8 @@ core.thermal (winding temperature over N cycles) on a design:
   and f_max fixed).
 Objectives: Wh/km on the selected cycle and the 0–50 km/h time (both minimised).
 Constraints: every cycle point inside the envelope (worst torque margin ≥ 1),
-winding T max ≤ class limit − 20 K, stator current ≤ inverter limit, 50 km/h reachable.
+winding T max ≤ class limit − 20 K, stator current ≤ inverter limit, air-gap flux
+max E/f over the envelope ≤ 1,10·En/fn (linear magnetic circuit, A33), 50 km/h reachable.
 
 Method: scipy.optimize.differential_evolution (seeded, deferred updating, worker
 pool). Constraints by a feasibility-first penalty: an infeasible design scores
@@ -37,6 +38,7 @@ from evlab.core.session import MotorParams
 VARIABLES = ("gear_ratio", "boost", "margin", "k_n")
 PENALTY = 1e6
 T_LIMIT_MARGIN_K = 20.0  # winding T max ≤ class limit − 20 K
+FLUX_LIMIT = 1.10  # max E/f over the envelope ≤ 1,10·En/fn: beyond, saturation would matter (A33)
 V_ACCEL = 50.0 / 3.6  # 0–50 km/h, m/s
 MAP_GRID = (40, 30)
 ENVELOPE_POINTS = 150
@@ -126,6 +128,7 @@ class Evaluation:
     feasible: bool
     message: str
     elapsed: float
+    flux_max: float = math.nan  # max (E/f)/(En/fn) over the envelope (A33)
 
     def score(self, objective: str, eps: float | None = None) -> float:
         """Scalar for the optimiser: objective if feasible (and t_0–50 ≤ ε), else PENALTY + violation."""
@@ -169,7 +172,9 @@ def evaluate(problem: Problem, design: Design) -> Evaluation:
                           copper_ref_k=thermal.map_copper_temperature(emap, m.r1_temperature_k),
                           insulation_class=problem.insulation_class)
     t_max = th.summary.t_max
+    flux = env.max_flux_ratio
     violation = (max(0.0, 1.0 - margin)
+                 + max(0.0, (flux - FLUX_LIMIT) / FLUX_LIMIT)
                  + max(0.0, (t_max - problem.t_winding_limit) / 10.0)
                  + max(0.0, (i_cycle - problem.drive.i_max) / problem.drive.i_max)
                  + (1.0 if not math.isfinite(t050) else 0.0))
@@ -180,10 +185,12 @@ def evaluate(problem: Problem, design: Design) -> Evaluation:
         msgs.append(f"winding {t_max - 273.15:.1f} °C above the limit")
     if i_cycle > problem.drive.i_max:
         msgs.append(f"current {i_cycle:.1f} A above the inverter limit")
+    if flux > FLUX_LIMIT:
+        msgs.append(f"air-gap flux E/f = {flux:.3f}·En/fn above {FLUX_LIMIT}")
     if not math.isfinite(t050):
         msgs.append("50 km/h not reachable")
     return Evaluation(design, res.summary.wh_per_km, t050, margin, t_max, i_cycle, violation,
-                      violation == 0.0, "; ".join(msgs) or "ok", time.perf_counter() - t0)
+                      violation == 0.0, "; ".join(msgs) or "ok", time.perf_counter() - t0, flux)
 
 
 @dataclass(frozen=True)
@@ -384,7 +391,7 @@ def kpi_changes(baseline: Evaluation, design: Evaluation) -> dict[str, tuple[flo
 def gains(baseline: Evaluation, design: Evaluation) -> dict[str, float]:
     """Relative change in % of each KPI, design vs baseline (negative = lower)."""
     out = {}
-    for k in ("wh_per_km", "t_0_50", "t_winding_max", "min_margin", "i_cycle_max"):
+    for k in ("wh_per_km", "t_0_50", "t_winding_max", "min_margin", "i_cycle_max", "flux_max"):
         b, d = getattr(baseline, k), getattr(design, k)
         out[k] = 100.0 * (d - b) / b if b and math.isfinite(b) and math.isfinite(d) else math.nan
     return out

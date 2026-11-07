@@ -100,7 +100,7 @@ there). PyInstaller does not cross-compile: build the Windows version on Windows
 | `core/thermal.py` | 5 | C_w·dT_w/dt = P_cu(T_w) − (T_w − T_s)/R_ws; C_s·dT_s/dt = P_fe + P_cu2 + (T_w − T_s)/R_ws − (T_s − T_a)/R_sa; life L = L_ref·2^((T_class − T)/10) |
 | `core/winding.py` | 6 | q = Z/(2pm), α = 2πp/Z; k_d = sin(qνα/2)/(q·sin(να/2)), k_p = sin(νπy/(2τ)), k_w = k_d·k_p; stepped MMF and FFT ∝ k_wν/ν; E = 4,44·f·N·k_w1·Φ; Carter k_c = τ_s/(τ_s − γg) |
 | `io/femm_model.py` (optional) | 6 | FEMM 4.2 magnetostatic stator model; B_r fundamental vs μ0·F1/(k_c·g); field at t + T/6 = field turned by q slots |
-| `core/optimise.py` | 7 | Variables G, boost, margin, k_N (impedances × k_N²); min Wh/km and t_0–50 under envelope, T_w ≤ class − 20 K, I1 ≤ i_max; differential evolution + ε-constraint sweep, 1500 evaluations per Pareto point |
+| `core/optimise.py` | 7 | Variables G, boost, margin, k_N (impedances × k_N²); min Wh/km and t_0–50 under envelope, T_w ≤ class − 20 K, I1 ≤ i_max, E/f ≤ 1,10·En/fn; differential evolution + ε-constraint sweep, 1500 evaluations per Pareto point |
 | `io/report.py`, `io/excel.py`, `io/snapshot.py` | menu | A4 PDF (reportlab, 6 sections, assumptions box, démo footer); Excel sheet per module (SI arrays, units in headers) |
 
 ## What is validated / what is démo
@@ -284,7 +284,8 @@ rewinding factor k_N (turns × k_N at the same copper area: every impedance
 × k_N², rated voltage fixed). Each evaluation chains only the tested models
 (envelope, 40 × 30 loss map, cycle simulation, 0–50 km/h, thermal model) and
 returns Wh/km, the 0–50 km/h time and the constraints: every cycle point inside
-the envelope, winding T max ≤ class limit − 20 K, stator current ≤ inverter limit.
+the envelope, winding T max ≤ class limit − 20 K, stator current ≤ inverter limit,
+max air-gap flux E/f over the envelope ≤ 1,10·En/fn (linear magnetic circuit, A33).
 `scipy.optimize.differential_evolution` (seeded, process pool) with an
 ε-constraint sweep traces the Pareto front; every evaluation is logged (A31).
 Fixed budget: 1500 evaluations per Pareto point whatever the number of free

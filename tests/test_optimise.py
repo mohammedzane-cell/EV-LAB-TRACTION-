@@ -66,6 +66,18 @@ def test_infeasible_designs_are_flagged(problem):
     assert not too_few_turns.feasible and "no-load current" in too_few_turns.message
 
 
+def test_flux_constraint(problem):
+    assert op.FLUX_LIMIT == 1.10
+    d = op.Design(3.5, 0.0, 0.8, 1.0)
+    e = op.evaluate(problem, d)
+    env = drive.envelope(problem.motor, replace(problem.drive, boost=0.0, margin=0.8, n_points=op.ENVELOPE_POINTS))
+    assert e.flux_max == pytest.approx(env.max_flux_ratio, rel=1e-12) and e.flux_max <= 1.0 + 1e-9
+    strong = op.evaluate(problem, op.Design(3.5, 8.0, 0.8, 1.0))  # 8 V boost: E/f well above 1,10 at light load
+    assert strong.flux_max > op.FLUX_LIMIT
+    assert not strong.feasible and "E/f" in strong.message
+    assert strong.violation >= (strong.flux_max - op.FLUX_LIMIT) / op.FLUX_LIMIT
+
+
 # --- one variable: differential evolution = brute force -----------------------------
 
 def test_gear_only_matches_brute_force(problem):
@@ -91,6 +103,7 @@ def test_optimum_satisfies_every_constraint(problem):
     assert again.t_winding_max <= problem.t_winding_limit
     assert again.i_cycle_max <= problem.drive.i_max
     assert math.isfinite(again.t_0_50)
+    assert again.flux_max <= op.FLUX_LIMIT  # E/f <= 1,10·En/fn (A33)
     assert len(res.log) == 4 * 4 * (4 + 1)  # every evaluation logged: popsize·n_free·(maxiter + 1)
 
 
