@@ -125,6 +125,12 @@ there). PyInstaller does not cross-compile: build the Windows version on Windows
 | Thermal network (C_w, C_s, R_ws, R_sa), insulation life L_ref | **démo** | A26, A28 (no timed TP3 readings) |
 | FEM geometry and 10 turns per coil | **démo** | A32 |
 
+The démo flags come from core: `drive.demo_fields` (A16), `losses.demo_fields` (A19 β, A21 inverter),
+`thermal.demo_fields` (A26), one flag per field, plus the `is_demo` of the motor, the vehicle and the
+cycle. Every tab's « démo » chip (tooltip: which values) and the PDF/Excel footer use the same French
+labels (`io/notes.demo_labels`); the PDF footer is never truncated. Tab 4 reads its WLTC class from
+`vehicle.wltc_class_for`.
+
 ---
 
 # Module details

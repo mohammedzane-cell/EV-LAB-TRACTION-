@@ -78,6 +78,23 @@ class DriveSettings:
             raise ValueError(f"n_points must be an integer >= 10, got {self.n_points!r}")
 
 
+DEMO_SETTINGS = {"i_max": 20.0, "boost": 0.0, "margin": 0.8, "f_max": 100.0}  # docs/assumptions.md A16
+
+
+def demo_settings(n_points: int = 400) -> DriveSettings:
+    """Démo drive settings of A16 (i_max 20 A, boost 0 V, margin 0,8, f_max 100 Hz): TD5/TP3 give no inverter rating.
+
+    Args:
+        n_points: speeds computed by the envelope (resolution, not a démo value).
+    """
+    return DriveSettings(n_points=n_points, **DEMO_SETTINGS)
+
+
+def demo_fields(s: DriveSettings) -> tuple[str, ...]:
+    """Fields of s still at their A16 démo value (one flag per field; n_points is not a setting)."""
+    return tuple(name for name, value in DEMO_SETTINGS.items() if getattr(s, name) == value)
+
+
 def vf_voltage(m: MotorParams, f: ArrayLike, boost: float = 0.0) -> float | NDArray[np.float64]:
     """V(f) = V0 + (Vn − V0)·f/fn up to fn, then Vn: constant flux, then field weakening, V.
 

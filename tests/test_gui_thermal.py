@@ -33,7 +33,7 @@ def tab(win, qtbot):
 
 
 def test_temperatures_come_from_core(tab, win):
-    _, res, _, emap = win.tabs.widget(3).result
+    _, res, _, emap, _ = win.tabs.widget(3).result
     pc, pf = thermal.cycle_losses(res, emap)
     ref = thermal.map_copper_temperature(emap, win.session.motor.r1_temperature_k)
     exp = thermal.simulate(thermal.demo_thermal(), pc, pf, n_cycles=10, copper_ref_k=ref)
@@ -96,3 +96,13 @@ def test_r1_zero_chip_follows_the_motor(tab, win):
     win.session.set_motor(replace(win.session.motor, r1=0.5, r1_temperature_k=348.15))
     win._on_motor_published(win.session.motor)
     assert not tab.chip_r1.isVisibleTo(tab)
+
+
+def test_demo_chip_one_flag_per_thermal_field(qtbot, tab):
+    assert "réseau thermique C_w, C_s, R_ws, R_sa (A26)" in tab.chip_demo.toolTip()
+    assert "quadricycle léger (démo)" in tab.chip_demo.toolTip()  # the cycle's vehicle
+    tab.spin_cw.setValue(4000.0)
+    with qtbot.waitSignal(tab.thermal_done, timeout=TIMEOUT):
+        tab.compute()
+    assert tab.chip_demo.isVisibleTo(tab)  # C_s, R_ws, R_sa are still démo
+    assert "réseau thermique C_s, R_ws, R_sa (A26)" in tab.chip_demo.toolTip()

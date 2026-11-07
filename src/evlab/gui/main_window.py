@@ -140,7 +140,7 @@ class MainWindow(QMainWindow):
         emap = t3.emap if t3.emap is not None and t3.emap.envelope is env and t3.emap.settings == lset else None
         sizing = res = cycle = None
         if getattr(t4, "result", None) is not None:
-            sizing, res, cycle, _ = t4.result
+            sizing, res, cycle, _, _ = t4.result
         thermal = t5.result if t5.result is not None and t5.cycle is not None and t5.cycle[0] is res else None
         return Snapshot(
             group=group, date=dt.date.today(), motor=motor, drive_settings=dset, loss_settings=lset,
@@ -189,7 +189,7 @@ class MainWindow(QMainWindow):
         env_tab, eff_tab, veh_tab, th_tab = (self.tabs.widget(i) for i in (1, 2, 3, 4))
         if getattr(veh_tab, "result", None) is None:
             raise ValueError("simulez d'abord le cycle dans l'onglet 4 · Véhicule & WLTC")
-        _sizing, _res, cycle, _emap = veh_tab.result
+        _sizing, _res, cycle, _emap, _veh = veh_tab.result
         return optimise.Problem(
             motor=self.session.motor, drive=env_tab.settings(), loss_settings=eff_tab.settings(),
             vehicle=veh_tab.vehicle(), cycle=cycle, thermal=th_tab.params(),

@@ -8,6 +8,7 @@ Every number comes from core/; this module only converts units for display
 
 from __future__ import annotations
 
+from dataclasses import replace
 
 import pyqtgraph as pg
 from PySide6.QtCore import QThreadPool, Qt, Signal
@@ -26,9 +27,9 @@ from PySide6.QtWidgets import (
 from evlab.core import thermal
 from evlab.core.session import Session
 from evlab.gui.format import fr, fr_fixed, power_of_ten
-from evlab.gui.widgets import KpiTile, card, chip, french_spin
+from evlab.gui.widgets import KpiTile, card, chip, french_spin, set_demo_chip
 from evlab.gui.workers import CoreWorker
-from evlab.io.notes import R1_ZERO_NOTE
+from evlab.io.notes import R1_ZERO_NOTE, demo_labels
 
 TITLE = "5 · Thermique"
 LEFT_WIDTH = 300
@@ -48,7 +49,7 @@ class ThermalTab(QWidget):
         super().__init__()
         self.session = session
         self.title = TITLE
-        self.cycle = None  # (DriveResult, EfficiencyMap, cycle name, is_demo) from tab 4
+        self.cycle = None  # (DriveResult, EfficiencyMap, Cycle, Vehicle) from tab 4
         self.result: thermal.ThermalResult | None = None
         self.stale = True
         self._worker: CoreWorker | None = None
@@ -148,10 +149,9 @@ class ThermalTab(QWidget):
     # --- inputs --------------------------------------------------------------------
 
     def params(self) -> thermal.ThermalParams:
-        d = thermal.demo_thermal()
         vals = (self.spin_cw.value(), self.spin_cs.value(), self.spin_rws.value(), self.spin_rsa.value())
-        return thermal.ThermalParams(*vals, t_ambient_k=self.spin_ta.value() + T_ZERO_C,
-                                     is_demo=vals == (d.c_w, d.c_s, d.r_ws, d.r_sa))
+        p = thermal.ThermalParams(*vals, t_ambient_k=self.spin_ta.value() + T_ZERO_C)
+        return replace(p, is_demo=bool(thermal.demo_fields(p)))  # démo while any of C_w, C_s, R_ws, R_sa is A26
 
     def on_motor_changed(self) -> None:
         """Tab 1 published a motor: warn when it has no stator copper losses (R1 = 0)."""
@@ -167,8 +167,8 @@ class ThermalTab(QWidget):
 
     def on_cycle(self, result) -> None:
         """Tab 4 simulated a cycle: keep its losses and recompute when shown."""
-        _sizing, res, cycle, emap = result
-        self.cycle = (res, emap, cycle.name, cycle.is_demo)
+        _sizing, res, cycle, emap, veh = result
+        self.cycle = (res, emap, cycle, veh)
         self.lbl_cycle.setText(f"Cycle : {cycle.name} ({fr(cycle.t[-1] / 60)} min)")
         self.stale = True
         if self.isVisible():
@@ -223,7 +223,9 @@ class ThermalTab(QWidget):
         self.tiles["margin"].set_value(fr_fixed(s.margin, 1))
         self.tiles["life"].set_value("≈ " + power_of_ten(thermal.order_of_magnitude(s.life_hours)))
         self.tiles["margin"].value.setStyleSheet("color: #b3261e;" if s.margin < 0 else "")
-        self.chip_demo.setVisible(self.params().is_demo or self.cycle[3] or self.session.motor.is_demo)
+        _res, emap, cycle, veh = self.cycle
+        set_demo_chip(self.chip_demo, demo_labels(motor=self.session.motor, drive_settings=emap.envelope.settings,
+                                                  thermal_params=self.params(), vehicle=veh, cycle=cycle))
         self.plot.clear()
         minutes = r.t / 60.0
         self.plot.plot(minutes, r.t_w - T_ZERO_C, pen=pg.mkPen("#d62728", width=2), name="bobinage")

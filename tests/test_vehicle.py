@@ -230,3 +230,14 @@ def test_torque_margin(motor, env, emap, demo_cycle):
     assert margin[1] < 1.0  # G = 1: not enough torque at the wheel
     short = vehicle.simulate(demo_cycle, replace(veh, gear_ratio=1.0), motor, env, emap, LOSS)
     assert short.summary.n_outside > 0
+
+
+def test_wltc_class_for_the_motor(motor, env):
+    st = LOSS
+    veh = vehicle.demo_quadricycle()
+    pmr = vehicle.rated_power(motor, env, st) / veh.mass
+    assert vehicle.wltc_class_for(motor, env, st, veh) == vehicle.wltc_class(pmr)
+    heavy = replace(veh, mass=vehicle.rated_power(motor, env, st) / 20.0)  # 20 W/kg
+    assert vehicle.wltc_class_for(motor, env, st, heavy) == 1
+    light = replace(veh, mass=vehicle.rated_power(motor, env, st) / 40.0)  # 40 W/kg
+    assert vehicle.wltc_class_for(motor, env, st, light) == 3

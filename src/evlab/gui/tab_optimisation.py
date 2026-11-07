@@ -35,9 +35,9 @@ from evlab.core import optimise as op
 from evlab.core import thermal
 from evlab.core.session import Session
 from evlab.gui.format import fr, fr_fixed, fr_pct
-from evlab.gui.widgets import card, chip, french_spin
+from evlab.gui.widgets import card, chip, french_spin, set_demo_chip
 from evlab.gui.workers import CoreWorker
-from evlab.io.notes import R1_ZERO_NOTE
+from evlab.io.notes import R1_ZERO_NOTE, demo_labels
 
 TITLE = "7 · Optimisation"
 LEFT_WIDTH = 300
@@ -289,8 +289,10 @@ class OptimisationTab(QWidget):
     def _on_done(self, result: op.ParetoResult) -> None:
         self.result = result
         self._finish()
-        self.chip_demo.setVisible(self.session.motor.is_demo or self.problem.cycle.is_demo
-                                  or self.problem.vehicle.is_demo)
+        pb = self.problem
+        set_demo_chip(self.chip_demo, demo_labels(motor=pb.motor, drive_settings=pb.drive,
+                                                  loss_settings=pb.loss_settings, thermal_params=pb.thermal,
+                                                  vehicle=pb.vehicle, cycle=pb.cycle))
         self._draw()
         if result.front:
             self.select(min(result.front, key=lambda e: e.wh_per_km))

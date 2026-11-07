@@ -15,6 +15,7 @@ from evlab.core import winding as wd
 from evlab.core import identification as ident
 from evlab.core import optimise as op
 from evlab.core.session import MotorParams
+from evlab.io.notes import demo_labels
 
 MAP_GRID = (80, 60)  # loss map recomputed for the report when tab 3 was never opened
 
@@ -54,19 +55,10 @@ class Snapshot:
     notes: tuple[str, ...] = field(default_factory=tuple)
 
     def demo_items(self) -> list[str]:
-        """What in this report is démo or synthetic (shown in the footer)."""
-        items = []
-        if self.motor.is_demo:
-            items.append(f"moteur identifié sur des essais synthétiques ({self.motor.source})")
-        if self.cycle is not None and self.cycle.is_demo:
-            items.append(f"cycle {self.cycle.name}")
-        if self.vehicle is not None and self.vehicle.is_demo:
-            items.append(self.vehicle.name)
-        if self.thermal_params.is_demo:
-            items.append("réseau thermique (C, R)")
-        if self.loss_settings.inverter:
-            items.append("pertes onduleur")
-        return items
+        """What in this report is démo, synthetic or assumed (shown in the footer)."""
+        return demo_labels(motor=self.motor, drive_settings=self.drive_settings, loss_settings=self.loss_settings,
+                           thermal_params=self.thermal_params, vehicle=self.vehicle, cycle=self.cycle,
+                           include_beta=True)
 
 
 def complete(s: Snapshot) -> Snapshot:

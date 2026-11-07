@@ -81,3 +81,19 @@ def test_invalid_current_limit_reported(qtbot, win, tab):
     assert "no-load current" in b.args[0]
     assert "Échec du calcul de l'enveloppe" in win.statusBar().currentMessage()
     assert tab.btn_compute.isEnabled()
+
+
+def test_demo_chip_follows_the_drive_settings(qtbot, win, tab):
+    assert not win.session.motor.is_demo  # TD5 Ex 1: course data
+    assert tab.chip_demo.isVisibleTo(tab)  # but i_max, boost, margin, f_max are A16 démo values
+    assert "réglages variateur" in tab.chip_demo.toolTip()
+    tab.spin_imax.setValue(25.0)
+    with qtbot.waitSignal(tab.envelope_done, timeout=TIMEOUT):
+        tab.compute()
+    assert tab.chip_demo.isVisibleTo(tab) and "I max" not in tab.chip_demo.toolTip()
+    tab.spin_boost.setValue(2.0)
+    tab.spin_margin.setValue(85.0)
+    tab.spin_fmax.setValue(110.0)
+    with qtbot.waitSignal(tab.envelope_done, timeout=TIMEOUT):
+        tab.compute()
+    assert not tab.chip_demo.isVisibleTo(tab)

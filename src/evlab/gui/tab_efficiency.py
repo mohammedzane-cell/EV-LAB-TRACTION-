@@ -28,15 +28,16 @@ from PySide6.QtWidgets import (
 from evlab.core import drive, losses
 from evlab.core.session import Session
 from evlab.gui.format import fr, fr_fixed
-from evlab.gui.widgets import card, chip, french_spin
+from evlab.gui.widgets import card, chip, french_spin, set_demo_chip
 from evlab.gui.workers import CoreWorker
+from evlab.io.notes import demo_labels
 
 TITLE = "3 · Rendement"
 LEFT_WIDTH = 300
 RPM = 60.0 / (2.0 * 3.141592653589793)  # rad/s → tr/min (display only)
 T_ZERO_C = 273.15
 LEVELS = (50, 60, 70, 75, 78, 80, 82, 84, 86, 88, 90, 92, 94)  # contour lines, %
-DEFAULT_DRIVE = drive.DriveSettings(i_max=20.0)  # until tab 2 sends its envelope (A16)
+DEFAULT_DRIVE = drive.demo_settings()  # until tab 2 sends its envelope (A16)
 
 
 class EfficiencyTab(QWidget):
@@ -126,7 +127,7 @@ class EfficiencyTab(QWidget):
         root.addWidget(left)
 
         map_card, lay, head = card("Carte de rendement η(C, n)")
-        self.chip_demo = chip("moteur démo")
+        self.chip_demo = chip("démo")
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
         self.figure = Figure(figsize=(8, 6), layout="constrained")
@@ -167,7 +168,7 @@ class EfficiencyTab(QWidget):
         self.spin_tw.setToolTip("Température du bobinage pour R1 (loi du cuivre)" if known
                                 else "R1 sans température de référence : pas de correction")
         self.chk_mech.setText(f"Pertes mécaniques (p_méc = {fr(m.p_mech)} W)")
-        self.chip_demo.setVisible(m.is_demo)
+        self._update_demo_chip()
         if recompute:
             self._invalidate()
 
@@ -178,6 +179,18 @@ class EfficiencyTab(QWidget):
         self.lbl_drive.setText(f"Variateur (onglet 2) : {fr(st.i_max)} A, boost {fr(st.boost)} V, "
                                f"marge {fr_fixed(100 * st.margin, 0)} %, f max {fr(st.f_max)} Hz")
         self._invalidate()
+
+    def _update_demo_chip(self, emap: losses.EfficiencyMap | None = None) -> None:
+        """Démo chip from what the map depends on: motor, drive settings (A16), inverter losses (A21)."""
+        if emap is not None:
+            dst, st = emap.envelope.settings, emap.settings
+        else:
+            dst = self.drive_settings()
+            try:
+                st = self.settings()
+            except ValueError:
+                st = None
+        set_demo_chip(self.chip_demo, demo_labels(motor=self.session.motor, drive_settings=dst, loss_settings=st))
 
     def _invalidate(self) -> None:
         """Inputs changed: recompute now if the tab is visible, otherwise when it is shown."""
@@ -235,6 +248,7 @@ class EfficiencyTab(QWidget):
         self.btn_png.setEnabled(True)
         self.busy.emit(False)
         self._draw()
+        self._update_demo_chip(emap)
         eta, t, w = losses.best_point(emap)
         self.lbl_best.setText(f"Rendement max {fr_fixed(100 * eta, 1)} % à {fr(t)} N·m, "
                               f"{fr_fixed(w * RPM, 0)} tr/min (rendement chaîne onduleur + moteur, arbre)")

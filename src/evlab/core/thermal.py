@@ -69,9 +69,17 @@ class ThermalParams:
             _pos(n, getattr(self, n))
 
 
+DEMO_NETWORK = {"c_w": 3000.0, "c_s": 25_000.0, "r_ws": 0.10, "r_sa": 0.04}  # docs/assumptions.md A26
+
+
 def demo_thermal() -> ThermalParams:
     """Démo network for a ~9 kW totally enclosed motor (A26)."""
-    return ThermalParams(c_w=3000.0, c_s=25_000.0, r_ws=0.10, r_sa=0.04, t_ambient_k=298.15, is_demo=True)
+    return ThermalParams(**DEMO_NETWORK, t_ambient_k=298.15, is_demo=True)
+
+
+def demo_fields(p: ThermalParams) -> tuple[str, ...]:
+    """Network fields of p still at their A26 démo value (one flag per field; the ambient is a user input)."""
+    return tuple(name for name, value in DEMO_NETWORK.items() if getattr(p, name) == value)
 
 
 def stator_copper_missing(m: MotorParams) -> bool:

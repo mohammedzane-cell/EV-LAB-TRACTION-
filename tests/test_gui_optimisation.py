@@ -129,3 +129,11 @@ def test_r1_zero_chip_follows_the_motor(tab, win):
     win.session.set_motor(replace(win.session.motor, r1=0.5, r1_temperature_k=348.15))
     win._on_motor_published(win.session.motor)
     assert not tab.chip_r1.isVisibleTo(tab)
+
+
+def test_demo_chip_lists_every_demo_input(qtbot, tab):
+    _run(qtbot, tab)
+    tip = tab.chip_demo.toolTip()
+    for part in ("réglages variateur", "pertes onduleur (A21)", "réseau thermique", "quadricycle léger (démo)"):
+        assert part in tip
+    assert tab.chip_demo.isVisibleTo(tab)

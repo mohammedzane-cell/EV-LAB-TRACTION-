@@ -37,6 +37,12 @@ def card(title: str) -> tuple[QFrame, QVBoxLayout, QHBoxLayout]:
     return frame, lay, head
 
 
+def set_demo_chip(lbl: QLabel, labels: list[str]) -> None:
+    """Show a démo chip when any input is démo; its tooltip lists them (labels from io.notes.demo_labels)."""
+    lbl.setVisible(bool(labels))
+    lbl.setToolTip("Valeurs démo : " + " ; ".join(labels) if labels else "")
+
+
 def chip(text: str) -> QLabel:
     """Rounded label, e.g. "points synthétiques (démo)"."""
     lbl = QLabel(text)

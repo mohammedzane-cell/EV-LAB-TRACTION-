@@ -41,7 +41,7 @@ def test_export_pdf_and_excel(qtbot, win, tmp_path):
     with qtbot.waitSignal(win.export_done, timeout=TIMEOUT):
         win.export("xlsx", xl, "Groupe GUI")
     wb = load_workbook(xl, read_only=True)
-    _, res, _, _ = win.tabs.widget(3).result
+    _, res, _, _, _ = win.tabs.widget(3).result
     kpi = {r[0]: r[1] for r in list(wb["Cycle_KPI"].iter_rows(values_only=True))[1:]}
     assert kpi["consommation"] == pytest.approx(res.summary.wh_per_km, rel=1e-15)
     assert "Exporté" in win.statusBar().currentMessage()

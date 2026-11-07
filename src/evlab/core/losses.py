@@ -38,6 +38,8 @@ from evlab.core.session import MotorParams
 BISECTION_STEPS = 45  # rotor-frequency bracket (≤ ~25 Hz) shrinks below 1e-12 Hz
 GOLDEN_STEPS = 40  # peak location to 0,618^40 ≈ 4e-9 of the bracket
 INV_PHI = (math.sqrt(5.0) - 1.0) / 2.0
+BETA_A19 = 1.5  # Steinmetz exponent assumed (A19): TP3 gives Rf at 50 Hz only
+INVERTER_A21 = {"inverter_fixed_w": 50.0, "inverter_fraction": 0.02}  # démo inverter losses (A21)
 
 
 @dataclass(frozen=True)
@@ -54,13 +56,13 @@ class LossSettings:
         inverter_fraction: inverter loss proportional to the motor input power, k (démo, A21).
     """
 
-    beta: float = 1.5
+    beta: float = BETA_A19
     winding_temperature_k: float | None = None
     mechanical: bool = True
     friction_share: float = 0.5
     inverter: bool = True
-    inverter_fixed_w: float = 50.0
-    inverter_fraction: float = 0.02
+    inverter_fixed_w: float = INVERTER_A21["inverter_fixed_w"]
+    inverter_fraction: float = INVERTER_A21["inverter_fraction"]
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.beta) or not 0 < self.beta <= 3:
@@ -75,6 +77,15 @@ class LossSettings:
             raise ValueError(f"inverter_fixed_w must be >= 0 W, got {self.inverter_fixed_w!r}")
         if not math.isfinite(self.inverter_fraction) or not 0 <= self.inverter_fraction < 1:
             raise ValueError(f"inverter_fraction must be in [0, 1), got {self.inverter_fraction!r}")
+
+
+def demo_fields(st: LossSettings) -> tuple[str, ...]:
+    """Fields of st still at an assumed or démo value: "beta" (A19), and the inverter terms (A21)
+    when the inverter losses are included (one flag per field)."""
+    out = ("beta",) if st.beta == BETA_A19 else ()
+    if st.inverter:
+        out += tuple(name for name, value in INVERTER_A21.items() if getattr(st, name) == value)
+    return out
 
 
 def stator_resistance(m: MotorParams, st: LossSettings) -> float:

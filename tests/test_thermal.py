@@ -205,3 +205,10 @@ def test_simulate_validation():
 def test_stator_copper_missing_when_r1_is_zero():
     assert thermal.stator_copper_missing(td5_ex1())  # TD5 Ex 1: R1 ≈ 0
     assert not thermal.stator_copper_missing(replace(td5_ex1(), r1=0.5))
+
+
+def test_thermal_demo_fields_one_flag_per_field():
+    assert thermal.demo_fields(P) == ("c_w", "c_s", "r_ws", "r_sa")
+    assert thermal.demo_fields(replace(P, c_w=4000.0)) == ("c_s", "r_ws", "r_sa")
+    assert thermal.demo_fields(thermal.ThermalParams(4000.0, 30_000.0, 0.2, 0.05)) == ()
+    assert P.is_demo

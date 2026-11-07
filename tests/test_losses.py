@@ -212,3 +212,14 @@ def test_hot_winding_shrinks_the_map():
     b = losses.efficiency_map(motor, t, w, DRIVE, hot, envelope=env)
     assert b.valid.sum() < a.valid.sum()
     assert not np.any(b.valid & ~a.valid)
+
+
+# --- démo loss settings (A19, A21) ----------------------------------------------------
+
+def test_demo_fields_of_the_loss_settings():
+    st = losses.LossSettings()
+    assert (st.beta, st.inverter_fixed_w, st.inverter_fraction) == (1.5, 50.0, 0.02)
+    assert losses.demo_fields(st) == ("beta", "inverter_fixed_w", "inverter_fraction")
+    assert losses.demo_fields(replace(st, inverter_fixed_w=30.0)) == ("beta", "inverter_fraction")
+    assert losses.demo_fields(replace(st, inverter=False)) == ("beta",)  # no inverter loss, nothing démo there
+    assert losses.demo_fields(replace(st, beta=2.0, inverter=False)) == ()

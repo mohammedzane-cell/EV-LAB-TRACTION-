@@ -14,13 +14,13 @@ from PySide6.QtWidgets import QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPush
 from evlab.core import drive
 from evlab.core.session import Session
 from evlab.gui.format import fr, fr_fixed
-from evlab.gui.widgets import KpiTile, card, chip, french_spin
+from evlab.gui.widgets import KpiTile, card, chip, french_spin, set_demo_chip
 from evlab.gui.workers import CoreWorker
+from evlab.io.notes import demo_labels
 
 TITLE = "2 · Enveloppe"
 LEFT_WIDTH = 300
 RPM = 60.0 / (2.0 * 3.141592653589793)  # rad/s → tr/min (display only)
-DEFAULTS = dict(i_max=20.0, boost=0.0, margin=0.8, f_max=100.0)  # démo values, docs/assumptions.md A16
 ZONE_BRUSHES = {1: (47, 111, 214, 28), 2: (46, 158, 91, 28), 3: (224, 138, 30, 32)}
 ZONE_NAMES = {1: "couple constant", 2: "puissance constante", 3: "limité par le décrochage"}
 
@@ -48,13 +48,13 @@ class EnvelopeTab(QWidget):
 
         box = QGroupBox("Variateur")
         form = QFormLayout(box)
-        self.spin_imax = french_spin(0.1, 1e4, 1, "A", DEFAULTS["i_max"])
+        self.spin_imax = french_spin(0.1, 1e4, 1, "A", drive.DEMO_SETTINGS["i_max"])
         self.spin_imax.setToolTip("Courant statorique maximal (efficace, par phase) — valeur démo")
-        self.spin_boost = french_spin(0.0, 1e4, 1, "V", DEFAULTS["boost"])
+        self.spin_boost = french_spin(0.0, 1e4, 1, "V", drive.DEMO_SETTINGS["boost"])
         self.spin_boost.setToolTip("Tension à f → 0 (compense la chute dans R1) ; la loi atteint Vn à fn")
-        self.spin_margin = french_spin(1.0, 100.0, 0, "%", 100 * DEFAULTS["margin"])
+        self.spin_margin = french_spin(1.0, 100.0, 0, "%", 100 * drive.DEMO_SETTINGS["margin"])
         self.spin_margin.setToolTip("Fraction utilisable du couple de décrochage")
-        self.spin_fmax = french_spin(1.0, 1e3, 1, "Hz", DEFAULTS["f_max"])
+        self.spin_fmax = french_spin(1.0, 1e3, 1, "Hz", drive.DEMO_SETTINGS["f_max"])
         form.addRow("Courant max", self.spin_imax)
         form.addRow("Boost basse vitesse", self.spin_boost)
         form.addRow("Marge / décrochage", self.spin_margin)
@@ -92,7 +92,7 @@ class EnvelopeTab(QWidget):
         right.addLayout(tiles)
 
         plot_card, lay, head = card("Enveloppe couple–vitesse (loi V/f + défluxage)")
-        self.chip_demo = chip("moteur démo")
+        self.chip_demo = chip("démo")
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
         pg.setConfigOptions(antialias=True, background="w", foreground="#333")
@@ -131,8 +131,16 @@ class EnvelopeTab(QWidget):
         m = self.session.motor
         demo = " (démo)" if m.is_demo else ""
         self.lbl_motor.setText(f"{m.source}{demo}\nV = {fr(m.v_phase)} V, f = {fr(m.f_rated)} Hz, p = {m.pole_pairs}")
-        self.chip_demo.setVisible(m.is_demo)
+        self._update_demo_chip()
         self.compute()
+
+    def _update_demo_chip(self, settings: drive.DriveSettings | None = None) -> None:
+        if settings is None:
+            try:
+                settings = self.settings()
+            except ValueError:
+                settings = None
+        set_demo_chip(self.chip_demo, demo_labels(motor=self.session.motor, drive_settings=settings))
 
     # --- computation ----------------------------------------------------------------
 
@@ -165,6 +173,7 @@ class EnvelopeTab(QWidget):
         self.tiles["p_max"].set_value(fr(env.p_max / 1000.0))
         self.tiles["t_vmax"].set_value(fr(env.torque_at_max_speed))
         self._draw(env)
+        self._update_demo_chip(env.settings)
         self.status_message.emit(f"Enveloppe calculée : vitesse max {fr_fixed(env.omega_max * RPM, 0)} tr/min")
         self.envelope_done.emit(env)
 

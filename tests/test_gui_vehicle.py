@@ -46,7 +46,7 @@ def _core(win, tab, gear=None):
 
 
 def test_class_ratio_and_kpis_come_from_core(tab, win):
-    sizing, res, cycle, _ = tab.result
+    sizing, res, cycle, _, _ = tab.result
     exp_sizing, exp = _core(win, tab)
     assert sizing == exp_sizing
     assert res.summary == exp.summary
@@ -63,7 +63,7 @@ def test_long_gear_shows_red_warning(qtbot, tab, win):
     tab.spin_g.setValue(8.0)
     with qtbot.waitSignal(tab.simulation_done, timeout=TIMEOUT) as b:
         tab.simulate()
-    _, res, _, _ = b.args[0]
+    _, res, _, _, _ = b.args[0]
     assert res.summary.n_outside > 0
     assert tab.lbl_warning.isVisibleTo(tab)
     assert f"{res.summary.n_outside} point(s)" in tab.lbl_warning.text()
@@ -78,7 +78,7 @@ def test_regen_checkbox(qtbot, tab):
     tab.chk_regen.setChecked(False)
     with qtbot.waitSignal(tab.simulation_done, timeout=TIMEOUT) as b:
         tab.simulate()
-    _, res, _, _ = b.args[0]
+    _, res, _, _, _ = b.args[0]
     assert res.summary.regen_percent == 0.0 and np.all(res.p_battery >= 0)
     assert tab.tiles["regen"].value.text() == "0,0 %"
 
@@ -86,7 +86,7 @@ def test_regen_checkbox(qtbot, tab):
 def test_cycle_points_sent_to_tab3(tab, win):
     eff = win.tabs.widget(2)
     assert eff.cycle_points is not None and eff.chk_cycle.isEnabled()
-    _, res, _, _ = tab.result
+    _, res, _, _, _ = tab.result
     assert np.allclose(eff.cycle_points[1], res.omega[res.torque > 0])
 
 
@@ -95,7 +95,7 @@ def test_user_cycle_file(qtbot, tab, tmp_path):
     p.write_text("t [s],v [km/h]\n0,0\n20,40\n200,40\n220,0\n", encoding="utf-8")
     with qtbot.waitSignal(tab.simulation_done, timeout=TIMEOUT) as b:
         tab.load_user_cycle(p)
-    _, res, cycle, _ = b.args[0]
+    _, res, cycle, _, _ = b.args[0]
     assert cycle.name == "plat" and "plat" in tab.lbl_cycle.text()
 
 
@@ -106,3 +106,14 @@ def test_invalid_cycle_reported(qtbot, tab, win, tmp_path):
         tab.load_user_cycle(p)
     assert "strictement croissant" in b.args[0]
     assert "Échec de la simulation" in win.statusBar().currentMessage()
+
+
+def test_demo_chip_lists_vehicle_drive_and_inverter(tab):
+    tip = tab.chip_demo.toolTip()
+    for part in ("quadricycle léger (démo)", "réglages variateur", "pertes onduleur (A21)", "cycle"):
+        assert part in tip
+
+
+def test_wltc_class_from_core(tab, win):
+    sizing, _res, _cycle, emap, veh = tab.result
+    assert sizing.wltc_class == vehicle.wltc_class_for(win.session.motor, emap.envelope, emap.settings, veh)

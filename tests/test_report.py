@@ -40,7 +40,10 @@ def test_pdf_contains_the_kpi_strings(pdf):
     for title in ("1. Identification", "2. Enveloppe", "3. Véhicule", "4. Thermique", "5. Bobinage",
                   "6. Optimisation", "Hypothèses principales"):
         assert title in text
-    assert "Valeurs démo" in text and "réseau thermique" in text
+    flat = " ".join(text.split())
+    assert "Valeurs démo" in flat
+    for item in s.demo_items():  # the whole footer is printed, nothing cut
+        assert " ".join(item.split()) in flat, item
     assert "Groupe test" in text and "06/11/2026" in text
 
 
@@ -73,3 +76,12 @@ def test_r1_zero_line_in_the_pdf(tmp_path, pdf):
     assert 1 <= _pages(path.read_bytes()) <= 3
     text = " ".join(_text(path).split())
     assert " ".join(R1_ZERO_NOTE.split()) in text
+
+
+def test_demo_items_list_drive_settings_and_beta():
+    s = demo_snapshot()
+    items = s.demo_items()
+    assert "réglages variateur I max, boost, marge, f max (A16)" in items
+    assert "β = 1,5 (A19)" in items
+    assert "pertes onduleur (A21)" in items
+    assert any(i.startswith("réseau thermique") for i in items)

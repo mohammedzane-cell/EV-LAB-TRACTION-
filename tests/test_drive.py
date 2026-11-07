@@ -190,3 +190,19 @@ def test_settings_validation(kw):
 def test_current_limit_below_no_load_current(m):
     with pytest.raises(ValueError, match="no-load current"):
         drive.envelope(m, drive.DriveSettings(i_max=4.0))  # I0 ≈ 5,1 A
+
+
+# --- démo drive settings (A16) -------------------------------------------------------
+
+def test_demo_settings_are_a16():
+    s = drive.demo_settings()
+    assert (s.i_max, s.boost, s.margin, s.f_max) == (20.0, 0.0, 0.8, 100.0)
+    assert drive.demo_fields(s) == ("i_max", "boost", "margin", "f_max")
+    assert drive.demo_settings(n_points=50).n_points == 50
+
+
+def test_demo_fields_one_flag_per_field():
+    s = drive.demo_settings()
+    assert drive.demo_fields(replace(s, i_max=35.0)) == ("boost", "margin", "f_max")
+    assert drive.demo_fields(replace(s, n_points=50)) == drive.demo_fields(s)  # resolution is not a setting
+    assert drive.demo_fields(drive.DriveSettings(i_max=35.0, boost=5.0, margin=0.9, f_max=120.0)) == ()

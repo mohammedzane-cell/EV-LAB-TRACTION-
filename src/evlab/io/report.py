@@ -116,25 +116,34 @@ def kpi_strings(s: Snapshot) -> dict[str, str]:
     return out
 
 
-def _footer(s: Snapshot):
+FOOTER_SIZE = 6.8  # pt
+FOOTER_LEADING = 8.5  # pt
+FOOTER_WIDTH = 15.5 * cm
+
+
+def _footer_lines(s: Snapshot) -> tuple[list[str], bool]:
+    """The footer text wrapped to FOOTER_WIDTH (every line is drawn: no démo item is ever cut), and whether it is démo."""
     demo = s.demo_items()
     text = ("Valeurs démo : " + " ; ".join(demo)) if demo else "Aucune valeur démo : données d'essai réelles"
+    lines, line = [], ""
+    for word in text.split(" "):
+        if line and pdfmetrics.stringWidth(line + " " + word, FONT, FOOTER_SIZE) > FOOTER_WIDTH:
+            lines.append(line)
+            line = word
+        else:
+            line = (line + " " + word).strip()
+    lines.append(line)
+    return lines, bool(demo)
 
+
+def _footer(lines: list[str], demo: bool):
     def draw(canvas, doc) -> None:
         canvas.saveState()
-        canvas.setFont(FONT, 6.8)
+        canvas.setFont(FONT, FOOTER_SIZE)
         canvas.setFillColor(colors.HexColor("#b3261e") if demo else colors.HexColor("#555555"))
         y = 1.0 * cm
-        lines, line = [], ""
-        for word in text.split(" "):
-            if pdfmetrics.stringWidth(line + " " + word, FONT, 6.8) > 15.5 * cm:
-                lines.append(line)
-                line = word
-            else:
-                line = (line + " " + word).strip()
-        lines.append(line)
-        for k, ln in enumerate(lines[:3]):
-            canvas.drawString(2.0 * cm, y + (len(lines[:3]) - 1 - k) * 8.5, ln)
+        for k, ln in enumerate(lines):
+            canvas.drawString(2.0 * cm, y + (len(lines) - 1 - k) * FOOTER_LEADING, ln)
         canvas.setFillColor(colors.HexColor("#555555"))
         canvas.drawRightString(A4[0] - 2.0 * cm, y, f"EV-Traction Lab · page {doc.page}")
         canvas.restoreState()
@@ -172,8 +181,10 @@ def build_report(s: Snapshot, path: str | Path) -> Path:
     _register_fonts()
     st = _styles()
     path = Path(path)
+    lines, demo = _footer_lines(s)
+    bottom = max(2.2 * cm, 1.0 * cm + len(lines) * FOOTER_LEADING + 0.4 * cm)  # body never overlaps the footer
     doc = SimpleDocTemplate(str(path), pagesize=A4, leftMargin=2.0 * cm, rightMargin=2.0 * cm,
-                            topMargin=1.6 * cm, bottomMargin=2.2 * cm, title="EV-Traction Lab — rapport",
+                            topMargin=1.6 * cm, bottomMargin=bottom, title="EV-Traction Lab — rapport",
                             author=s.group)
     kpi = kpi_strings(s)
     story = [Paragraph("EV-Traction Lab — rapport de laboratoire virtuel", st["title"]),
@@ -305,6 +316,6 @@ def build_report(s: Snapshot, path: str | Path) -> Path:
         ("LEFTPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 4)])
     story += [Spacer(1, 6), KeepTogether([frame])]
 
-    footer = _footer(s)
+    footer = _footer(lines, demo)
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return path

@@ -155,6 +155,15 @@ def rated_power(m: MotorParams, env: drive.Envelope, st: losses.LossSettings) ->
     return float(np.max(losses.shaft_torque_limit(m, env, st) * env.omega))
 
 
+def wltc_class_for(m: MotorParams, env: drive.Envelope, st: losses.LossSettings, veh: Vehicle) -> int:
+    """WLTC class of the vehicle with this motor: PMR = rated_power / mass (W/kg) → wltc_class.
+
+    Args:
+        m: motor.  env: its drive envelope.  st: loss settings (shaft limit).  veh: vehicle (mass, kg).
+    """
+    return wltc_class(rated_power(m, env, st) / veh.mass)
+
+
 @dataclass(frozen=True)
 class Sizing:
     """Result of size_vehicle.
@@ -209,7 +218,7 @@ def size_vehicle(m: MotorParams, env: drive.Envelope, st: losses.LossSettings, v
     than 1/G (A23).
     """
     p = rated_power(m, env, st)
-    pmr = p / veh.mass
+    pmr = p / veh.mass  # same as wltc_class_for
     v_max = cycle_stats(cycle).v_max
     _pos("cycle v_max", v_max)
     g_max = SPEED_MARGIN * veh.wheel_radius * env.omega_max / v_max

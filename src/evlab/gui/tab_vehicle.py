@@ -29,17 +29,18 @@ from PySide6.QtWidgets import (
 from evlab.core import drive, losses, vehicle
 from evlab.core.session import Session
 from evlab.gui.format import fr, fr_fixed
-from evlab.gui.widgets import KpiTile, card, chip, french_spin
+from evlab.gui.widgets import KpiTile, card, chip, french_spin, set_demo_chip
 from evlab.gui.workers import CoreWorker
 from evlab.io.cycles import load_cycle, wltc_file
 from evlab.io.demo_data import CYCLE_FILE
+from evlab.io.notes import demo_labels
 from evlab.io.paths import data_dir
 
 TITLE = "4 · Véhicule & WLTC"
 LEFT_WIDTH = 300
 DATA = data_dir()
 KMH = 3.6  # m/s → km/h (display only)
-DEFAULT_DRIVE = drive.DriveSettings(i_max=20.0)
+DEFAULT_DRIVE = drive.demo_settings()  # until tab 2 sends its envelope (A16)
 
 
 class VehicleTab(QWidget):
@@ -252,12 +253,12 @@ class VehicleTab(QWidget):
             if mp is None:
                 t, w = losses.default_grid(motor, e, st, 120, 90)
                 mp = losses.efficiency_map(motor, t, w, dst, st, envelope=e)
-            cls = vehicle.wltc_class(vehicle.rated_power(motor, e, st) / veh.mass)
+            cls = vehicle.wltc_class_for(motor, e, st, veh)
             path = user_cycle or wltc_file(DATA, cls) or DATA / CYCLE_FILE
             cycle = load_cycle(path)
             sizing = vehicle.size_vehicle(motor, e, st, veh, cycle)
             v = replace(veh, gear_ratio=sizing.gear_ratio) if use_proposed else veh
-            return sizing, vehicle.simulate(cycle, v, motor, e, mp, mp.settings), cycle, v, path, mp
+            return sizing, vehicle.simulate(cycle, v, motor, e, mp, mp.settings), cycle, v, path, mp, e
 
         worker = CoreWorker(job)
         worker.signals.finished.connect(self._on_done)
@@ -270,8 +271,8 @@ class VehicleTab(QWidget):
         return True
 
     def _on_done(self, out) -> None:
-        sizing, res, cycle, veh, path, mp = out
-        self.result = (sizing, res, cycle, mp)
+        sizing, res, cycle, veh, path, mp, env = out
+        self.result = (sizing, res, cycle, mp, veh)
         self.stale = False
         self.btn_simulate.setEnabled(True)
         self.busy.emit(False)
@@ -297,7 +298,8 @@ class VehicleTab(QWidget):
             f"⚠ {s.n_outside} point(s) du cycle hors de l'enveloppe du moteur (couple ou vitesse insuffisants)"
             if s.n_outside else "")
         self.lbl_warning.setVisible(s.n_outside > 0)
-        self.chip_demo.setVisible(cycle.is_demo or veh.is_demo or self.session.motor.is_demo)
+        set_demo_chip(self.chip_demo, demo_labels(motor=self.session.motor, drive_settings=env.settings,
+                                                  loss_settings=mp.settings, vehicle=veh, cycle=cycle))
         self._draw(res, cycle)
         self.cycle_points.emit(res.torque[res.torque > 0], res.omega[res.torque > 0])
         self.status_message.emit(f"Cycle simulé : {fr(s.wh_per_km)} Wh/km")

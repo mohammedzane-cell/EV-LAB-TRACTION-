@@ -107,3 +107,14 @@ def test_hidden_tab_does_not_compute(qtbot, win):
     with qtbot.waitSignal(tab.map_done, timeout=TIMEOUT):
         win.tabs.setCurrentIndex(2)
     assert not tab.stale
+
+
+def test_demo_chip_lists_drive_and_inverter(qtbot, tab, win):
+    assert not win.session.motor.is_demo
+    assert tab.chip_demo.isVisibleTo(tab)
+    tip = tab.chip_demo.toolTip()
+    assert "réglages variateur" in tip and "pertes onduleur (A21)" in tip
+    with qtbot.waitSignal(tab.map_done, timeout=TIMEOUT):
+        tab.chk_inv.setChecked(False)
+        tab.compute()
+    assert "pertes onduleur" not in tab.chip_demo.toolTip()
