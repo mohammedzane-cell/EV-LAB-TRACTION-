@@ -2,7 +2,8 @@
 
 Official WLTC files are provided by the user as data/wltc_class1.csv and
 data/wltc_class3.csv (never invented or downloaded here). Until then,
-data/cycle_demo.csv is a synthetic urban cycle labelled "démo".
+data/cycle_demo.csv is a synthetic urban cycle labelled "démo" (as are the
+cycles of data/tests/, recognised by their "# démo: …" line).
 Conversion km/h → m/s happens here only. Errors: LoaderError (French).
 """
 
@@ -14,7 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from evlab.core.vehicle import Cycle
-from evlab.io.loaders import LoaderError, _num, _read
+from evlab.io.loaders import LoaderError, _num, _read, is_demo_file
 
 CYCLE_COLUMNS = {"t": "s", "v": "km/h"}
 KMH_TO_MS = 1.0 / 3.6
@@ -40,7 +41,7 @@ def load_cycle(path: str | Path) -> Cycle:
         raise LoaderError(f"{name}, ligne {rows[int(neg[0])]['_line']} : vitesse négative ({v[neg[0]]:g} km/h)")
     t1 = np.arange(t[0], t[0] + math.floor(t[-1] - t[0]) + 1.0)
     v1 = np.interp(t1, t, v) * KMH_TO_MS
-    is_demo = Path(path).name.endswith("_demo.csv")
+    is_demo = is_demo_file(path, meta)
     label = Path(path).stem + (" (démo)" if is_demo else "")
     return Cycle(t=t1 - t1[0], v=v1, name=label, is_demo=is_demo)
 

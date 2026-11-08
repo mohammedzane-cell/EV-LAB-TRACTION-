@@ -47,8 +47,8 @@ python -m evlab
 ```
 
 The `evlab` command (or `EVLab.exe`) does the same. Start-up self-test, without
-using the window (7 tabs, data folder, envelope, cycle, two-process optimisation,
-PDF and Excel export; log in `<dossier>/smoke.log`, exit code 0 when all pass):
+using the window (7 tabs, data folder, test datasets, FEM cache, demo files, envelope,
+cycle, two-process optimisation, PDF and Excel export: 10 checks; log in `<dossier>/smoke.log`, exit code 0 when all pass):
 
 ```bash
 python -m evlab --smoke build/smoke
@@ -401,11 +401,25 @@ the formula itself, which neglects the magnetising branch (A9).
 `load_bench_tests(path)` reads the DC, no-load and locked-rotor tests;
 `load_load_points(path)` reads load-test points. Columns are written
 `name [unit]`; a missing column, a wrong unit, an empty file or a bad value
-raises `LoaderError` with a French message. Files named `*_demo.csv` are demo
-data. Regenerate the demo files with:
+raises `LoaderError` with a French message. U, I, P, f of the tests must be > 0 and a
+load point must have 0 < g < 1. Files named `*_demo.csv`, or starting with a
+`# démo: …` line, are demo data. Regenerate the demo files with:
 
 ```bash
 python -m evlab.io.demo_data
+```
+
+**Test datasets (`data/tests/`, synthetic, démo)**: three motors (petit 1,5 kW,
+moyen 4 kW, grand 7,5 kW: bench tests + 10 load points g = 0,01…0,08, 2,5 % noise),
+three smooth drive cycles that are not WLTC (urbain, route, mixte; 895–1190 s,
+≤ 1,2 m/s²) and four bad files for the error messages. The French
+`data/tests/README.md` gives each reference circuit and the tab 1 table to expect;
+`tests/test_datasets.py` checks them (Xm, R'2 within 5 %, X inside the fit's 95 %
+interval, Rf within ±16 %: the bounds that 2,5 % noise on light-load points allows).
+They are copied into the Windows build (`EVLab\data\tests\`). Regenerate with:
+
+```bash
+python -m evlab.io.demo_data --tests
 ```
 
 Formats and provenance: `docs/data_notes.md`.

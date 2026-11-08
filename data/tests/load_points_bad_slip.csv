@@ -1,0 +1,28 @@
+# démo: FICHIER ERRONÉ (un point avec g = 1,2), pour tester les messages
+# bruit: 0.025 (relatif, gaussien), graine: 2101
+# plaque.tension_simple [V]: 230
+# plaque.frequence [Hz]: 50
+# plaque.paires_de_poles: 2
+# plaque.vitesse_nominale [tr/min]: 1440
+# reference.source: petit_1.5kW (synthétique, démo)
+# reference.v_phase: 230.0
+# reference.f_rated: 50.0
+# reference.pole_pairs: 2
+# reference.r1: 4.0
+# reference.r_fe: 1000.0
+# reference.x_m: 115.0
+# reference.x_leak: 10.0
+# reference.r2p: 3.6
+# reference.p_mech: 15.0
+# reference.t_hot_c: 75.0
+g [-],U [V],I [A],T [N·m],cos_phi [-],f [Hz]
+0.01,398.372,2.1491,2.60459,0.421936,50
+0.0178,398.372,2.48616,4.90872,0.573959,50
+0.0256,398.372,2.69941,6.71724,0.70257,50
+0.0333,398.372,3.10318,8.21637,0.782004,50
+1.2,398.372,3.36418,9.75096,0.766248,50
+0.0489,398.372,3.93504,11.5416,0.844648,50
+0.0567,398.372,4.34923,13.3582,0.854899,50
+0.0644,398.372,4.77786,15.9039,0.87108,50
+0.0722,398.372,5.00567,16.7885,0.887655,50
+0.08,398.372,5.44849,18.0027,0.844408,50

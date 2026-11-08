@@ -54,6 +54,9 @@ def run(out_dir: str | None = None) -> int:
     w.show()
     check("7 onglets", w.tabs.count() == 7, ", ".join(w.tabs.tabText(i) for i in range(w.tabs.count())))
     check("dossier data", (data_dir() / "bench_tests_demo.csv").exists(), str(data_dir()))
+    tests = sorted((data_dir() / "tests").glob("*.csv"))
+    check("jeux de test (data/tests)", len(tests) == 13 and (data_dir() / "tests" / "README.md").exists(),
+          f"{len(tests)} fichiers CSV")
     from evlab.io import femm_model as fm
 
     check("calculs FEM pré-calculés (onglet 6)", len(fm.cached_runs()) > 0, f"{len(fm.cached_runs())} calcul(s)")

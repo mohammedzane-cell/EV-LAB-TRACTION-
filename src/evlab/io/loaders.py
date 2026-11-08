@@ -4,13 +4,15 @@ File format (UTF-8, comma separator, decimal point):
 - lines starting with "#" are comments; "# key: value" lines are kept as metadata
   (the demo files store their reference circuit as "# reference.<field>: value");
 - one header line, each column written "name [unit]";
-- files named *_demo.csv are demo data (is_demo = True, labelled "démo").
+- files named *_demo.csv, or starting with a "# démo: …" line (data/tests/), are demo
+  data (is_demo = True, labelled "démo").
 
 Bench tests, columns essai, U [V], I [A], P [W], f [Hz], T [°C]; essai is
   dc            DC test: U = voltage between two terminals, I = DC current, T = winding temperature
   vide          no-load test: U = line voltage, I = line current, P = three-phase power
   rotor_bloque  locked-rotor test, same columns
-Load points, columns g [-], U [V], I [A], T [N·m], cos_phi [-], f [Hz]; U is the line voltage.
+Load points, columns g [-], U [V], I [A], T [N·m], cos_phi [-], f [Hz]; U is the line voltage;
+  a load test is in motor operation, so 0 < g < 1. U, I, P, f of the tests must be > 0.
 
 Unit conversions happen here only: line → phase voltage (U/√3), °C → K.
 Errors are raised as LoaderError (a ValueError) with a French message.
@@ -146,8 +148,23 @@ def _record(build, row: dict[str, str], name: str):
         raise LoaderError(f"{name}, ligne {row['_line']} ({row.get('essai', 'point')}) : valeur invalide — {exc}") from None
 
 
-def _is_demo(path: str | Path) -> bool:
-    return Path(path).name.endswith("_demo.csv")
+def is_demo_file(path: str | Path, meta: dict[str, str] | None = None) -> bool:
+    """Demo data: name *_demo.csv, or a "# démo: …" comment line (generated test datasets)."""
+    return Path(path).name.endswith("_demo.csv") or "démo" in (meta or {})
+
+
+POSITIVE = {"U": ("la tension U", "V"), "I": ("le courant I", "A"), "P": ("la puissance P", "W"),
+            "f": ("la fréquence f", "Hz")}
+
+
+def _positive(row: dict[str, str], col: str, name: str) -> float:
+    """A reading that must be > 0, with a French message naming the quantity."""
+    x = _num(row, col, name)
+    if x <= 0:
+        what, unit = POSITIVE[col]
+        raise LoaderError(f"{name}, ligne {row['_line']} ({row.get('essai', 'point')}) : {what} doit être "
+                          f"> 0 {unit} (valeur lue : « {row[col]} »)")
+    return x
 
 
 def load_bench_tests(path: str | Path) -> BenchTests:
@@ -167,11 +184,11 @@ def load_bench_tests(path: str | Path) -> BenchTests:
         if essai == "dc":
             if dc is not None:
                 raise LoaderError(f"{name} : plusieurs essais « dc » (un seul attendu)")
-            u, i = _num(row, "U", name), _num(row, "I", name)
+            u, i = _positive(row, "U", name), _positive(row, "I", name)
             t_c = _num(row, "T", name)
             dc = _record(lambda: ident.DcTest(v_dc=u, i_dc=i, temperature_k=t_c + T_ZERO_C), row, name)
             continue
-        u, i, p, f = (_num(row, c, name) for c in ("U", "I", "P", "f"))
+        u, i, p, f = (_positive(row, c, name) for c in ("U", "I", "P", "f"))
         t_c = _num(row, "T", name, required=False)
         if t_c is not None:
             temps.append(t_c + T_ZERO_C)
@@ -184,7 +201,7 @@ def load_bench_tests(path: str | Path) -> BenchTests:
     if len(locked) != 1:
         raise LoaderError(f"{name} : il faut exactement un essai « rotor_bloque » (trouvé : {len(locked)})")
     t_hot = sum(temps) / len(temps) if temps else None
-    return BenchTests(dc, tuple(no_load), locked[0], t_hot, _is_demo(path), str(path), meta)
+    return BenchTests(dc, tuple(no_load), locked[0], t_hot, is_demo_file(path, meta), str(path), meta)
 
 
 def load_load_points(path: str | Path) -> LoadPointsFile:
@@ -195,11 +212,14 @@ def load_load_points(path: str | Path) -> LoadPointsFile:
         g, u, i, t, pf, f = (_num(row, c, name) for c in ("g", "U", "I", "T", "cos_phi", "f"))
         if u <= 0:
             raise LoaderError(f"{name}, ligne {row['_line']} : la tension U doit être > 0 V")
+        if not 0.0 < g < 1.0:
+            raise LoaderError(f"{name}, ligne {row['_line']} : glissement g = « {row['g']} » hors de ]0 ; 1[ "
+                              "(un essai en charge est en fonctionnement moteur : 0 < g < 1)")
         pts.append(_record(lambda: ident.LoadTestPoint(
             slip=g, i_line=i, torque=t, power_factor=pf, v_phase=u / math.sqrt(3.0), f=f), row, name))
     if len(pts) < 3:
         raise LoaderError(f"{name} : au moins 3 points en charge sont nécessaires (trouvé : {len(pts)})")
-    return LoadPointsFile(tuple(pts), _is_demo(path), str(path), meta)
+    return LoadPointsFile(tuple(pts), is_demo_file(path, meta), str(path), meta)
 
 
 @dataclass(frozen=True)

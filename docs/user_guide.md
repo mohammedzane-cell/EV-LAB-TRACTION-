@@ -22,7 +22,9 @@ sont signalées par une pastille ou la mention « (démo) ».
   `wltc_class3.csv`) quand ils sont disponibles.
 - **Depuis les sources** : `python -m evlab`.
 - **Auto-test** (sans interaction) : `EVLab.exe --smoke dossier` écrit
-  `dossier\smoke.log` (8 à 9 vérifications « ok »).
+  `dossier\smoke.log` (10 vérifications « ok »).
+- **Jeux de test** : `EVLab\data\tests\` contient trois moteurs, trois cycles et quatre
+  fichiers volontairement erronés, tous synthétiques (voir `data/tests/README.md`).
 
 **Principe : un moteur, une chaîne.** Le moteur identifié dans l'onglet 1 (par
 défaut TD5 Ex 1) est celui de tous les autres onglets. La barre d'état indique

@@ -101,8 +101,8 @@ def test_minimal_bench_file_is_not_demo(tmp_path):
     (BENCH_HEAD + "court-circuit,400,5,700,50,75\n", "type d'essai « court-circuit » inconnu"),
     (BENCH_HEAD + "rotor_bloque,100,14,1200,50,75\n", "aucun essai « vide »"),
     (BENCH_HEAD + "vide,400,5,700,50,75\n", "exactement un essai « rotor_bloque » (trouvé : 0)"),
-    (BENCH_HEAD + "vide,400,5,-700,50,75\nrotor_bloque,100,14,1200,50,75\n", "ligne 2 (vide) : valeur invalide"),
-    (BENCH_HEAD + "vide,400,0,700,50,75\nrotor_bloque,100,14,1200,50,75\n", "valeur invalide"),
+    (BENCH_HEAD + "vide,400,5,-700,50,75\nrotor_bloque,100,14,1200,50,75\n", "ligne 2 (vide) : la puissance P doit être > 0 W (valeur lue : « -700 »)"),
+    (BENCH_HEAD + "vide,400,0,700,50,75\nrotor_bloque,100,14,1200,50,75\n", "ligne 2 (vide) : le courant I doit être > 0 A"),
     (BENCH_HEAD + "dc,4,5,,,20\ndc,4,5,,,20\n", "plusieurs essais « dc »"),
 ])
 def test_bench_errors_in_french(tmp_path, text, msg):
