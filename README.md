@@ -10,9 +10,12 @@ one chain**: the Γ equivalent circuit identified in tab 1 from bench tests
 (default TD5 Ex 1, or the TP3-style démo files) is the motor that every other tab
 uses. Its circuit gives the V/f + field-weakening envelope, the efficiency map, the
 energy of a driving cycle, the winding temperature, and the design optimisation.
-Tab 6 covers the stator winding (factors, MMF, rotating field, optional FEM). A PDF
-report and an Excel workbook export the whole session. Specification: `CLAUDE.md`;
-user guide (French): `docs/user_guide.md`; 5-minute demo: `docs/demo_script.md`.
+Tab 6 covers the stator winding (factors, MMF, rotating field, optional FEM). Tab 8 is a
+French course that states and explains every law the app uses, tab by tab, in the notation
+of Pr Boughrara's course, with examples computed by the app itself (« ? » on each tab, F1).
+A PDF report and an Excel workbook export the whole session, and the course exports to
+PDF. Specification: `CLAUDE.md`; user guide (French): `docs/user_guide.md`; 5½-minute
+demo: `docs/demo_script.md`.
 
 ## Install
 
@@ -47,8 +50,9 @@ python -m evlab
 ```
 
 The `evlab` command (or `EVLab.exe`) does the same. Start-up self-test, without
-using the window (7 tabs, data folder, test datasets, FEM cache, demo files, envelope,
-cycle, two-process optimisation, PDF and Excel export: 10 checks; log in `<dossier>/smoke.log`, exit code 0 when all pass):
+using the window (8 tabs, data folder, test datasets, FEM cache, demo files, envelope,
+cycle, two-process optimisation, PDF and Excel export, course tab, course PDF: 12 checks;
+log in `<dossier>/smoke.log`, exit code 0 when all pass):
 
 ```bash
 python -m evlab --smoke build/smoke
@@ -83,6 +87,8 @@ official files are in `data/`.
 
 Screenshots: `python tools/capture_screenshots.py` redoes every `docs/images/*.png` by driving the
 app along `docs/demo_script.md` (headless, about 1 min) and prints the numbers the script quotes.
+Tab 8 is captured in both themes (`08_cours.png`, `08_cours_sombre.png`); the tool points
+QSettings to a temporary folder, so the theme you chose is left as it is.
 
 ## Build (PyInstaller, one folder)
 
@@ -103,6 +109,9 @@ pyinstaller --noconfirm --clean packaging/EVLab.spec
 Result: `dist/EVLab/EVLab(.exe)` with `_internal/` (Python, Qt, numpy, scipy …) and
 `data/` next to the executable (démo files, FEM cache; put the official WLTC files
 there). PyInstaller does not cross-compile: build the Windows version on Windows.
+The course pages (`src/evlab/docs/cours/*.md`) are bundled as package data and read with
+`importlib.resources`; the course is shown by a `QTextBrowser`, so the spec excludes
+QtWebEngine and the other Qt web modules (about 200 MB).
 
 ## Module overview and key equations
 
@@ -118,6 +127,7 @@ there). PyInstaller does not cross-compile: build the Windows version on Windows
 | `io/femm_model.py` (optional) | 6 | FEMM 4.2 magnetostatic stator model; B_r fundamental vs μ0·F1/(k_c·g); field at t + T/6 = field turned by q slots |
 | `core/optimise.py` | 7 | Variables G, boost, margin, k_N (impedances × k_N²); min Wh/km and t_0–50 under envelope, T_w ≤ class − 20 K, I1 ≤ i_max, E/f ≤ 1,10·En/fn; differential evolution + ε-constraint sweep, 1500 evaluations per Pareto point |
 | `io/report.py`, `io/excel.py`, `io/snapshot.py` | menu | A4 PDF (reportlab, 6 sections, assumptions box, démo footer); Excel sheet per module (SI arrays, units in headers) |
+| `core/cours_valeurs.py`, `io/cours.py`, `src/evlab/docs/cours/*.md` | 8 | no new law: the 56 laws of tabs 1–7 explained, each with an example computed by core (201 numbers), live values of the motor in use, accent-insensitive search; PDF of the whole course (QTextDocument + QPrinter) |
 
 ## What is validated / what is démo
 
@@ -133,6 +143,7 @@ there). PyInstaller does not cross-compile: build the Windows version on Windows
 | Thermal: steady state, time constants = eigenvalues, implicit = RK45, 10 K rule | **validated** | `tests/test_thermal.py` |
 | Optimisation: 1-variable optimum = brute force within 1 %; constraints met; same seed → same result | **validated** | `tests/test_optimise.py` |
 | FEM air-gap fundamental vs analytical MMF (−6,5 % linear, 6 A); T/6 symmetry < 1 % | **validated** where FEMM is installed | `tests/test_femm_model.py`, A32 |
+| Course (tab 8): every law named exists in core, every example number = an independent recomputation, every link has a target | **validated** | `tests/test_cours_pages.py`, `tests/test_cours_valeurs.py`, `tests/test_gui_cours.py` |
 | Bench and load-point files `data/*_demo.csv` (TD5 Ex 1 + R1 = 0,5 Ω, p_mec = 60 W, 2,5 % noise) | **démo** | `docs/data_notes.md` |
 | Driving cycle `data/cycle_demo.csv` (synthetic urban, not WLTC) | **démo** | A25; official WLTC files not yet provided |
 | Vehicle (600 kg quadricycle, C_xS, C_rr, r) | **démo** | A22 |
@@ -330,6 +341,39 @@ and every admissible evaluation, and shows baseline vs the selected design with
 the gain in % per KPI. "Charger ce design" loads the rewound motor, the V/f
 law and the gear ratio into every tab.
 
+## Tab 8 · Cours (`core/cours_valeurs.py`, `io/cours.py`, `gui/tab_cours.py`, `gui/cours_pdf.py`)
+
+A French course in 13 Markdown pages (`src/evlab/docs/cours/`, package data read with
+`importlib.resources`): an introduction, one page per tab 1–7, then *Hypothèses et
+limites*, *Glossaire des symboles*, *Notation : cours ↔ application*, *Validation* and
+*Bibliographie*. It adds no physics: it states the 56 laws that tabs 1–7 compute (16, 8, 6,
+6, 6, 8, 6), in the notation of Pr Boughrara's course (R_s, R_μ, X_μ, l_s'ω_s, R_r', I_s,
+I_r', g; the notation page maps it to the code's R1, Rf, Xm, X, R'2). Sources: the course
+PDF (*AC Electrical Machines*, cited as « Cours Pr Boughrara, MAS A §5.2, p. 94 », PDF page
+numbers; the PDF itself is not in the repository); topics the course does not cover are
+marked « hors cours » with a standard reference by author and title.
+
+Every tab page has the same plan: *Ce que fait cet onglet*; *Lois et explications*,
+grouped by theme (tab 1: Essais · Schéma équivalent · Couple et puissances · Ajustement par
+moindres carrés), each law with its equation, symbol table, explanation, « Ce que ça
+montre », the core function that computes it, an **Exemple** and the course reference;
+*Hypothèses*; *Avec votre moteur*; three questions with hidden answers; a link to the tab.
+
+- Numbers: the pages hold placeholders only. `core/cours_valeurs.exemples` computes the
+  201 example numbers from core objects, on the reference motor without noise or on the
+  noisy démo files (each example says which); `valeurs_moteur(motor)` gives the live values
+  of « Avec votre moteur » (« moteur de référence » until a motor is identified).
+  `io/cours.rendre` fills a page (French decimal comma) and raises `KeyError` on an unknown
+  value; the tests check that no `{{` is left on any page.
+- GUI: table of contents (pages, sections, law groups), search that ignores accents and
+  case (« decrochage » finds « décrochage », matches highlighted), a `QTextBrowser` that
+  never follows links itself: `evlab://onglet/…`, `evlab://page/…` and
+  `evlab://reponse/…` are routed by the tab. A « ? » button on each tab 1–7, F1 (page of
+  the tab on screen) and *Aide → Cours* open it. Light and dark themes.
+- *Fichier → Exporter le cours en PDF…*: title page (EV-Traction Lab, ENP Alger, ME3, date),
+  table of contents, one page per sheet, answers printed under their questions (52 A4 pages,
+  about 1 s, DejaVu fonts, always light).
+
 ## Reports (`io/report.py`, `io/excel.py`, `io/snapshot.py`, `io/figures.py`)
 
 Menu **Fichier → Exporter PDF… / Exporter Excel…** (also the "Exporter PDF"
@@ -347,6 +391,7 @@ button of tab 1) asks for the group name and a file, then writes, in a worker:
 Both come from one `Snapshot` of the session; results not computed yet (map,
 cycle, thermal) are computed with the core for the export, the optimisation is
 reported as "non calculée" until it has been run.
+*Fichier → Exporter le cours en PDF…* writes the course of tab 8 (see above), not the session.
 
 ## Core: Γ equivalent circuit (`core/circuit.py`, `core/session.py`)
 

@@ -1,4 +1,4 @@
-# Démonstration en 5 minutes — EV-Traction Lab
+# Démonstration en 5 minutes 30 — EV-Traction Lab
 
 Fil conducteur : **un moteur, une chaîne**. Le moteur identifié à l'onglet 1 est
 celui de tous les autres onglets. Les chiffres ci-dessous sont ceux qu'affiche
@@ -6,7 +6,7 @@ l'application en suivant exactement ce parcours (fichiers démo, réglages par
 défaut, graine 0). Ils ont été relevés sur l'application elle-même.
 
 **Avant de commencer** : lancer `EVLab.exe` (ou `python -m evlab`), fenêtre
-maximisée, onglet 1 ouvert. Prévoir environ 15 s de calcul à l'onglet 7
+maximisée, onglet 1 ouvert. Prévoir environ 20 s de calcul à l'onglet 7
 (4 cœurs, démo rapide). Captures de chaque étape : `docs/images/`.
 
 **Ordre impératif : onglet 1 « Identifier » d'abord.** Le moteur de départ
@@ -24,7 +24,8 @@ onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
 
 - **Montrer** la barre d'état : « Moteur : TD5 Ex 1 » et « Python 3 · PySide6 »
   (`00_fenetre.png`).
-- **Dire** : « Sept onglets, un seul moteur. Au démarrage, c'est le schéma en Γ du
+- **Dire** : « Sept onglets de calcul, un seul moteur ; le huitième est le cours qui
+  explique chaque loi. Au démarrage, c'est le schéma en Γ du
   TD5 Ex 1 : Rf = 230 Ω, Xm = 46 Ω, X = 4 Ω, R'2 = 2 Ω, R1 = 0. Il donne
   g_c = R'2/X = 0,5 et T_max = 3pV²/(2Xω) = 126,3 N·m, nos valeurs de référence
   testées. Nous allons le remplacer par un moteur identifié à partir d'essais. »
@@ -117,7 +118,7 @@ onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
 ## 4:20 – 5:00 · Onglet 7 — Optimisation
 
 - **Régler** *Points de Pareto* = 3, *Évaluations / point* = 300, *Processus* = 4
-  (900 évaluations, ≈ 17 s), puis *Lancer l'optimisation*.
+  (900 évaluations, ≈ 20 s), puis *Lancer l'optimisation*.
 - **Dire** : « Démo rapide ; calcul complet : 1500 évaluations par point »
   (réglage par défaut : 6 points × 1500 = 9000 évaluations, environ 3 min sur
   4 cœurs). Les chiffres ci-dessous sont ceux de la démo rapide ; le calcul
@@ -150,11 +151,30 @@ onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
   modèle ne sature pas : le gain à basse vitesse reste un peu optimiste. »
   Nouvelles tuiles : base 1238 tr/min, fin de puissance constante 1808 tr/min,
   P max 8,90 kW.
-- **Conclure** : *Fichier → Exporter PDF…* : rapport de 2 à 3 pages, sections 1
-  à 6, hypothèses, et pied de page listant ce qui est démo.
+
+## 5:00 – 5:30 · Onglet 8 — Cours
+
+- **Cliquer** le bouton **?** de l'onglet « 1 · Identification » (ou F1 sur l'onglet 1) :
+  la page « 1 · Identification » du cours s'ouvre ; la table des matières montre les
+  quatre groupes de lois (Essais · Schéma équivalent · Couple et puissances · Ajustement
+  par moindres carrés). Faire défiler jusqu'à « Rotor bloqué : inversion exacte du
+  schéma » (`08_cours.png`).
+- **Dire** : « Chaque loi a son équation, ses symboles, une explication, la fonction du
+  code qui la calcule, un exemple calculé par l'application et la page du cours du
+  Pr Boughrara. Ici, sur les fichiers démo bruités, R_r' = 1,77 Ω au lieu de 2 Ω : c'est
+  le bruit, pas la méthode ; les mêmes fichiers sans bruit donnent 2,000 Ω. »
+- **Cliquer** *Voir la réponse* sous Q1 (« Pourquoi divise-t-on U_dc par 2·I_dc ? ») :
+  « on mesure 2·R_s », deux phases en série.
+- **Taper** « decrochage » dans la recherche : « 19 occurrence(s) dans 6 page(s) », les
+  accents sont ignorés. *Affichage → Thème sombre* : la page suit le thème
+  (`08_cours_sombre.png`).
+- **Conclure** : *Fichier → Exporter PDF…* : rapport de 2 à 3 pages, sections 1 à 6,
+  hypothèses, et pied de page listant ce qui est démo ; *Fichier → Exporter le cours en
+  PDF…* : le cours entier, 52 pages, réponses imprimées.
 
 ---
 
 **Si une question porte sur la validation** : renvoyer au tableau « What is
 validated / what is démo » du README (circuit TD5, facteurs de bobinage,
-bilans d'énergie, comparaison avec un balayage exhaustif à 1 % près, 555 tests).
+bilans d'énergie, comparaison avec un balayage exhaustif à 1 % près, 690 tests
+qui passent et 3 en attente des fichiers WLTC) et à la page « Validation » du cours.

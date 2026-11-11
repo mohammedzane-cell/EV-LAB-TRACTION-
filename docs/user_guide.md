@@ -14,7 +14,7 @@ sont signalées par une pastille ou la mention « (démo) ».
 
 ![Capture — fenêtre principale](images/00_fenetre.png)
 
-*Fenêtre au démarrage : moteur TD5 Ex 1, aucun essai chargé.*
+*Fenêtre au démarrage : moteur TD5 Ex 1, aucun essai chargé ; huit onglets, un bouton « ? » sur chacun des sept premiers.*
 
 - **Version Windows** : ouvrir le dossier `EVLab` et lancer `EVLab.exe`. Aucune
   installation de Python n'est nécessaire. Le dossier `EVLab\data` contient les
@@ -22,7 +22,7 @@ sont signalées par une pastille ou la mention « (démo) ».
   `wltc_class3.csv`) quand ils sont disponibles.
 - **Depuis les sources** : `python -m evlab`.
 - **Auto-test** (sans interaction) : `EVLab.exe --smoke dossier` écrit
-  `dossier\smoke.log` (10 vérifications « ok »).
+  `dossier\smoke.log` (12 vérifications « ok », dont l'onglet 8 et le PDF du cours).
 - **Jeux de test** : `EVLab\data\tests\` contient trois moteurs, trois cycles et quatre
   fichiers volontairement erronés, tous synthétiques (voir `data/tests/README.md`).
 
@@ -36,7 +36,12 @@ de progression s'affiche, l'interface reste utilisable.
 encadré des hypothèses, pied de page listant les valeurs démo) et *Exporter
 Excel…* (une feuille par module, tableaux bruts en unités SI). Les résultats non
 encore calculés sont calculés pour l'export ; l'optimisation est notée « non
-calculée » tant qu'elle n'a pas été lancée.
+calculée » tant qu'elle n'a pas été lancée. *Exporter le cours en PDF…* écrit le cours
+de l'onglet 8 (voir la section 8).
+
+**Aide et cours** : chaque onglet 1 à 7 porte un bouton **?** qui ouvre sa page du cours
+(onglet 8) ; **F1** fait de même pour l'onglet affiché. Menu **Aide** : *Cours*
+(introduction) et *Cours de l'onglet affiché* (F1).
 
 **Menu Affichage** : *Thème clair* (par défaut) ou *Thème sombre* ; le choix est
 appliqué tout de suite et retenu au prochain démarrage. Les pastilles ambre
@@ -239,3 +244,49 @@ recalculent.
 les évaluations admissibles ; tableau *Base vs design sélectionné* avec le gain
 en % par indicateur (écart de température en K). La capture est une démo rapide
 (3 points × 300 évaluations) ; le calcul complet utilise 1500 évaluations par point.
+
+---
+
+## 8. Cours
+
+![Capture — onglet 8, thème clair](images/08_cours.png)
+
+![Capture — onglet 8, thème sombre](images/08_cours_sombre.png)
+
+*Bouton « ? » de l'onglet 1 : page « 1 · Identification », loi « Rotor bloqué : inversion
+exacte du schéma » ; en haut thème clair, en bas thème sombre.*
+
+**But** : énoncer et expliquer chaque loi que l'application utilise, onglet par onglet,
+dans la notation du cours du Pr Boughrara (R_s, R_μ, X_μ, l_s'ω_s, R_r', I_s, I_r', g).
+L'onglet n'ajoute aucun calcul : il explique ceux des onglets 1 à 7.
+
+**Pages** : introduction, une page par onglet 1 à 7, puis *Hypothèses et limites*,
+*Glossaire des symboles*, *Notation : cours ↔ application* (R_s ↔ R1, R_μ ↔ Rf, …),
+*Validation* et *Bibliographie*.
+
+**Plan d'une page d'onglet** : *Ce que fait cet onglet* ; *Lois et explications*, groupées
+par thème (onglet 1 : Essais · Schéma équivalent · Couple et puissances · Ajustement par
+moindres carrés), chaque loi avec son équation, le tableau de ses symboles, une
+explication, « Ce que ça montre », la fonction du code qui la calcule (« Dans
+l'application »), un **Exemple** et la référence au cours (« Cours Pr Boughrara, MAS A
+§5.2, p. 94 », ou « hors cours ») ; *Hypothèses* ; *Avec votre moteur* ; trois questions
+(*Voir la réponse* / *Masquer la réponse*) ; un lien vers l'onglet.
+
+**Les nombres** : tous sont calculés par l'application. Chaque exemple dit sur quelles
+données il est calculé : « moteur de référence, sans bruit » ou « fichiers démo bruités
+(R1 = 0,40 Ω) ». *Avec votre moteur* donne les valeurs du moteur utilisé par la chaîne
+en ce moment (« moteur de référence » tant qu'aucun moteur n'est identifié) et se met à
+jour à chaque identification ou chargement d'un design.
+
+**Navigation** : la table des matières (à gauche) ouvre une page, une section ou un groupe
+de lois. La recherche ignore les accents et les majuscules (« decrochage » trouve
+« décrochage ») : elle garde les pages qui contiennent tous les mots et surligne les
+occurrences. Les liens « Ouvrir l'onglet » changent d'onglet.
+
+**Export** : *Fichier → Exporter le cours en PDF…* écrit tout le cours (page de titre,
+sommaire, une page par feuille, réponses imprimées sous les questions), toujours en thème
+clair, nom proposé `cours_EV-Traction_Lab.pdf`.
+
+**À vérifier** : page 1, l'inversion exacte donne R_r' = 1,77 Ω sur les fichiers démo
+bruités et 2,000 Ω sur les mêmes fichiers sans bruit : l'écart vient du bruit, pas de la
+méthode.
