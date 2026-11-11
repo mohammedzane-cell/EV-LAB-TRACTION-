@@ -64,15 +64,18 @@ class LoadPointsFile:
     meta: dict[str, str] = field(default_factory=dict)
 
 
-def _read(path: str | Path, expected: dict[str, str | None]) -> tuple[list[dict[str, str]], dict[str, str], str]:
+def _read(path: str | Path, expected: dict[str, str | None],
+          text: str | None = None) -> tuple[list[dict[str, str]], dict[str, str], str]:
+    """Rows, metadata and name of a CSV file; `text` parses that content instead of reading `path`."""
     p = Path(path)
     name = p.name
-    try:
-        text = p.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        raise LoaderError(f"Fichier introuvable : {p}") from None
-    except UnicodeDecodeError:
-        raise LoaderError(f"{name} : le fichier n'est pas en UTF-8") from None
+    if text is None:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            raise LoaderError(f"Fichier introuvable : {p}") from None
+        except UnicodeDecodeError:
+            raise LoaderError(f"{name} : le fichier n'est pas en UTF-8") from None
     meta: dict[str, str] = {}
     lines: list[tuple[int, str]] = []
     for n, line in enumerate(text.splitlines(), start=1):
@@ -167,9 +170,9 @@ def _positive(row: dict[str, str], col: str, name: str) -> float:
     return x
 
 
-def load_bench_tests(path: str | Path) -> BenchTests:
-    """Read DC, no-load and locked-rotor tests from a CSV file (see module docstring)."""
-    rows, meta, name = _read(path, BENCH_COLUMNS)
+def load_bench_tests(path: str | Path, text: str | None = None) -> BenchTests:
+    """Read DC, no-load and locked-rotor tests from a CSV file (see module docstring); `text`: content in memory."""
+    rows, meta, name = _read(path, BENCH_COLUMNS, text)
     dc = None
     no_load: list[ident.NoLoadTest] = []
     locked: list[ident.LockedRotorTest] = []
@@ -204,9 +207,9 @@ def load_bench_tests(path: str | Path) -> BenchTests:
     return BenchTests(dc, tuple(no_load), locked[0], t_hot, is_demo_file(path, meta), str(path), meta)
 
 
-def load_load_points(path: str | Path) -> LoadPointsFile:
-    """Read load-test points (g, U, I, T, cos φ, f) from a CSV file (see module docstring)."""
-    rows, meta, name = _read(path, LOAD_COLUMNS)
+def load_load_points(path: str | Path, text: str | None = None) -> LoadPointsFile:
+    """Read load-test points (g, U, I, T, cos φ, f) from a CSV file (see module docstring); `text`: content in memory."""
+    rows, meta, name = _read(path, LOAD_COLUMNS, text)
     pts = []
     for row in rows:
         g, u, i, t, pf, f = (_num(row, c, name) for c in ("g", "U", "I", "T", "cos_phi", "f"))
