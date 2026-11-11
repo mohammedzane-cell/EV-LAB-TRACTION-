@@ -36,7 +36,8 @@ Chaque page d'onglet a les mêmes parties :
   le fichier du code qui la calcule, un exemple chiffré et la référence dans le cours.
 - **Hypothèses** — ce que le modèle néglige, et pourquoi c'est acceptable ici.
 - **Avec votre moteur** — les valeurs du moteur que la chaîne utilise en ce moment.
-- **Questions pour s'entraîner** — trois questions ; cliquez sur « Voir la réponse ».
+- **Questions pour s'entraîner** — trois questions ; cliquez sur « Voir la réponse » (dans le
+  PDF du cours, les réponses sont imprimées sous les questions).
 - un lien vers l'onglet.
 
 ## Exemples et données

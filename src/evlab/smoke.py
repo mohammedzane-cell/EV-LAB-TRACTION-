@@ -3,7 +3,8 @@
 Checks, in order: the eight tabs exist (7 + the course); the demo files are found in data/ (tab 1); the
 envelope (scipy) and the cycle (tab 4) are computed in worker threads; a two-process
 optimisation (spawn pool: needs multiprocessing.freeze_support in a frozen build); the
-PDF (reportlab + matplotlib fonts) and Excel exports. Prints one line per check; exit
+PDF (reportlab + matplotlib fonts) and Excel exports; a course page of tab 8 (pages read
+through importlib.resources, examples computed) and the course PDF. Prints one line per check; exit
 code 0 when all pass. The same lines go to <out_dir>/smoke.log (a windowed build has no console).
 """
 
@@ -82,6 +83,14 @@ def run(out_dir: str | None = None) -> int:
         w.export(kind, path, "Test de démarrage")
         ok = _wait(app, lambda: bool(done), 120) and done[0] is not None and path.stat().st_size > 0
         check(f"export {kind.upper()}", ok, str(path))
+    w.open_course("identification")
+    ok = _wait(app, lambda: w.course.ex is not None and w.course.current == "identification", 120)
+    text = w.course.browser.toPlainText()
+    check("cours (onglet 8)", ok and "Lois et explications" in text and "{{" not in text,
+          f"{len(w.course.ex or {})} exemples calculés")
+    pdf = out / "cours.pdf"
+    written = w.export_course(pdf)
+    check("export du cours en PDF", written is not None and pdf.stat().st_size > 50_000, str(pdf))
     w.close()
     failed = [c for c in checks if not c[1]]
     say(f"{len(checks) - len(failed)}/{len(checks)} vérifications réussies")

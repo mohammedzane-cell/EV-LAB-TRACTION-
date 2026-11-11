@@ -174,3 +174,44 @@ def test_tab_bar_fits_the_minimum_window(qtbot):
     qtbot.waitExposed(w)
     bar = w.tabs.tabBar()
     assert sum(bar.tabRect(k).width() for k in range(bar.count())) <= w.tabs.width()
+
+
+# --- course PDF (Fichier → Exporter le cours en PDF) ----------------------------------------------
+
+def test_course_pdf_menu_entry(win):
+    fichier = [a for a in win.menuBar().actions() if a.text() == "Fichier"][0].menu()
+    assert "Exporter le cours en PDF…" in [a.text() for a in fichier.actions()]
+    assert mw.COURSE_PDF_NAME == "cours_EV-Traction_Lab.pdf"
+
+
+def test_course_pdf_has_title_page_every_page_and_the_answers(qtbot, win, tmp_path):
+    import datetime as dt
+
+    pypdf = pytest.importorskip("pypdf")
+    with qtbot.waitSignal(win.export_done, timeout=TIMEOUT) as b:
+        out = win.export_course(tmp_path / mw.COURSE_PDF_NAME)
+    assert b.args[0] == out and out.stat().st_size > 50_000
+    assert win.statusBar().currentMessage() == f"Cours exporté : {out}"
+    reader = pypdf.PdfReader(str(out))
+    pages = [" ".join(p.extract_text().split()) for p in reader.pages]  # wrapped lines and tabs → one space
+    assert len(pages) > len(cours.PAGES)
+    first = pages[0]
+    for s in ("EV-Traction Lab", "École Nationale Polytechnique, Alger", "ME3", dt.date.today().strftime("%d/%m/%Y"),
+              "moteur de référence"):
+        assert s in first, s
+    text = " ".join(pages)
+    for p in cours.PAGES:
+        assert cours.rendre(p.slug, None).splitlines()[0].removeprefix("# ").split(" : ")[0][:20] in text, p.slug
+    assert text.count("Réponse.") == sum(cours.n_reponses(p.slug) for p in cours.PAGES) == 21
+    assert "{{" not in text and "evlab://" not in text and "Voir la réponse »" not in text.split("Sommaire")[0]
+    fonts = set()
+    for page in reader.pages:
+        for f in (page.get("/Resources") or {}).get("/Font", {}).values():
+            fonts.add(str(f.get_object().get("/BaseFont")))
+    assert fonts and all("DejaVu" in f for f in fonts), fonts
+
+
+def test_course_pdf_failure_is_reported(qtbot, win, tmp_path):
+    with qtbot.waitSignal(win.export_failed, timeout=TIMEOUT):
+        assert win.export_course(tmp_path / "absent" / "cours.pdf") is None
+    assert "Échec de l'export du cours" in win.statusBar().currentMessage()

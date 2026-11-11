@@ -196,10 +196,15 @@ class CoursTab(QWidget):
         if self._worker is None:
             worker = CoreWorker(lambda progress: cours.exemples())
             worker.signals.finished.connect(self._examples_done)
-            worker.signals.failed.connect(lambda msg: self.status_message.emit(f"Cours : {msg}"))
+            worker.signals.failed.connect(self._examples_failed)  # bound method: dropped if the tab is deleted
             self._worker = worker
             QThreadPool.globalInstance().start(worker)
         return False
+
+    def _examples_failed(self, message: str) -> None:
+        self._worker = None
+        self.browser.setPlainText(f"Le cours n'a pas pu être préparé : {message}")
+        self.status_message.emit(f"Cours : {message}")
 
     def _examples_done(self, ex: dict) -> None:
         self.ex = ex

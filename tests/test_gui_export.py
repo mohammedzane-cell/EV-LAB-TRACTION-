@@ -27,7 +27,7 @@ def test_menu(win):
     menu = win.menuBar().actions()[0]
     assert menu.text() == "Fichier"
     texts = [a.text() for a in menu.menu().actions() if a.text()]
-    assert texts == ["Exporter PDF…", "Exporter Excel…", "Quitter"]
+    assert texts == ["Exporter PDF…", "Exporter Excel…", "Exporter le cours en PDF…", "Quitter"]
     assert win.tabs.widget(0).btn_pdf.isEnabled()
 
 

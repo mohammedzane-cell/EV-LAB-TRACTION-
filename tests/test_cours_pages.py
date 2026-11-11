@@ -338,3 +338,16 @@ def test_search_ignores_accents_and_case():
     both = {s for s, _ in cours.rechercher("carter entrefer")}
     assert both == {s for s, _ in cours.rechercher("carter")} & {s for s, _ in cours.rechercher("entrefer")}
     assert cours.rechercher("") == [] and cours.rechercher("x") == []  # words of 1 letter are ignored
+
+
+def test_print_mode_shows_answers_and_no_links():
+    from evlab.core.session import td5_ex1 as ref
+
+    for p in cours.PAGES:
+        text = cours.rendre(p.slug, ref(), imprimer=True)
+        assert "evlab://" not in text and "Voir la réponse](" not in text and "Ouvrir l'onglet" not in text
+        assert text.count("> **Réponse.**") == cours.n_reponses(p.slug)
+    screen = cours.rendre("identification", ref())
+    printed = cours.rendre("identification", ref(), imprimer=True)
+    assert printed.split("## Questions")[0] == screen.split("## Questions")[0].replace(
+        "[page Validation](evlab://page/validation)", "page Validation")

@@ -17,9 +17,14 @@ a = Analysis(
     [str(ROOT / "packaging" / "evlab_launcher.py")],
     pathex=[str(ROOT / "src")],
     datas=[(str(ROOT / "src" / "evlab" / "gui" / "style.qss"), "evlab/gui"),  # UI theme (gui/theme.py)
-           (str(ROOT / "src" / "evlab" / "gui" / "icons"), "evlab/gui/icons")],
-    hiddenimports=["evlab.smoke"],
-    excludes=["tkinter", "PyQt5", "PyQt6", "PySide2", "IPython", "pytest", "pytestqt", "femm", "pymoo"],
+           (str(ROOT / "src" / "evlab" / "gui" / "icons"), "evlab/gui/icons"),
+           (str(ROOT / "src" / "evlab" / "docs" / "cours"), "evlab/docs/cours")],  # course pages (tab 8)
+    # course pages are read with importlib.resources from the package evlab.docs.cours
+    hiddenimports=["evlab.smoke", "evlab.docs", "evlab.docs.cours"],
+    excludes=["tkinter", "PyQt5", "PyQt6", "PySide2", "IPython", "pytest", "pytestqt", "femm", "pymoo",
+              # QTextBrowser shows the course: the web engine (and its ~200 MB) is never used
+              "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineQuick",
+              "PySide6.QtWebChannel", "PySide6.QtWebSockets", "PySide6.QtWebView"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

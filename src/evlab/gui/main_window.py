@@ -48,6 +48,7 @@ TAB_CLASSES = (
     OptimisationTab,
     CoursTab,
 )
+COURSE_PDF_NAME = "cours_EV-Traction_Lab.pdf"
 COURSE_INDEX = len(TAB_CLASSES) - 1  # « 8 · Cours », last tab; tab k < 7 is explained by cours.TABS[k]
 
 
@@ -171,6 +172,30 @@ class MainWindow(QMainWindow):
             return False
         return self.open_course(cours.TABS[k])
 
+    def _export_course_dialog(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(self, "Exporter le cours", COURSE_PDF_NAME, "PDF (*.pdf)")
+        if path:
+            self.export_course(path)
+
+    def export_course(self, path) -> Path | None:
+        """Write the whole course (tab 8) as a PDF: title page and every page, with the motor of the chain."""
+        from PySide6.QtCore import Qt
+
+        from evlab.gui.cours_pdf import export_course_pdf
+
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            out = export_course_pdf(path, self.session.motor, ex=self.course.ex)
+        except (OSError, ValueError) as exc:
+            self.statusBar().showMessage(f"Échec de l'export du cours : {exc}")
+            self.export_failed.emit(str(exc))
+            return None
+        finally:
+            QApplication.restoreOverrideCursor()
+        self.statusBar().showMessage(f"Cours exporté : {out}")
+        self.export_done.emit(out)
+        return out
+
     def open_tab(self, name: str) -> None:
         """Switch to a tab by its name in io.cours.TABS (a link « → Ouvrir l'onglet N » of the course)."""
         self.tabs.setCurrentIndex(cours.TABS.index(name))
@@ -185,11 +210,14 @@ class MainWindow(QMainWindow):
         self.act_excel = QAction("Exporter Excel…", self)
         self.act_excel.setShortcut(QKeySequence("Ctrl+E"))
         self.act_excel.triggered.connect(lambda: self._export_dialog("xlsx"))
+        self.act_course_pdf = QAction("Exporter le cours en PDF…", self)
+        self.act_course_pdf.triggered.connect(self._export_course_dialog)
         act_quit = QAction("Quitter", self)
         act_quit.setShortcut(QKeySequence.StandardKey.Quit)
         act_quit.triggered.connect(self.close)
         menu.addAction(self.act_pdf)
         menu.addAction(self.act_excel)
+        menu.addAction(self.act_course_pdf)
         menu.addSeparator()
         menu.addAction(act_quit)
         view = self.menuBar().addMenu("Affichage")

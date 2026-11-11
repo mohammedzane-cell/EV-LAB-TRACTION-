@@ -156,13 +156,21 @@ def _without_motor(text: str) -> str:
 
 
 def rendre(slug: str, moteur: MotorParams | None, ouvertes: frozenset[int] | set[int] = frozenset(),
-           ex: dict | None = None) -> str:
-    """Rendered Markdown of a page: numbers filled, answers hidden except those in `ouvertes`."""
+           ex: dict | None = None, imprimer: bool = False) -> str:
+    """Rendered Markdown of a page: numbers filled, answers hidden except those in `ouvertes`.
+
+    imprimer=True (PDF): every answer printed under its question, links kept as plain text,
+    the « → Ouvrir l'onglet » line dropped (nothing to click on paper).
+    """
     text = source(slug)
     values = cv.valeurs_moteur(moteur)
     if values is None:
         text = _without_motor(text)
     text = _fill(text, exemples() if ex is None else ex, values, slug)
+    if imprimer:
+        text = re.sub(r"^\[→ Ouvrir l'onglet \d\]\(evlab://onglet/[a-z]+\)\n?", "", text, flags=re.M)
+        text = _ANSWER.sub(lambda m: "> **Réponse.** " + m.group(1).replace("\n", "\n> "), text)
+        return re.sub(r"\[([^\]]+)\]\(evlab://[^)]+\)", r"\1", text).rstrip() + "\n"
     counter = iter(range(1, 1000))
 
     def answer(m: re.Match) -> str:
