@@ -312,3 +312,29 @@ def test_unknown_page_and_tab_are_refused():
 def test_unknown_placeholder_is_reported():
     with pytest.raises(KeyError, match="valeur inconnue"):
         cours._fill("{{ex:nulle}}", {}, None, "test")
+
+
+# --- table of contents and search ---------------------------------------------------------------
+
+def test_titles_for_the_table_of_contents():
+    t = cours.titres("identification")
+    assert t[0] == (2, "Ce que fait cet onglet") and (3, "Essais") in t
+    assert all(level in (2, 3) for level, _ in t)
+    assert not any("####" in text for _, text in t)
+
+
+def test_folding_keeps_one_character_per_character():
+    for s in ("Décrochage", "ÉTOILE à 75 °C", "R_μ ∥ jX_μ", "œuvre ß"):
+        assert len(cours.replier(s)) == len(s)
+    assert cours.replier("Décrochage À") == "decrochage a"
+    assert cours.mots_recherche("  Décrochage décrochage x VF ") == ["decrochage", "vf"]
+
+
+def test_search_ignores_accents_and_case():
+    with_accents = cours.rechercher("décrochage")
+    assert with_accents == cours.rechercher("DECROCHAGE") and with_accents
+    assert ("enveloppe", max(c for _, c in with_accents)) in with_accents
+    assert all(n > 0 for _, n in with_accents)
+    both = {s for s, _ in cours.rechercher("carter entrefer")}
+    assert both == {s for s, _ in cours.rechercher("carter")} & {s for s, _ in cours.rechercher("entrefer")}
+    assert cours.rechercher("") == [] and cours.rechercher("x") == []  # words of 1 letter are ignored

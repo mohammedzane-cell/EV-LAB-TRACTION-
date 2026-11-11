@@ -33,6 +33,7 @@ WINDING_FULL = (36, 4, 3, 9)
 N_C_EX = 10  # turns per coil (tab 6 default)
 FLUX_EX_WB = 0.01  # flux per pole of the tab 6 EMF example, Wb (tab 6 default)
 CLASS_EX = "F"
+REFERENCE_LABEL = "moteur de référence"  # « Avec votre moteur » before a motor is identified (status bar unchanged)
 COOL_S, COOL_FROM_S, COOL_EVERY_S = 7200, 1800.0, 600.0  # cooling-test example of tab 5 (s)
 # air-gap example of tab 6 (FEM démo geometry A32): bore radius, slot opening, air gap (m), peak current (A)
 BORE_R_M, SLOT_OPENING_M, GAP_M, I_PEAK_EX = 0.065, 0.0025, 0.0005, 6.0
@@ -283,7 +284,7 @@ def valeurs_moteur(m: MotorParams | None) -> dict[str, float | str] | None:
     e_n = drive.rated_emf(m)
     t_class = thermal.INSULATION_CLASSES[CLASS_EX] + T_ZERO_C
     out: dict[str, float | str] = {
-        "source": m.source + (" (démo)" if m.is_demo else ""),
+        "source": REFERENCE_LABEL if m == td5_ex1() else m.source + (" (démo)" if m.is_demo else ""),
         "r1": m.r1, "r_fe": m.r_fe, "x_m": m.x_m, "x_leak": m.x_leak, "r2p": m.r2p, "p_mech": m.p_mech,
         "t_r1": (m.r1_temperature_k - T_ZERO_C) if m.r1_temperature_k is not None else "—",
         "g_c": circuit.breakdown_slip(m), "t_max": circuit.max_torque(m), "i_mu": circuit.magnetising_current(m),

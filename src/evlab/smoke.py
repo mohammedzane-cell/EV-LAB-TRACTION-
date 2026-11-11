@@ -1,6 +1,6 @@
 """Start-up self-test of an installed or frozen build: `EVLab --smoke [out_dir]` (no window interaction).
 
-Checks, in order: the seven tabs exist; the demo files are found in data/ (tab 1); the
+Checks, in order: the eight tabs exist (7 + the course); the demo files are found in data/ (tab 1); the
 envelope (scipy) and the cycle (tab 4) are computed in worker threads; a two-process
 optimisation (spawn pool: needs multiprocessing.freeze_support in a frozen build); the
 PDF (reportlab + matplotlib fonts) and Excel exports. Prints one line per check; exit
@@ -52,7 +52,7 @@ def run(out_dir: str | None = None) -> int:
 
     w = MainWindow()
     w.show()
-    check("7 onglets", w.tabs.count() == 7, ", ".join(w.tabs.tabText(i) for i in range(w.tabs.count())))
+    check("8 onglets", w.tabs.count() == 8, ", ".join(w.tabs.tabText(i) for i in range(w.tabs.count())))
     check("dossier data", (data_dir() / "bench_tests_demo.csv").exists(), str(data_dir()))
     tests = sorted((data_dir() / "tests").glob("*.csv"))
     check("jeux de test (data/tests)", len(tests) == 13 and (data_dir() / "tests" / "README.md").exists(),

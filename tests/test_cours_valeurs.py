@@ -102,3 +102,11 @@ def test_reference_values_quoted_by_the_course():
     m = td5_ex1()
     assert circuit.breakdown_slip(m) == pytest.approx(0.5)
     assert np.isclose(circuit.max_torque(m), 126.29, atol=0.01)
+
+
+def test_reference_label_before_identification(demo):
+    assert cv.valeurs_moteur(td5_ex1())["source"] == cv.REFERENCE_LABEL == "moteur de référence"
+    m = cv.demo_motor(demo)
+    assert cv.valeurs_moteur(m)["source"] == m.source + " (démo)"
+    from dataclasses import replace
+    assert cv.valeurs_moteur(replace(td5_ex1(), r2p=2.5))["source"] == "TD5 Ex 1"  # changed motor: its own label

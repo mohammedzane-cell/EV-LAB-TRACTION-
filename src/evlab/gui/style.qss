@@ -72,11 +72,29 @@ QTabBar::tab {
     color: @text;
     border: 1px solid @tab;
     border-radius: 13px;
-    padding: 5px 14px;
-    margin: 4px 3px 2px 3px;
+    padding: 5px 9px;
+    margin: 4px 2px 2px 2px;
 }
 
 QTabBar::tab:hover:!selected {
+    background: @selection;
+}
+
+QToolButton#tabHelp {
+    background: @card;
+    color: @primary;
+    border: 1px solid @primary;
+    border-radius: 8px;
+    font-weight: bold;
+    min-width: 14px;
+    max-width: 14px;
+    min-height: 14px;
+    max-height: 14px;
+    padding: 0px;
+    margin-left: 2px;
+}
+
+QToolButton#tabHelp:hover {
     background: @selection;
 }
 
@@ -361,6 +379,29 @@ QTableWidget, QTableView {
 
 QTableWidget#slotTable {
     font-size: 8.5pt;
+}
+
+QTreeView {
+    background: @card;
+    color: @text;
+    border: 1px solid @border;
+    border-radius: 6px;
+    selection-background-color: @primary;
+    selection-color: @on_primary;
+    outline: none;
+}
+
+QTreeView::item {
+    padding: 2px 0px;
+}
+
+QTreeView::item:hover:!selected {
+    background: @hover;
+}
+
+QTreeView::item:selected {
+    background: @primary;
+    color: @on_primary;
 }
 
 QHeaderView::section {

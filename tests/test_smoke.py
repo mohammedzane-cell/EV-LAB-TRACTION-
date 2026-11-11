@@ -1,14 +1,14 @@
-"""Smoke tests: every module imports, the main window opens with its 7 tabs."""
+"""Smoke tests: every module imports, the main window opens with its 8 tabs (7 + the course)."""
 
 import importlib
 
 import pytest
 
 CORE = ["session", "circuit", "identification", "drive", "losses",
-        "vehicle", "thermal", "winding", "optimise"]
-IO = ["loaders", "demo_data", "cycles", "format", "snapshot", "figures", "report", "excel"]
+        "vehicle", "thermal", "winding", "optimise", "cours_valeurs"]
+IO = ["loaders", "demo_data", "cycles", "format", "snapshot", "figures", "report", "excel", "cours"]
 GUI = ["main_window", "tab_identification", "tab_envelope", "tab_efficiency",
-       "tab_vehicle", "tab_thermal", "tab_winding", "tab_optimisation", "format", "workers"]
+       "tab_vehicle", "tab_thermal", "tab_winding", "tab_optimisation", "tab_cours", "format", "workers"]
 
 TAB_TITLES = [
     "1 · Identification",
@@ -18,6 +18,7 @@ TAB_TITLES = [
     "5 · Thermique",
     "6 · Bobinage",
     "7 · Optimisation",
+    "8 · Cours",
 ]
 
 
@@ -37,7 +38,7 @@ def test_import_gui(name):
     assert importlib.import_module(f"evlab.gui.{name}").__doc__
 
 
-def test_main_window_opens_with_seven_tabs(qtbot):
+def test_main_window_opens_with_eight_tabs(qtbot):
     from evlab.gui.main_window import MainWindow
 
     win = MainWindow()
@@ -45,12 +46,12 @@ def test_main_window_opens_with_seven_tabs(qtbot):
     win.show()
     qtbot.waitExposed(win)
     assert win.windowTitle() == "EV-Traction Lab : Laboratoire virtuel de traction (ME3)"
-    assert win.tabs.count() == 7
+    assert win.tabs.count() == 8
     # Qt stores '&&' for a literal '&' (a single '&' would be hidden as a shortcut marker)
     labels = [win.tabs.tabText(i) for i in range(win.tabs.count())]
     assert labels[3] == "4 · Véhicule && WLTC"
     assert [lab.replace("&&", "&") for lab in labels] == TAB_TITLES
-    assert [win.tabs.widget(i).title for i in range(7)] == TAB_TITLES
+    assert [win.tabs.widget(i).title for i in range(8)] == TAB_TITLES
     assert win.statusBar().currentMessage() == "Moteur : TD5 Ex 1"
 
 

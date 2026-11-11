@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from dataclasses import dataclass
 from functools import lru_cache
 from importlib import resources
@@ -197,3 +198,47 @@ def lien_valide(url: str) -> bool:
     except ValueError:
         return False
     return False
+
+
+# --- table of contents and search (accents and case ignored) -------------------------------------
+
+_HEADING = re.compile(r"^(##|###) (.+)$", re.M)
+_SOURCE_NOISE = re.compile(r"\{\{[^}]*\}\}|[*`#|>\[\]]|\(evlab://[^)]*\)")
+
+
+def titres(slug: str) -> list[tuple[int, str]]:
+    """(level 2 or 3, text) of the « ## » and « ### » headings of a page, in order (table of contents)."""
+    return [(len(m.group(1)), m.group(2).strip()) for m in _HEADING.finditer(source(slug))]
+
+
+def replier(text: str) -> str:
+    """Lower case without accents, ONE character per character (positions stay valid): « Décrochage » → « decrochage »."""
+    out = []
+    for c in text:
+        base = unicodedata.normalize("NFD", c)[0]
+        low = base.lower()
+        out.append(low[0] if low else c)
+    return "".join(out)
+
+
+def mots_recherche(query: str) -> list[str]:
+    """The distinct folded words of a search (2 characters or more)."""
+    seen: list[str] = []
+    for w in replier(query).split():
+        if len(w) >= 2 and w not in seen:
+            seen.append(w)
+    return seen
+
+
+def rechercher(query: str) -> list[tuple[str, int]]:
+    """Pages that contain every word of `query` (accents and case ignored), with the number of occurrences."""
+    words = mots_recherche(query)
+    if not words:
+        return []
+    out = []
+    for p in PAGES:
+        text = replier(_SOURCE_NOISE.sub(" ", source(p.slug)))
+        counts = [text.count(w) for w in words]
+        if all(counts):
+            out.append((p.slug, sum(counts)))
+    return out

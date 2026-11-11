@@ -1,4 +1,4 @@
-"""Main window: seven tabs sharing one Session (one motor, one chain) and a status bar."""
+"""Main window: seven tabs sharing one Session (one motor, one chain), the course tab and a status bar."""
 
 from __future__ import annotations
 
@@ -14,11 +14,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QProgressBar,
+    QTabBar,
     QTabWidget,
+    QToolButton,
 )
 
 from evlab.core.session import Session
 from evlab.gui import theme
+from evlab.gui.tab_cours import CoursTab
 from evlab.gui.tab_efficiency import EfficiencyTab
 from evlab.gui.tab_envelope import EnvelopeTab
 from evlab.gui.tab_identification import IdentificationTab
@@ -28,6 +31,7 @@ from evlab.gui.tab_vehicle import VehicleTab
 from evlab.gui.tab_winding import WindingTab
 from evlab.gui.widgets import external_legends, flexible_plots
 from evlab.gui.workers import CoreWorker
+from evlab.io import cours
 
 WINDOW_TITLE = "EV-Traction Lab : Laboratoire virtuel de traction (ME3)"
 MIN_SIZE = (1100, 650)  # logical px: every tab stays usable down to this size (left panels scroll)
@@ -42,7 +46,9 @@ TAB_CLASSES = (
     ThermalTab,
     WindingTab,
     OptimisationTab,
+    CoursTab,
 )
+COURSE_INDEX = len(TAB_CLASSES) - 1  # « 8 · Cours », last tab; tab k < 7 is explained by cours.TABS[k]
 
 
 def opens_maximised(avail_width: int, avail_height: int) -> bool:
@@ -88,6 +94,17 @@ class MainWindow(QMainWindow):
             if hasattr(tab, "motor_published"):
                 tab.motor_published.connect(self._on_motor_published)
         self.setCentralWidget(self.tabs)
+        self.course = self.tabs.widget(COURSE_INDEX)
+        self.course.open_tab.connect(self.open_tab)
+        self.help_buttons: list[QToolButton] = []
+        for k in range(COURSE_INDEX):
+            btn = QToolButton()
+            btn.setObjectName("tabHelp")
+            btn.setText("?")
+            btn.setToolTip(f"Cours : les lois de l'onglet {self.tabs.widget(k).title} (F1)")
+            btn.clicked.connect(lambda _checked=False, name=cours.TABS[k]: self.open_course(name))
+            self.tabs.tabBar().setTabButton(k, QTabBar.ButtonPosition.RightSide, btn)
+            self.help_buttons.append(btn)
         external_legends(self.tabs)  # legends above the plots, never over a curve
         flexible_plots(self.tabs)
         self._build_menu()
@@ -138,6 +155,26 @@ class MainWindow(QMainWindow):
             if hasattr(tab, "on_theme_changed"):
                 tab.on_theme_changed()
 
+    # --- course (tab 8) -------------------------------------------------------------
+
+    def open_course(self, tab: str | None = None) -> bool:
+        """Show tab 8 at the page of a tab (identification … optimisation), or at the introduction (None)."""
+        self.tabs.setCurrentIndex(COURSE_INDEX)
+        if tab is None:
+            return self.course.show_page(cours.PAGES[0].slug)
+        return self.course.show_tab_page(tab)
+
+    def course_for_current_tab(self) -> bool:
+        """F1: the course page of the tab on screen (tab 8 stays where it is)."""
+        k = self.tabs.currentIndex()
+        if k == COURSE_INDEX:
+            return False
+        return self.open_course(cours.TABS[k])
+
+    def open_tab(self, name: str) -> None:
+        """Switch to a tab by its name in io.cours.TABS (a link « → Ouvrir l'onglet N » of the course)."""
+        self.tabs.setCurrentIndex(cours.TABS.index(name))
+
     # --- reports -------------------------------------------------------------------
 
     def _build_menu(self) -> None:
@@ -156,6 +193,15 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         menu.addAction(act_quit)
         view = self.menuBar().addMenu("Affichage")
+        aide = self.menuBar().addMenu("Aide")
+        self.act_course = QAction("Cours", self)
+        self.act_course.setToolTip("Onglet 8 · Cours : les lois de chaque onglet, dans la notation du cours")
+        self.act_course.triggered.connect(lambda: self.open_course(None))
+        self.act_course_tab = QAction("Cours de l'onglet affiché", self)
+        self.act_course_tab.setShortcut(QKeySequence(QKeySequence.StandardKey.HelpContents))  # F1
+        self.act_course_tab.triggered.connect(self.course_for_current_tab)
+        aide.addAction(self.act_course)
+        aide.addAction(self.act_course_tab)
         group = QActionGroup(self)
         group.setExclusive(True)
         self.theme_actions: dict[str, QAction] = {}
