@@ -1,0 +1,28 @@
+# démo: essais DC, à vide, rotor bloqué, généré par evlab.io.demo_data depuis le circuit de référence
+# bruit: 0.025 (relatif, gaussien), graine: 2102
+# plaque.tension_simple [V]: 230
+# plaque.frequence [Hz]: 50
+# plaque.paires_de_poles: 2
+# plaque.vitesse_nominale [tr/min]: 1436
+# reference.source: moyen_4kW (synthétique, démo)
+# reference.v_phase: 230.0
+# reference.f_rated: 50.0
+# reference.pole_pairs: 2
+# reference.r1: 1.6
+# reference.r_fe: 900.0
+# reference.x_m: 75.0
+# reference.x_leak: 6.5
+# reference.r2p: 1.4
+# reference.p_mech: 40.0
+# reference.t_hot_c: 75.0
+essai,U [V],I [A],P [W],f [Hz],T [°C]
+dc,13.0894,4.94854,,,20
+vide,167.776,1.21887,77.5845,50,75
+vide,199.007,1.58476,93.0114,50,75
+vide,240.053,1.86853,124.355,50,75
+vide,288.518,2.15091,143.424,50,75
+vide,326.139,2.4595,181.734,50,75
+vide,357.381,2.77594,219.311,50,75
+vide,387.675,3.067,264.53,50,75
+vide,430.712,3.40241,306.631,50,75
+rotor_bloque,98.7216,8.77648,649.47,50,75

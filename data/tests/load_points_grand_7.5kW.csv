@@ -1,0 +1,28 @@
+# démo: points en charge (tension et glissement exacts), généré par evlab.io.demo_data depuis le circuit de référence
+# bruit: 0.025 (relatif, gaussien), graine: 2103
+# plaque.tension_simple [V]: 230
+# plaque.frequence [Hz]: 50
+# plaque.paires_de_poles: 2
+# plaque.vitesse_nominale [tr/min]: 1440
+# reference.source: grand_7.5kW (synthétique, démo)
+# reference.v_phase: 230.0
+# reference.f_rated: 50.0
+# reference.pole_pairs: 2
+# reference.r1: 0.75
+# reference.r_fe: 600.0
+# reference.x_m: 45.0
+# reference.x_leak: 4.2
+# reference.r2p: 0.7
+# reference.p_mech: 75.0
+# reference.t_hot_c: 75.0
+g [-],U [V],I [A],T [N·m],cos_phi [-],f [Hz]
+0.01,398.372,6.31254,14.151,0.590617,50
+0.0178,398.372,8.13412,24.1595,0.746241,50
+0.0256,398.372,10.5688,32.9179,0.797102,50
+0.0333,398.372,12.1838,45.3278,0.91198,50
+0.0411,398.372,15.4509,51.638,0.862332,50
+0.0489,398.372,16.8326,57.19,0.883114,50
+0.0567,398.372,18.2676,65.4761,0.810744,50
+0.0644,398.372,20.3399,69.8726,0.843697,50
+0.0722,398.372,23.4663,75.352,0.842401,50
+0.08,398.372,23.7757,81.7673,0.83356,50

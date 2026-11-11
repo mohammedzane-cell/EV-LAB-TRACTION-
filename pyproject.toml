@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evlab"
+version = "0.1.0"
+description = "EV-Traction Lab: virtual lab for an induction-motor EV traction drive (ME3, ENP Algiers)"
+readme = "README.md"
+requires-python = ">=3.12"  # tested on 3.12 and 3.13; PySide6 6.12 crashes on 3.11
+# Lower bounds only; exact pins live in requirements.txt.
+dependencies = [
+    "numpy>=2.4",
+    "scipy>=1.17",
+    "pandas>=3.1",
+    "matplotlib>=3.11",
+    "pyqtgraph>=0.14",
+    "PySide6>=6.12",
+    "reportlab>=5.1",
+    "openpyxl>=3.1.5",
+]
+
+[project.optional-dependencies]
+# Optional dev tools: tests, PDF text checks, coverage, PyInstaller build (approved, dev only).
+dev = ["pytest>=9.2", "pytest-qt>=4.5", "pypdf>=6.17", "pytest-cov>=7.1", "pyinstaller>=6.22"]
+
+[project.gui-scripts]
+evlab = "evlab.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"evlab.gui" = ["style.qss", "icons/*/*.svg"]
+"evlab.docs.cours" = ["*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+# QT_QPA_PLATFORM=offscreen is set in tests/conftest.py (no extra plugin needed).
+qt_api = "pyside6"
+
+[tool.coverage.run]
+source = ["evlab"]
+branch = false

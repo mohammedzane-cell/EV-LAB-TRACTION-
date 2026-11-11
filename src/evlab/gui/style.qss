@@ -1,0 +1,506 @@
+/* EV-Traction Lab — flat theme. @role tokens are replaced by gui/theme.py from one palette. */
+
+* {
+    font-family: @font;
+    font-size: 10pt;
+}
+
+QMainWindow, QDialog, QWidget#central {
+    background: @bg;
+}
+
+QWidget {
+    color: @text;
+}
+
+QLabel, QCheckBox, QRadioButton {
+    background: transparent;
+}
+
+QToolTip {
+    background: @card;
+    color: @text;
+    border: 1px solid @border;
+    border-radius: 6px;
+    padding: 4px 6px;
+}
+
+/* --- menus and status bar ---------------------------------------------------------- */
+
+QMenuBar {
+    background: @bg;
+    color: @text;
+}
+
+QMenuBar::item:selected, QMenu::item:selected {
+    background: @selection;
+    color: @text;
+}
+
+QMenu {
+    background: @card;
+    color: @text;
+    border: 1px solid @border;
+    padding: 4px;
+}
+
+QMenu::item {
+    padding: 4px 18px;
+    border-radius: 4px;
+}
+
+QStatusBar {
+    background: @bg;
+    color: @muted;
+    border-top: 1px solid @border;
+}
+
+/* --- tabs as rounded pills --------------------------------------------------------- */
+
+QTabWidget::pane {
+    border: none;
+    background: @bg;
+    top: 4px;
+}
+
+QTabBar {
+    background: transparent;
+}
+
+QTabBar::tab {
+    background: @tab;
+    color: @text;
+    border: 1px solid @tab;
+    border-radius: 13px;
+    padding: 5px 9px;
+    margin: 4px 2px 2px 2px;
+}
+
+QTabBar::tab:hover:!selected {
+    background: @selection;
+}
+
+QToolButton#tabHelp {
+    background: @card;
+    color: @primary;
+    border: 1px solid @primary;
+    border-radius: 8px;
+    font-weight: bold;
+    min-width: 14px;
+    max-width: 14px;
+    min-height: 14px;
+    max-height: 14px;
+    padding: 0px;
+    margin-left: 2px;
+}
+
+QToolButton#tabHelp:hover {
+    background: @selection;
+}
+
+QTabBar::tab:selected {
+    border: 1px solid @primary;
+    background: @primary;
+    color: @on_primary;
+    font-weight: bold;
+}
+
+/* --- cards, group boxes, KPI tiles ---------------------------------------------------- */
+
+QFrame#card, QFrame#kpi {
+    background: @card;
+    border: 1px solid @border;
+    border-radius: 8px;
+}
+
+QLabel#cardTitle {
+    font-weight: bold;
+    font-size: 10.5pt;
+}
+
+QLabel#kpiLabel {
+    color: @muted;
+    font-size: 9pt;
+}
+
+QLabel#kpiValue {
+    color: @text;
+    font-size: 19pt;
+    font-weight: bold;
+}
+
+QGroupBox {
+    background: @card;
+    border: 1px solid @border;
+    border-radius: 8px;
+    margin-top: 12px;
+    padding: 6px 4px 4px 4px;
+    font-weight: bold;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 4px;
+    padding: 0 4px;
+    color: @text;
+}
+
+QGroupBox QLabel, QGroupBox QCheckBox, QGroupBox QRadioButton {
+    font-weight: normal;
+}
+
+/* --- buttons ------------------------------------------------------------------------ */
+
+QPushButton {
+    background: @card;
+    color: @text;
+    border: 1px solid @border;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+
+QPushButton:hover {
+    background: @hover;
+}
+
+QPushButton:pressed, QPushButton:checked {
+    background: @selection;
+}
+
+QPushButton:disabled {
+    color: @disabled_text;
+    background: @disabled_bg;
+    border: 1px solid @disabled_bg;
+}
+
+QPushButton[role="primary"] {
+    background: @primary;
+    color: @on_primary;
+    border: none;
+    font-weight: bold;
+    min-height: 26px;
+}
+
+QPushButton[role="primary"]:hover {
+    background: @primary_hover;
+}
+
+QPushButton[role="primary"]:pressed {
+    background: @primary_pressed;
+}
+
+QPushButton[role="primary"]:disabled {
+    background: @primary_disabled;
+    color: @on_primary;
+}
+
+/* --- inputs with a focus ring --------------------------------------------------------- */
+
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background: @input;
+    color: @text;
+    border: 1px solid @border;
+    border-radius: 6px;
+    padding: 2px 4px;
+    selection-background-color: @selection;
+    selection-color: @text;
+}
+
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border: 2px solid @primary;
+    padding: 1px 3px;
+}
+
+QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {
+    color: @disabled_text;
+    background: @disabled_bg;
+}
+
+QCheckBox:disabled, QRadioButton:disabled, QLabel:disabled {
+    color: @disabled_text;
+}
+
+QComboBox {
+    padding-right: 20px;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    border: none;
+    width: 18px;
+}
+
+QComboBox::down-arrow {
+    image: url(@icons/down.svg);
+    width: 10px;
+    height: 6px;
+}
+
+QComboBox::down-arrow:disabled {
+    image: url(@icons/down_off.svg);
+}
+
+QComboBox QAbstractItemView {
+    background: @card;
+    color: @text;
+    border: 1px solid @border;
+    selection-background-color: @selection;
+    selection-color: @text;
+}
+
+QSpinBox, QDoubleSpinBox {
+    padding-right: 18px;
+}
+
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    border: none;
+    width: 16px;
+    margin-top: 2px;
+}
+
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    border: none;
+    width: 16px;
+    margin-bottom: 2px;
+}
+
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    image: url(@icons/up.svg);
+    width: 8px;
+    height: 5px;
+}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    image: url(@icons/down.svg);
+    width: 8px;
+    height: 5px;
+}
+
+QSpinBox::up-arrow:disabled, QSpinBox::up-arrow:off, QDoubleSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:off {
+    image: url(@icons/up_off.svg);
+}
+
+QSpinBox::down-arrow:disabled, QSpinBox::down-arrow:off, QDoubleSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:off {
+    image: url(@icons/down_off.svg);
+}
+
+QCheckBox::indicator, QRadioButton::indicator {
+    width: 14px;
+    height: 14px;
+}
+
+QCheckBox::indicator {
+    border: 1px solid @muted;
+    border-radius: 4px;
+    background: @input;
+}
+
+QCheckBox::indicator:checked {
+    background: @primary;
+    border: 1px solid @primary;
+    image: url(@icons/check.svg);
+}
+
+QCheckBox::indicator:disabled {
+    border: 1px solid @disabled_text;
+    background: @disabled_bg;
+}
+
+QRadioButton::indicator {
+    border: 1px solid @muted;
+    border-radius: 8px;
+    background: @input;
+}
+
+QRadioButton::indicator:checked {
+    background: @primary;
+    border: 3px solid @input;
+}
+
+QRadioButton::indicator:disabled {
+    border: 1px solid @disabled_text;
+}
+
+QRadioButton::indicator:checked:disabled {
+    background: @disabled_text;
+    border: 3px solid @disabled_bg;
+}
+
+QSlider::groove:horizontal {
+    height: 4px;
+    background: @border;
+    border-radius: 2px;
+}
+
+QSlider::handle:horizontal {
+    background: @primary;
+    width: 14px;
+    margin: -6px 0;
+    border-radius: 7px;
+}
+
+QSlider::sub-page:horizontal {
+    background: @primary;
+    border-radius: 2px;
+}
+
+QProgressBar {
+    background: @tab;
+    color: @text;
+    border: none;
+    border-radius: 6px;
+    text-align: center;
+    min-height: 18px;
+}
+
+QProgressBar::chunk {
+    background: @primary;
+    border-radius: 6px;
+}
+
+/* --- tables ------------------------------------------------------------------------- */
+
+QTableWidget, QTableView {
+    background: @card;
+    alternate-background-color: @bg;
+    color: @text;
+    gridline-color: @border;
+    border: 1px solid @border;
+    border-radius: 6px;
+    selection-background-color: @selection;
+    selection-color: @text;
+}
+
+QTableWidget#slotTable {
+    font-size: 8.5pt;
+}
+
+QTreeView {
+    background: @card;
+    color: @text;
+    border: 1px solid @border;
+    border-radius: 6px;
+    selection-background-color: @primary;
+    selection-color: @on_primary;
+    outline: none;
+}
+
+QTreeView::item {
+    padding: 2px 0px;
+}
+
+QTreeView::item:hover:!selected {
+    background: @hover;
+}
+
+QTreeView::item:selected {
+    background: @primary;
+    color: @on_primary;
+}
+
+QHeaderView::section {
+    background: @tab;
+    color: @text;
+    border: none;
+    border-right: 1px solid @border;
+    border-bottom: 1px solid @border;
+    padding: 4px 6px;
+}
+
+QTableCornerButton::section {
+    background: @tab;
+    border: none;
+}
+
+QScrollArea#leftPanel, QWidget#leftContent {
+    background: transparent;
+    border: none;
+}
+
+QScrollArea#leftPanel > QWidget#qt_scrollarea_viewport {
+    background: transparent;
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: transparent;
+    border: none;
+    width: 10px;
+    height: 10px;
+}
+
+QScrollBar::handle {
+    background: @border;
+    border-radius: 5px;
+    min-height: 24px;
+    min-width: 24px;
+}
+
+QScrollBar::add-line, QScrollBar::sub-line {
+    width: 0;
+    height: 0;
+}
+
+/* --- text roles and chips ------------------------------------------------------------- */
+
+QLabel[role="muted"] {
+    color: @muted;
+}
+
+QLabel[role="hint"] {
+    color: @muted;
+    font-size: 9pt;
+}
+
+QLabel[role="success"] {
+    color: @success;
+}
+
+QLabel[role="error"] {
+    color: @alert_fg;
+    font-weight: bold;
+}
+
+QLabel[role="note"] {
+    color: @note;
+}
+
+QLabel[role="info"] {
+    color: @info;
+    font-weight: bold;
+}
+
+QLabel#kpiValue[role="error"] {
+    color: @alert_fg;
+}
+
+QLabel[role="warning"] {
+    background: @alert_bg;
+    color: @alert_fg;
+    border: 1px solid @alert_border;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+
+QLabel[chip="demo"] {
+    background: @demo_bg;
+    color: @demo_fg;
+    border: 1px solid @demo_border;
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-weight: bold;
+}
+
+QLabel[chip="alert"] {
+    background: @alert_bg;
+    color: @alert_fg;
+    border: 1px solid @alert_border;
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-weight: bold;
+}
