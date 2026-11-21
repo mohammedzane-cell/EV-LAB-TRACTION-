@@ -204,5 +204,5 @@ latérale (fenêtre 1600 × 950, captures `docs/images/lab3d/`, outil `tools/cap
 
 **Si une question porte sur la validation** : renvoyer au tableau « What is
 validated / what is démo » du README (circuit TD5, facteurs de bobinage,
-bilans d'énergie, comparaison avec un balayage exhaustif à 1 % près, 690 tests
+bilans d'énergie, comparaison avec un balayage exhaustif à 1 % près, 737 tests
 qui passent et 3 en attente des fichiers WLTC) et à la page « Validation » du cours.

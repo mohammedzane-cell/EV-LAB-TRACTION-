@@ -19,9 +19,9 @@ balance), not against measurements.
 | 4 · Chain consistency | `85a8295` | the selected inverter model enters the efficiency map, hence the vehicle's battery power (tab 4) and the thermal losses (tab 5): one motor, one drive, one chain | power balance of the map with the new model; DC-link limit marks the points it cannot reach as outside |
 | 5 · Battery | `a9cb81c` | `core/battery.py`: pack n_s × n_p, OCV(SOC), R, exact current for a power, Coulomb counting, current / power-ceiling / SOC-window limits with the undelivered power and the refused regeneration recorded; tab 4 « Batterie » page | exact root; per-step energy balance V_oc·I = P + R·I²; SOC against `solve_ivp` (2e-4); every limit; invalid inputs; motor → drive → map → vehicle → battery integration |
 | 6 · 3D | `f09c74b` | `core/scene3d.py` (meshes, illustrative motor and powertrain, cycle playback), tab 9 « Labo 3D » in Qt Quick 3D: orbit/zoom/pan, exploded view, cutaway, labels, visibility, picking, colour modes, playback linked to tabs 4, 5, 6 | closed outward meshes with exact volumes; coil sides per layer = slot table; cutaway; gear kinematics; θ_wheel(end) = distance / r; link powers close the vehicle's own energy balance; GUI values = core; real rendering + mouse picking under Xvfb |
-| 7 · DC-link voltage | see below | battery terminal voltage against the DC voltage the motor needs at every cycle step (√6·V_ph with SVPWM): margin and the steps where the pack is too low | required voltage = inverse of the linear-range limit; démo cycle at 90 % SOC has a positive margin; a nearly empty pack is flagged |
-| 8 · Regression | — | full test suite, render check, demo captures (`docs/images/lab3d/`) | see the final report |
-| 9 · Documentation | — | README, user guide, demo script, assumptions A34–A37, gap analysis status | — |
+| 7 · DC-link voltage | `e1d5282` | battery terminal voltage against the DC voltage the motor needs at every cycle step (√6·V_ph with SVPWM): margin and the steps where the pack is too low | required voltage = inverse of the linear-range limit; démo cycle at 90 % SOC has a positive margin; a nearly empty pack is flagged |
+| 8 · Regression | `0780866` | full test suite, render check, demo captures (`docs/images/lab3d/`) | 737 passed, 3 skipped, 0 failed; render check ok |
+| 9 · Documentation | `0780866` | README, user guide, demo script, assumptions A34–A37, gap analysis status | — |
 | 10 · Report | — | `docs/virtual_lab_report.md`: COMPLETED / PARTIAL / UNVERIFIED / FUTURE, exact commands and results | — |
 
 ## Notes per stage

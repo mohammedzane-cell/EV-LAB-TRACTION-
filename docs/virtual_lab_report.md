@@ -54,4 +54,61 @@ operating points under battery voltage limits; sensitivity of the Pareto front; 
 
 ## Commands and results
 
-See the « Test results » section below (filled from the final run).
+Final full run on `e1d5282` (all code of the mission; docs only afterwards), Linux container, Python 3.13,
+PySide6 6.12, offscreen Qt platform (`tests/conftest.py`):
+
+```bash
+python -m pytest tests/ -q -rs \
+  --deselect tests/test_femm_model.py::test_case_validation \
+  --deselect tests/test_femm_model.py::test_symmetry_matches_a_solved_frame \
+  --deselect tests/test_femm_model.py::test_frames_and_pngs \
+  --deselect tests/test_femm_model.py::test_air_gap_fundamental_against_the_analytical_mmf \
+  --deselect tests/test_femm_model.py::test_saturation_lowers_the_fundamental \
+  --deselect tests/test_gui_fem.py::test_real_femm_run_from_the_dialog
+```
+
+Result: **740 collected, 737 passed, 3 skipped, 0 failed** (exit code 0). The 3 skips wait for the official
+WLTC files (`data/wltc_class1.csv`, `data/wltc_class3.csv`). The 6 deselected tests need a live FEMM run,
+which crashes under Wine in this container, as it did before this mission. Baseline at the start of the
+mission (`1ac88f1`): 684 passed, 3 skipped; the mission adds 53 tests (characteristics, inverter, losses with
+the inverter, battery and DC link, scene3d, GUI of tabs 2–4 and 9, 3D rendering).
+
+The 3D rendering test (`tests/test_gui_lab3d_render.py`, inside the run above) starts the check on Xvfb;
+alone:
+
+```bash
+xvfb-run -a -s "-screen 0 1280x1024x24" env QT_QPA_PLATFORM=xcb QSG_RHI_BACKEND=opengl \
+  python tools/lab3d_render_check.py --out /tmp/lab3d_check
+```
+
+Result: `"ok": true` — renders (OpenGL), 25 % of the view drawn for the motor and 67 % for the powertrain, a
+click at the centre selects « rotor_core », a click on the background clears the selection, a 0,6 rad rotor
+turn changes 1,1 % of the image, the exploded view 37 %, hiding the housing 13 %.
+
+Demonstration of the real application (both themes, full chain from the démo bench files to tab 9):
+
+```bash
+xvfb-run -a -s "-screen 0 1920x1200x24" env QT_QPA_PLATFORM=xcb QSG_RHI_BACKEND=opengl \
+  python tools/capture_lab3d.py --out docs/images/lab3d
+```
+
+Result: exit code 0, ten screenshots in `docs/images/lab3d/`, identical numbers in both themes, quoted in
+`docs/demo_script.md` (t = 350 s: 58,7 km/h, 2036 tr/min, 30,3 N·m, P batterie 8,56 kW → DC 8,36 kW →
+AC 8,14 kW → arbre 6,46 kW → roues 6,13 kW, SOC 86,7 %, bobinage 61,2 °C; t = 285 s: récupération,
+−6,32 kW à l'arbre, −4,29 kW à la batterie).
+
+Environment notes: the Xvfb runs needed the system packages libxcb-cursor0, libxcb-icccm4, libxcb-util1,
+libxcb-image0, libxcb-keysyms1, libxcb-render-util0, libxcb-xkb1 and libxkbcommon-x11-0 (installed in this
+test container only; no Python dependency was added). Not run here: Windows (Direct3D) and macOS (Metal),
+live FEMM, official WLTC cycles.
+
+## Commits (local, not pushed, not merged)
+
+| Commit | Stage |
+|---|---|
+| `25c1753` | 1–2: audit, motor characteristics, R'2(T), sensitivities |
+| `85a8295` | 3–4: inverter (DC link, average-value losses, SVPWM) and its place in the chain |
+| `a9cb81c` | 5: battery |
+| `f09c74b` | 6: interactive 3D, tab 9 |
+| `e1d5282` | 7: battery voltage vs required DC voltage |
+| this commit and the previous | 8–10: captures, documentation, log, report |
