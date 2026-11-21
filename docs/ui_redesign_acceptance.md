@@ -29,7 +29,11 @@ optimisation KPIs). Baseline (`c5b7492`) against the redesign, graphite and ligh
 identical except `tab7_seconds`**, the wall-clock time of the quick optimisation run (22,0 s
 before, 21,3 s after: a timing, not a result).
 
-**Tests.** FULL_SUITE_RESULT
+**Tests.** Full suite on the final code (`python -m pytest -q -rs` with the 6 live-FEMM tests
+deselected, see below): **684 passed, 3 skipped (the WLTC files), 0 failed, no crash**. Baseline at
+`c5b7492`: 690 passed + 3 skipped = 693; now 684 + 3 + 6 deselected = 693. Earlier runs during stage F:
+one segmentation fault (fixed: GUI-thread garbage collection), then one 2 px layout overflow on tab 6 at
+1100×650 (fixed); the layout and tab 6 files then passed twice in a row.
 
 **Live FEMM.** The six tests that drive a real FEMM run (`tests/test_femm_model.py`: 5, and
 `tests/test_gui_fem.py::test_real_femm_run_from_the_dialog`) fail in this container since its restart:
