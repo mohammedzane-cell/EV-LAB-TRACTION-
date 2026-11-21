@@ -598,6 +598,15 @@ QTableWidget#slotTable {
     font-size: 8pt;
 }
 
+QTableWidget#sensTable {
+    font-size: 8pt;
+}
+
+QTableWidget#sensTable QHeaderView::section {
+    padding: 2px 3px;
+    font-size: 7.5pt;
+}
+
 QTableWidget#slotTable QHeaderView::section {
     padding: 2px 0px;
     font-size: 7.5pt;

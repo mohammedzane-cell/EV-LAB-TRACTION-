@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import pyqtgraph as pg
 from PySide6.QtCore import Qt, QThreadPool, Signal
-from PySide6.QtWidgets import QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QAbstractItemView, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
+                               QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
+from evlab.core import characteristics as charac
 from evlab.core import drive
 from evlab.core.session import Session
 from evlab.gui import theme
@@ -24,6 +26,9 @@ LEFT_WIDTH = 300
 RPM = 60.0 / (2.0 * 3.141592653589793)  # rad/s → tr/min (display only)
 ZONE_BRUSHES = {1: (47, 111, 214, 28), 2: (46, 158, 91, 28), 3: (224, 138, 30, 32)}
 ZONE_NAMES = {1: "couple constant", 2: "puissance constante", 3: "limité par le décrochage"}
+SENS_ROWS = (("breakdown_torque", "C max"), ("breakdown_slip", "g_c"), ("start_torque", "C dém"),
+             ("start_current", "I dém"), ("efficiency", "η (5 %)"))
+SENS_COLS = (("r1", "R1"), ("r2p", "R'2"), ("x_leak", "X"), ("x_m", "Xm"), ("r_fe", "Rf"))
 
 
 class EnvelopeTab(QWidget):
@@ -74,6 +79,41 @@ class EnvelopeTab(QWidget):
         self.btn_compute.setProperty("role", "primary")
         self.btn_compute.clicked.connect(self.compute)
         lv.addWidget(self.btn_compute)
+
+        # characteristic points and sensitivities of the motor of the chain (core.characteristics)
+        char_box = QGroupBox("Caractéristiques (Vn, fn)")
+        cf = QFormLayout(char_box)
+        self.char_labels: dict[str, QLabel] = {}
+        for key, label in (("n_sync", "Vitesse de synchronisme"), ("t_start", "Couple de démarrage"),
+                           ("i_start", "Courant de démarrage"), ("t_max", "Couple de décrochage"),
+                           ("g_c", "Glissement de décrochage")):
+            lbl = QLabel("—")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            cf.addRow(label, lbl)
+            self.char_labels[key] = lbl
+        lv.addWidget(char_box)
+        sens_box = QGroupBox("Sensibilités S = (∂y/∂p)·(p/y)")
+        sv = QVBoxLayout(sens_box)
+        self.sens_table = QTableWidget(len(SENS_ROWS), len(SENS_COLS))
+        self.sens_table.setObjectName("sensTable")  # style.qss: compact font
+        self.sens_table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.sens_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.sens_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.sens_table.setHorizontalHeaderLabels([c for _, c in SENS_COLS])
+        self.sens_table.setVerticalHeaderLabels([r for _, r in SENS_ROWS])
+        self.sens_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.sens_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.sens_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.sens_table.verticalHeader().setDefaultSectionSize(21)
+        self.sens_table.setFixedHeight(21 * len(SENS_ROWS) + 32)
+        self.sens_table.setToolTip("Variation relative de la grandeur pour +1 % sur le paramètre (différences "
+                                   "centrées sur le schéma équivalent) ; η à g = 5 %")
+        sv.addWidget(self.sens_table)
+        hint = QLabel("+1 % sur le paramètre → S % sur la grandeur. Un paramètre nul (R1 de TD5) a S = 0.")
+        hint.setWordWrap(True)
+        hint.setProperty("role", "hint")
+        sv.addWidget(hint)
+        lv.addWidget(sens_box)
         lv.addStretch(1)
         root.addWidget(scroll_panel(left))
 
@@ -134,8 +174,35 @@ class EnvelopeTab(QWidget):
         m = self.session.motor
         demo = " (démo)" if m.is_demo else ""
         self.lbl_motor.setText(f"{m.source}{demo}\nV = {fr(m.v_phase)} V, f = {fr(m.f_rated)} Hz, p = {m.pole_pairs}")
+        self._show_characteristics()
         self._update_demo_chip()
         self.compute()
+
+    def _show_characteristics(self) -> None:
+        """Characteristic points and sensitivities of the session motor (values from core.characteristics)."""
+        m = self.session.motor
+        try:
+            c = charac.characteristics(m)
+            sens = charac.sensitivity(m)
+        except ValueError as exc:
+            for lbl in self.char_labels.values():
+                lbl.setText("—")
+            self.status_message.emit(f"Caractéristiques indisponibles : {exc}")
+            return
+        self.char_labels["n_sync"].setText(f"{fr_fixed(c.omega_sync * RPM, 0)} tr/min")
+        self.char_labels["t_start"].setText(f"{fr(c.start_torque)} N·m")
+        self.char_labels["i_start"].setText(f"{fr(c.start_current)} A")
+        self.char_labels["t_max"].setText(f"{fr(c.breakdown_torque)} N·m")
+        self.char_labels["g_c"].setText(fr(c.breakdown_slip))
+        for r, (out, _) in enumerate(SENS_ROWS):
+            for col, (par, _) in enumerate(SENS_COLS):
+                value = sens[out][par]
+                value = 0.0 if abs(value) < 0.005 else value  # no « −0,00 »
+                item = QTableWidgetItem(fr_fixed(value, 2).replace("-", "−") if value == value else "—")
+                item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                if abs(value) >= 0.5:
+                    item.setForeground(pg.mkColor(theme.color("info")))  # the strong dependences
+                self.sens_table.setItem(r, col, item)
 
     def _update_flux_note(self, env: drive.Envelope | None) -> None:
         """Warn when the air-gap flux E/f exceeds En/fn somewhere on the envelope (linear circuit: no saturation)."""
