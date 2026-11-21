@@ -45,7 +45,7 @@ def test_main_window_opens_with_eight_tabs(qtbot):
     qtbot.addWidget(win)
     win.show()
     qtbot.waitExposed(win)
-    assert win.windowTitle() == "EV-Traction Lab : Laboratoire virtuel de traction (ME3)"
+    assert win.windowTitle() == "EV-LAB · Electric Traction Research Studio — ENP Alger, ME3"
     assert win.tabs.count() == 8
     # Qt stores '&&' for a literal '&' (a single '&' would be hidden as a shortcut marker)
     labels = [win.tabs.tabText(i) for i in range(win.tabs.count())]

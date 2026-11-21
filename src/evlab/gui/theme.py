@@ -1,4 +1,4 @@
-"""UI theme: applies the palette of evlab.palette to Qt (style.qss) and pyqtgraph. Presentation only.
+"""EV-LAB theme: applies the palette of evlab.palette to Qt (style.qss) and pyqtgraph. Presentation only.
 
 The colours themselves live in src/evlab/palette.py (no Qt), shared with io/figures.py;
 this module keeps the current theme, builds the stylesheet, styles the plots and
@@ -8,12 +8,16 @@ remembers the choice with QSettings. style.qss uses the palette roles as @tokens
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from evlab import palette as _palette
 from evlab.palette import (  # re-exported: the GUI and its tests use theme.<name>
     DARK,
+    DEFAULT_THEME,
+    DISPLAY_FAMILIES,
     FONT_FAMILIES,
+    MONO_FAMILIES,
     LIGHT,
     PALETTES,
     SERIES,
@@ -22,13 +26,18 @@ from evlab.palette import (  # re-exported: the GUI and its tests use theme.<nam
     contrast,
 )
 
-THEME_LABELS = {LIGHT: "Thème clair", DARK: "Thème sombre"}
+THEME_LABELS = {LIGHT: "Thème clair", DARK: "Thème sombre"}  # « Studio clair », « Studio graphite »
 FONT_POINT_SIZE = 10
-SETTINGS_ORG, SETTINGS_APP, SETTINGS_KEY = "ENP Alger", "EV-Traction Lab", "theme"
+SETTINGS_ORG, SETTINGS_APP, SETTINGS_KEY = "ENP Alger", "EV-Traction Lab", "theme"  # kept: remembered settings survive
+PLOT_FONT_POINT_SIZE = 8.5  # tick labels and axis labels of the pyqtgraph plots
 QSS = Path(__file__).with_name("style.qss")
 ICONS = Path(__file__).with_name("icons")  # icons/<theme>/: spin and combo arrows, check mark
 
-_current = LIGHT
+_current = DEFAULT_THEME
+
+
+def _stack(families) -> str:
+    return ", ".join(f'"{f}"' for f in families)
 
 
 def palette(name: str | None = None) -> dict[str, str]:
@@ -37,7 +46,7 @@ def palette(name: str | None = None) -> dict[str, str]:
 
 
 def current() -> str:
-    """Name of the theme applied last ("light" by default)."""
+    """Name of the theme applied last (DEFAULT_THEME, « Studio graphite », before any apply)."""
     return _current
 
 
@@ -52,7 +61,9 @@ def stylesheet(name: str | None = None) -> str:
     text = re.sub(r"/\*.*?\*/", "", QSS.read_text(encoding="utf-8"), flags=re.DOTALL)  # drop comments
     for role in sorted(pal, key=len, reverse=True):  # @primary_hover before @primary
         text = text.replace(f"@{role}", pal[role])
-    text = text.replace("@font", ", ".join(f'"{f}"' for f in FONT_FAMILIES))
+    text = text.replace("@font", _stack(FONT_FAMILIES))
+    text = text.replace("@display", _stack(DISPLAY_FAMILIES))
+    text = text.replace("@mono", _stack(MONO_FAMILIES))
     text = text.replace("@icons", (ICONS / (_current if name is None else name)).resolve().as_posix())
     leftover = sorted(set(re.findall(r"@\w+", text)))
     if leftover:
@@ -84,23 +95,53 @@ def set_role(widget, role: str | None) -> None:
 
 def _style_plot(pw, pal: dict[str, str]) -> None:
     import pyqtgraph as pg
+    from PySide6.QtGui import QFont
 
     pw.setBackground(pal["plot_bg"])
     item = pw.getPlotItem()
+    tick_font = QFont()
+    tick_font.setFamilies(list(FONT_FAMILIES))
+    tick_font.setPointSizeF(PLOT_FONT_POINT_SIZE)
     for name in ("left", "bottom", "right", "top"):
         axis = item.getAxis(name)
         axis.setPen(pg.mkPen(pal["grid"]))
         axis.setTextPen(pg.mkPen(pal["plot_fg"]))
+        axis.setTickFont(tick_font)
         if axis.label is not None:
             axis.label.setDefaultTextColor(pg.mkColor(pal["plot_fg"]))
-    item.titleLabel.item.setDefaultTextColor(pg.mkColor(pal["plot_fg"]))
+            axis.label.setFont(tick_font)
+    if item.titleLabel.text:
+        item.titleLabel.setText(item.titleLabel.text, size="10pt", color=pal["text"])  # panel-sized plot titles
+    item.titleLabel.item.setDefaultTextColor(pg.mkColor(pal["text"]))
     if item.legend is not None:
         item.legend.setLabelTextColor(pal["plot_fg"])
         item.legend.setBrush(pg.mkBrush(pal["card"] + "E6"))
         item.legend.setPen(pg.mkPen(pal["border"]))
 
 
-def apply(app, name: str = LIGHT) -> None:
+@lru_cache(maxsize=1)
+def register_fonts() -> None:
+    """DejaVu Sans Mono from matplotlib's data: the monospace stack always has a member, on any system."""
+    import matplotlib
+    from PySide6.QtGui import QFontDatabase
+
+    ttf = Path(matplotlib.get_data_path()) / "fonts" / "ttf" / "DejaVuSansMono.ttf"
+    if ttf.exists():
+        QFontDatabase.addApplicationFont(str(ttf))
+
+
+def mono_font(point_size: float = 9.0):
+    """QFont of the monospace stack (precision readouts: indices, crosshair values)."""
+    from PySide6.QtGui import QFont
+
+    f = QFont()
+    f.setFamilies(list(MONO_FAMILIES))
+    f.setPointSizeF(point_size)
+    f.setStyleHint(QFont.StyleHint.Monospace)
+    return f
+
+
+def apply(app, name: str = DEFAULT_THEME) -> None:
     """Apply a theme to the application: font, style.qss, pyqtgraph defaults, existing plots."""
     global _current
     import pyqtgraph as pg
@@ -110,10 +151,11 @@ def apply(app, name: str = LIGHT) -> None:
         raise ValueError("theme.apply needs a QApplication (create it first)")
     pal = palette(name)
     _current = name
+    register_fonts()
     font = QFont()
     font.setFamilies(list(FONT_FAMILIES))
-    font.setPointSize(FONT_POINT_SIZE)
-    app.setFont(font)
+    font.setPointSize(FONT_POINT_SIZE)  # tabular figures only in readouts (widgets.ReadoutLabel): app-wide they
+    app.setFont(font)                   # widen every spin box and squeeze the labels of the 300 px panels
     app.setStyleSheet(stylesheet(name))
     pg.setConfigOptions(antialias=True, background=pal["plot_bg"], foreground=pal["plot_fg"])
     for w in app.allWidgets():
@@ -133,9 +175,9 @@ def _settings():
 
 
 def saved() -> str:
-    """Theme remembered by QSettings (light if none or unknown)."""
-    name = _settings().value(SETTINGS_KEY, LIGHT)
-    return name if name in THEMES else LIGHT
+    """Theme remembered by QSettings (DEFAULT_THEME, « Studio graphite », if none or unknown)."""
+    name = _settings().value(SETTINGS_KEY, DEFAULT_THEME)
+    return name if name in THEMES else DEFAULT_THEME
 
 
 def save(name: str) -> None:

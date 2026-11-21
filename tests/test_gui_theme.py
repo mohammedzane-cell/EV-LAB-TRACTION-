@@ -30,10 +30,13 @@ def test_contrast_formula():
     assert theme.contrast("#777777", "#777777") == pytest.approx(1.0)
 
 
-def test_requested_palette_values():
+def test_design_system_palette_values():
+    """EV-LAB design system (docs/ui_design_system.md): graphite foundation, one electric-cyan accent."""
     light, dark = theme.palette("light"), theme.palette("dark")
-    assert light["bg"] == "#F5F7FA" and light["card"] == "#FFFFFF" and light["primary"] == "#2F6FDB"
-    assert dark["bg"] == "#1E2128"
+    assert dark["bg"] == "#0E141B" and dark["surface"] == "#0A0F15" and dark["card"] == "#141C26"
+    assert dark["primary"] == "#22C3D6" and light["primary"] == "#0A6E7B"
+    assert light["bg"] == "#EDF0F4" and light["card"] == "#FFFFFF"
+    assert theme.DEFAULT_THEME == theme.DARK
     assert set(light) == set(dark)  # every role exists in both themes
     with pytest.raises(ValueError):
         theme.palette("pink")
@@ -46,8 +49,9 @@ def test_stylesheet_has_every_token_replaced(name):
     pal = theme.palette(name)
     for role in ("bg", "card", "primary", "demo_bg", "demo_fg", "alert_fg"):
         assert pal[role] in qss
-    assert "border-radius: 8px" in qss and "border-radius: 6px" in qss and "border-radius: 13px" in qss
-    assert '"Segoe UI", "Inter"' in qss
+    assert "border-radius: 6px" in qss and "border-radius: 4px" in qss and "border-radius: 3px" in qss
+    assert '"Segoe UI Variable Text", "Segoe UI", "Inter"' in qss
+    assert '"Cascadia Mono", "JetBrains Mono", "Consolas", "DejaVu Sans Mono"' in qss
 
 
 @pytest.mark.parametrize("name", theme.THEMES)
@@ -90,7 +94,7 @@ def test_app_starts_with_each_theme(qtbot, name, light_after):
     assert theme.current() == name
     assert app.styleSheet() == theme.stylesheet(name)
     assert app.font().pointSize() == theme.FONT_POINT_SIZE
-    assert list(app.font().families())[:2] == list(theme.FONT_FAMILIES)
+    assert list(app.font().families())[:len(theme.FONT_FAMILIES)] == list(theme.FONT_FAMILIES)
     assert w.theme_actions[name].isChecked()
     qtbot.waitUntil(lambda: w.tabs.widget(1).envelope is not None, timeout=TIMEOUT)
     w.tabs.setCurrentIndex(1)
@@ -123,7 +127,7 @@ def test_theme_menu_switches_and_is_remembered(qtbot, light_after):
     assert theme.saved() == "light"
 
 
-def test_saved_theme_defaults_to_light():
-    assert theme.saved() == "light"
+def test_saved_theme_defaults_to_graphite():
+    assert theme.saved() == theme.DARK  # « Studio graphite » until the user picks another theme
     with pytest.raises(ValueError):
         theme.save("pink")

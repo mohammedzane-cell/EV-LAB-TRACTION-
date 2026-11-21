@@ -1,4 +1,4 @@
-"""The colour palette of EV-Traction Lab: one dict per theme, shared data-series colours. No Qt.
+"""The colour palette of EV-LAB: one dict per theme, shared data-series colours, font stacks. No Qt.
 
 PALETTES holds every colour by role for the light and the dark theme; SERIES holds the
 data-series colours, the same in both themes and in the PDF figures, so a quantity keeps
@@ -12,7 +12,11 @@ from __future__ import annotations
 
 LIGHT, DARK = "light", "dark"
 THEMES = (LIGHT, DARK)
-FONT_FAMILIES = ("Segoe UI", "Inter")
+DEFAULT_THEME = DARK  # « Studio graphite »; the PDF figures stay light (printed)
+# fonts, first available wins: Windows 11 → Segoe UI Variable, Windows 10 → Segoe UI, Linux → Inter
+FONT_FAMILIES = ("Segoe UI Variable Text", "Segoe UI", "Inter")
+DISPLAY_FAMILIES = ("Segoe UI Variable Display", "Segoe UI Semibold", "Inter Display", "Inter")
+MONO_FAMILIES = ("Cascadia Mono", "JetBrains Mono", "Consolas", "DejaVu Sans Mono")
 
 # data series: same colour in both themes and in the PDF (consistent meaning)
 SERIES = {
@@ -27,67 +31,75 @@ SERIES = {
 }
 
 PALETTES: dict[str, dict[str, str]] = {
+    # « Studio clair »: the same identity on a light workspace (bright rooms, projection)
     LIGHT: {
-        "bg": "#F5F7FA",
-        "card": "#FFFFFF",
-        "border": "#DDE2EA",
-        "text": "#1F2733",
-        "muted": "#5B6573",
-        "primary": "#2F6FDB",
-        "primary_hover": "#2559B5",
-        "primary_pressed": "#1E4A99",
-        "primary_disabled": "#A9C1EC",
+        "bg": "#EDF0F4",  # workspace base
+        "surface": "#E4E9EF",  # sidebar and header
+        "card": "#FFFFFF",  # result panels
+        "border": "#CDD5DF",
+        "divider": "#E1E6EC",
+        "text": "#111923",
+        "muted": "#556274",
+        "primary": "#0A6E7B",  # electric cyan, deepened for contrast on light surfaces
+        "primary_hover": "#085C67",
+        "primary_pressed": "#064C55",
+        "primary_disabled": "#9FC6CC",
         "on_primary": "#FFFFFF",
+        "accent_soft": "#D9F1F4",
         "input": "#FFFFFF",
-        "hover": "#EEF2F7",
-        "tab": "#E6EBF2",
-        "selection": "#D6E4FA",
-        "demo_bg": "#FFF4D6",
+        "hover": "#E2E8EF",
+        "tab": "#E8ECF1",  # secondary surface: table headers, navigation hover
+        "selection": "#D3EEF2",
+        "demo_bg": "#FFF3D6",
         "demo_fg": "#7A4E00",
-        "demo_border": "#E0A526",
+        "demo_border": "#D9A23A",
         "alert_bg": "#FDECEC",
         "alert_fg": "#A8231B",
         "alert_border": "#D64541",
-        "success": "#1C7235",
+        "success": "#17703A",
         "note": "#7F4B07",
-        "info": "#2559B5",
+        "info": "#1F5FBF",
         "plot_bg": "#FFFFFF",
-        "plot_fg": "#3A4350",
-        "grid": "#C9D0DA",
+        "plot_fg": "#384352",
+        "grid": "#DDE3EA",
         "cell_text": "#1F2733",
         "disabled_text": "#9AA3AF",  # greyed-out controls (WCAG exempts inactive UI from 4.5:1)
-        "disabled_bg": "#ECEFF3",
+        "disabled_bg": "#E9EDF2",
     },
+    # « Studio graphite » (default): deep graphite / midnight navy foundation, one cyan accent
     DARK: {
-        "bg": "#1E2128",
-        "card": "#272B33",
-        "border": "#3A404B",
-        "text": "#E6E9EF",
-        "muted": "#A7B0BD",
-        "primary": "#2F6FDB",
-        "primary_hover": "#2559B5",
-        "primary_pressed": "#1E4A99",
-        "primary_disabled": "#34486B",
-        "on_primary": "#FFFFFF",
-        "input": "#1E2128",
-        "hover": "#323843",
-        "tab": "#2E333C",
-        "selection": "#2D4466",
-        "demo_bg": "#3B3015",
-        "demo_fg": "#F5C76B",
-        "demo_border": "#C9952C",
-        "alert_bg": "#3D2020",
-        "alert_fg": "#FF9A90",
-        "alert_border": "#D64541",
-        "success": "#72D48E",
-        "note": "#EBB46A",
-        "info": "#8DB3F0",
-        "plot_bg": "#272B33",
-        "plot_fg": "#C9CFD8",
-        "grid": "#4A515D",
+        "bg": "#0E141B",
+        "surface": "#0A0F15",
+        "card": "#141C26",
+        "border": "#243142",
+        "divider": "#1B2531",
+        "text": "#E3E9F1",
+        "muted": "#8F9DB0",
+        "primary": "#22C3D6",
+        "primary_hover": "#4FD3E2",
+        "primary_pressed": "#149BAD",
+        "primary_disabled": "#1C4A52",
+        "on_primary": "#031317",
+        "accent_soft": "#0F3640",
+        "input": "#0F161E",
+        "hover": "#1C2733",
+        "tab": "#18212C",
+        "selection": "#103844",
+        "demo_bg": "#2B2212",
+        "demo_fg": "#F0C36A",
+        "demo_border": "#8F6A22",
+        "alert_bg": "#33191B",
+        "alert_fg": "#FF8F87",
+        "alert_border": "#E5534B",
+        "success": "#48D597",
+        "note": "#E9B15F",
+        "info": "#7AB6FF",
+        "plot_bg": "#0F161E",
+        "plot_fg": "#A9B6C6",
+        "grid": "#1F2A37",
         "cell_text": "#1F2733",  # winding table cells keep their pastel background
-        "disabled_text": "#6B7380",
-        "disabled_bg": "#23262D",
+        "disabled_text": "#4F5D6E",
+        "disabled_bg": "#111820",
     },
 }
 
@@ -97,6 +109,8 @@ TEXT_PAIRS = (
     ("muted", "bg"), ("muted", "card"), ("on_primary", "primary"), ("on_primary", "primary_hover"),
     ("demo_fg", "demo_bg"), ("alert_fg", "alert_bg"), ("alert_fg", "card"), ("success", "card"),
     ("note", "card"), ("info", "card"), ("plot_fg", "plot_bg"), ("text", "selection"),
+    ("text", "surface"), ("muted", "surface"), ("primary", "surface"), ("primary", "card"),
+    ("text", "accent_soft"), ("muted", "tab"),
 )
 
 

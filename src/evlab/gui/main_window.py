@@ -1,26 +1,36 @@
-"""Main window: seven tabs sharing one Session (one motor, one chain), the course tab and a status bar."""
+"""EV-LAB main window: sidebar navigation, workspace header, eight workspaces sharing one Session.
+
+Seven engineering workspaces (one motor, one chain) and the course. The workspaces stay pages of a
+QTabWidget (self.tabs, its tab bar hidden): every connection between them is unchanged; the
+sidebar and the header only navigate and show context. Presentation only.
+"""
 
 from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
 
-from PySide6.QtCore import QThreadPool, Signal
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence
+from PySide6.QtCore import QSize, Qt, QThreadPool, Signal
+from PySide6.QtGui import QAction, QActionGroup, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QFileDialog,
+    QFrame,
+    QHBoxLayout,
     QInputDialog,
     QLabel,
     QMainWindow,
     QProgressBar,
-    QTabBar,
+    QSizePolicy,
     QTabWidget,
     QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 from evlab.core.session import Session
-from evlab.gui import theme
+from evlab.gui import glyphs, theme
 from evlab.gui.tab_cours import CoursTab
 from evlab.gui.tab_efficiency import EfficiencyTab
 from evlab.gui.tab_envelope import EnvelopeTab
@@ -29,11 +39,13 @@ from evlab.gui.tab_optimisation import OptimisationTab
 from evlab.gui.tab_thermal import ThermalTab
 from evlab.gui.tab_vehicle import VehicleTab
 from evlab.gui.tab_winding import WindingTab
-from evlab.gui.widgets import external_legends, flexible_plots
+from evlab.gui.widgets import ElidedLabel, chip, empty_state, external_legends, flexible_plots, inspect_plots
 from evlab.gui.workers import CoreWorker
 from evlab.io import cours
 
-WINDOW_TITLE = "EV-Traction Lab : Laboratoire virtuel de traction (ME3)"
+PRODUCT = "EV-LAB"
+PRODUCT_SUBTITLE = "ELECTRIC TRACTION RESEARCH STUDIO"
+WINDOW_TITLE = "EV-LAB · Electric Traction Research Studio — ENP Alger, ME3"
 MIN_SIZE = (1100, 650)  # logical px: every tab stays usable down to this size (left panels scroll)
 DEFAULT_SIZE = (1280, 800)
 SMALL_SCREEN = (1440, 900)  # available screen below this: open maximised (e.g. 1366×768, 1920×1080 at 150 %)
@@ -48,8 +60,59 @@ TAB_CLASSES = (
     OptimisationTab,
     CoursTab,
 )
-COURSE_PDF_NAME = "cours_EV-Traction_Lab.pdf"
+COURSE_PDF_NAME = "cours_EV-Traction_Lab.pdf"  # file name kept: links and scripts already use it
 COURSE_INDEX = len(TAB_CLASSES) - 1  # « 8 · Cours », last tab; tab k < 7 is explained by cours.TABS[k]
+
+
+# sidebar: one entry per workspace, grouped by engineering domain; the caption is the header's subtitle
+NAV_GROUPS = (("Machine", (0, 1, 2)), ("Véhicule", (3, 4)), ("Électromagnétisme", (5,)), ("Conception", (6,)),
+              ("Ressources", (7,)))
+CAPTIONS = (
+    "Schéma équivalent en Γ identifié à partir des essais DC, à vide, rotor bloqué et en charge",
+    "Enveloppe couple–vitesse du moteur identifié, sous loi V/f puis défluxage",
+    "Carte de rendement η(C, n) et pertes du schéma équivalent, dans l'enveloppe",
+    "Véhicule dimensionné pour ce moteur : effort à la roue, cycle WLTC, énergie et récupération",
+    "Échauffement du bobinage et de la carcasse sur cycles enchaînés, durée de vie de l'isolant",
+    "Bobinage triphasé : facteurs de bobinage, FMM et ses harmoniques, f.é.m., champ tournant",
+    "Rapport, loi V/f, marge et rebobinage optimisés sur les modèles testés (front de Pareto)",
+    "Les lois de chaque espace de travail, dans la notation du cours, avec les nombres de l'application",
+)
+SIDEBAR_WIDTH = 224  # px, expanded
+SIDEBAR_COMPACT = 60  # px, icons only
+MOTOR_CONTEXT_WIDTH = 300  # px: the motor label of the header is elided beyond (full text in its tooltip)
+AUTO_COMPACT_BELOW = 1440  # window width (px) under which the sidebar starts compact (laptops keep their workspace width)
+# hint shown over a workspace's plots while they are empty: the next action (empty state)
+EMPTY_HINTS = {
+    0: "Chargez les essais (ou « Charger la démo »), puis « Identifier ».",
+    1: "Calcul de l'enveloppe en cours, ou réglages du variateur invalides.",
+    3: "« Simuler le cycle » trace la vitesse et la puissance batterie.",
+    4: "« Calculer les températures » : le cycle de l'onglet 4 alimente le modèle.",
+    5: "Choisissez un bobinage valide (Z, 2p, pas y).",
+    6: "Simulez d'abord le cycle (onglet 4), puis « Lancer l'optimisation ».",
+}
+
+
+def workspace_label(title: str) -> tuple[str, str]:
+    """« 4 · Véhicule & WLTC » → ("04", "Véhicule & WLTC")."""
+    num, _, name = title.partition(" · ")
+    return f"{int(num):02d}", name
+
+
+class WorkspaceStack(QTabWidget):
+    """The workspace pages: a QTabWidget whose bar is hidden (the sidebar navigates).
+
+    Qt still counts a hidden tab bar in QTabWidget.minimumSizeHint; here the minimum is that of the
+    pages alone, so the bar that is never shown does not raise the minimum window size.
+    """
+
+    def minimumSizeHint(self):  # noqa: N802 (Qt API)
+        if self.tabBar().isVisibleTo(self):
+            return super().minimumSizeHint()
+        w = h = 0
+        for k in range(self.count()):
+            hint = self.widget(k).minimumSizeHint()
+            w, h = max(w, hint.width()), max(h, hint.height())
+        return QSize(w, h)
 
 
 def opens_maximised(avail_width: int, avail_height: int) -> bool:
@@ -80,11 +143,14 @@ class MainWindow(QMainWindow):
         self.busy_bar = QProgressBar()
         self.busy_bar.setRange(0, 0)  # indeterminate
         self.busy_bar.setMaximumWidth(140)
+        self.busy_bar.setMaximumHeight(8)
+        self.busy_bar.setTextVisible(False)
         self.busy_bar.setVisible(False)
         self.statusBar().addPermanentWidget(self.busy_bar)
         self.statusBar().addPermanentWidget(QLabel("Python 3 · PySide6"))
 
-        self.tabs = QTabWidget()
+        self.tabs = WorkspaceStack()
+        self.tabs.setDocumentMode(True)
         for cls in TAB_CLASSES:
             tab = cls(self.session)
             self.tabs.addTab(tab, tab_label(tab.title))
@@ -94,20 +160,43 @@ class MainWindow(QMainWindow):
                 tab.busy.connect(self.busy_bar.setVisible)
             if hasattr(tab, "motor_published"):
                 tab.motor_published.connect(self._on_motor_published)
-        self.setCentralWidget(self.tabs)
+        self.tabs.tabBar().hide()  # the sidebar navigates; the pages and their wiring stay as they were
         self.course = self.tabs.widget(COURSE_INDEX)
         self.course.open_tab.connect(self.open_tab)
         self.help_buttons: list[QToolButton] = []
-        for k in range(COURSE_INDEX):
-            btn = QToolButton()
-            btn.setObjectName("tabHelp")
-            btn.setText("?")
-            btn.setToolTip(f"Cours : les lois de l'onglet {self.tabs.widget(k).title} (F1)")
-            btn.clicked.connect(lambda _checked=False, name=cours.TABS[k]: self.open_course(name))
-            self.tabs.tabBar().setTabButton(k, QTabBar.ButtonPosition.RightSide, btn)
-            self.help_buttons.append(btn)
+        self.sidebar = self._build_sidebar()
+        self.header = self._build_header()
+        central = QWidget()
+        central.setObjectName("central")
+        row = QHBoxLayout(central)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+        row.addWidget(self.sidebar)
+        work = QWidget()
+        work.setObjectName("workspace")
+        col = QVBoxLayout(work)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(0)
+        col.addWidget(self.header)
+        pages = QWidget()
+        pl = QVBoxLayout(pages)
+        pl.setContentsMargins(10, 6, 10, 2)
+        pl.addWidget(self.tabs)
+        col.addWidget(pages, 1)
+        row.addWidget(work, 1)
+        self.setCentralWidget(central)
+        self.tabs.currentChanged.connect(self._on_workspace)
+        self.tabs.currentChanged.connect(lambda _k: self._focus_page())
         external_legends(self.tabs)  # legends above the plots, never over a curve
         flexible_plots(self.tabs)
+        inspect_plots(self.tabs)  # crosshair + readout in the axis units on every plot
+        import pyqtgraph as pg
+
+        for k, hint in EMPTY_HINTS.items():
+            for pw in self.tabs.widget(k).findChildren(pg.PlotWidget):
+                empty_state(pw, hint)
+        for pw in self.tabs.findChildren(pg.PlotWidget):
+            theme.style_plot(pw)  # plots built after theme.apply: titles, ticks and axes of the design system
         self._build_menu()
         self._export_worker: CoreWorker | None = None
         self.group = "Groupe ME3"
@@ -133,7 +222,208 @@ class MainWindow(QMainWindow):
         if hasattr(opt_tab, "problem_provider"):
             opt_tab.problem_provider = self.optimisation_problem
             opt_tab.load_design.connect(self.load_design)
+        self._compact_user: bool | None = None  # None: automatic (by window width)
+        self._style_shell()
+        self._on_workspace(self.tabs.currentIndex())
         self.refresh_status()
+        self.tabs.setFocus()  # the window opens on the workspace, not on a sidebar button
+
+    # --- shell: sidebar and header -------------------------------------------------
+
+    def _build_sidebar(self) -> QFrame:
+        bar = QFrame()
+        bar.setObjectName("sidebar")
+        bar.setFixedWidth(SIDEBAR_WIDTH)
+        lay = QVBoxLayout(bar)
+        lay.setContentsMargins(0, 14, 0, 10)
+        lay.setSpacing(0)
+        brand = QHBoxLayout()
+        brand.setContentsMargins(14, 0, 10, 6)
+        brand.setSpacing(10)
+        self.logo = QLabel()
+        self.logo.setFixedSize(30, 30)
+        brand.addWidget(self.logo, 0, Qt.AlignmentFlag.AlignTop)
+        words = QVBoxLayout()
+        words.setSpacing(0)
+        self.wordmark = QLabel(PRODUCT)
+        self.wordmark.setObjectName("wordmark")
+        wf = self.wordmark.font()
+        wf.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 97)
+        self.wordmark.setFont(wf)
+        self.subtitle = QLabel(PRODUCT_SUBTITLE.replace(" RESEARCH", "\nRESEARCH"))
+        self.subtitle.setObjectName("subtitle")
+        f = self.subtitle.font()
+        f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.2)
+        self.subtitle.setFont(f)
+        words.addWidget(self.wordmark)
+        words.addWidget(self.subtitle)
+        brand.addLayout(words, 1)
+        lay.addLayout(brand)
+        self.nav_group = QButtonGroup(self)
+        self.nav_group.setExclusive(True)
+        self.nav_buttons: list[QToolButton] = [None] * self.tabs.count()  # type: ignore[list-item]
+        self.nav_group_labels: list[QLabel] = []
+        for group, indices in NAV_GROUPS:
+            gl = QLabel(group.upper())
+            gl.setObjectName("navGroup")
+            gf = gl.font()
+            gf.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.0)
+            gl.setFont(gf)
+            lay.addWidget(gl)
+            self.nav_group_labels.append(gl)
+            for k in indices:
+                lay.addLayout(self._nav_row(k))
+        lay.addStretch(1)
+        self.chain_note = QLabel("Un moteur, une chaîne : le moteur identifié en 01 alimente 02 à 07.")
+        self.chain_note.setObjectName("chainNote")
+        self.chain_note.setWordWrap(True)
+        lay.addWidget(self.chain_note)
+        foot = QHBoxLayout()
+        foot.setContentsMargins(10, 8, 10, 0)
+        self.btn_collapse = QToolButton()
+        self.btn_collapse.setObjectName("collapse")
+        self.btn_collapse.setToolTip("Réduire / déployer la barre latérale")
+        self.btn_collapse.setIconSize(QSize(16, 16))
+        self.btn_collapse.clicked.connect(lambda: self.set_sidebar_compact(not self.sidebar_compact(), user=True))
+        foot.addWidget(self.btn_collapse)
+        foot.addStretch(1)
+        lay.addLayout(foot)
+        return bar
+
+    def _nav_row(self, k: int) -> QHBoxLayout:
+        tab = self.tabs.widget(k)
+        num, name = workspace_label(tab.title)
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 8, 0)
+        row.setSpacing(2)
+        btn = QToolButton()
+        btn.setObjectName("navItem")
+        btn.setCheckable(True)
+        btn.setText(f"{num}   {tab_label(name)}")  # « & » escaped: Qt would read it as a shortcut marker
+        btn.setToolTip(f"{tab.title} — {CAPTIONS[k]} (Ctrl+{k + 1})")
+        btn.setFocusPolicy(Qt.FocusPolicy.TabFocus)  # keyboard focus ring, but a click does not leave one
+        btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        btn.setIconSize(QSize(18, 18))
+        btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        btn.clicked.connect(lambda _c=False, k=k: self.tabs.setCurrentIndex(k))
+        self.nav_group.addButton(btn, k)
+        self.nav_buttons[k] = btn
+        row.addWidget(btn, 1)
+        if k < COURSE_INDEX:
+            hb = QToolButton()
+            hb.setObjectName("navHelp")
+            hb.setText("?")
+            hb.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+            hb.setToolTip(f"Cours : les lois de l'onglet {tab.title} (F1)")
+            hb.clicked.connect(lambda _checked=False, name=cours.TABS[k]: self.open_course(name))
+            row.addWidget(hb)
+            self.help_buttons.append(hb)
+        act = QAction(self)
+        act.setShortcut(QKeySequence(f"Ctrl+{k + 1}"))
+        act.triggered.connect(lambda _c=False, k=k: self.tabs.setCurrentIndex(k))
+        self.addAction(act)
+        return row
+
+    def _build_header(self) -> QFrame:
+        head = QFrame()
+        head.setObjectName("header")
+        lay = QHBoxLayout(head)
+        lay.setContentsMargins(18, 7, 14, 7)
+        lay.setSpacing(12)
+        line = QHBoxLayout()
+        line.setSpacing(10)
+        self.ws_index = QLabel("")
+        self.ws_index.setObjectName("wsIndex")
+        self.ws_title = QLabel("")
+        self.ws_title.setObjectName("wsTitle")
+        self.ws_caption = ElidedLabel("")
+        self.ws_caption.setObjectName("wsCaption")
+        # one line: the caption takes the room left and elides itself (full text in its tooltip), so the
+        # header never imposes its width or a second line on the window
+        line.addWidget(self.ws_index, 0, Qt.AlignmentFlag.AlignBaseline)
+        line.addWidget(self.ws_title, 0, Qt.AlignmentFlag.AlignBaseline)
+        line.addWidget(self.ws_caption, 1, Qt.AlignmentFlag.AlignBaseline)
+        lay.addLayout(line, 1)
+        self.motor_context = QLabel("")
+        self.motor_context.setObjectName("motorContext")
+        self.motor_context.setToolTip("Moteur utilisé par toute la chaîne (identifié à l'onglet 1)")
+        self.motor_context.setMaximumWidth(MOTOR_CONTEXT_WIDTH)
+        self.motor_demo = chip("démo")
+        self.motor_demo.setToolTip("Le moteur vient de données synthétiques ou de démonstration")
+        lay.addWidget(self.motor_context, 0, Qt.AlignmentFlag.AlignVCenter)
+        lay.addWidget(self.motor_demo, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.btn_ws_course = QToolButton()
+        self.btn_ws_course.setObjectName("headerAction")
+        self.btn_ws_course.setText("Cours")
+        self.btn_ws_course.setToolTip("Les lois de cet espace de travail, dans l'onglet Cours (F1)")
+        self.btn_ws_course.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.btn_ws_course.clicked.connect(self.course_for_current_tab)
+        self.btn_ws_report = QToolButton()
+        self.btn_ws_report.setObjectName("headerAction")
+        self.btn_ws_report.setText("Rapport PDF")
+        self.btn_ws_report.setToolTip("Rapport PDF de toute la session (Fichier → Exporter PDF…, Ctrl+P)")
+        self.btn_ws_report.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        for b in (self.btn_ws_course, self.btn_ws_report):
+            b.setIconSize(QSize(16, 16))
+            lay.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
+        return head
+
+    def _style_shell(self) -> None:
+        """Icons of the shell in the colours of the current theme."""
+        pal = theme.palette()
+        self.logo.setPixmap(glyphs.logo(pal["primary"], pal["text"], 30))
+        self.wordmark.setText(f"EV<span style='color:{pal['primary']}'>-</span>LAB")
+        for k, btn in enumerate(self.nav_buttons):
+            btn.setIcon(glyphs.icon(glyphs.WORKSPACE_GLYPHS[k], pal["muted"], 18, active=pal["primary"]))
+        self.btn_ws_course.setIcon(glyphs.icon("help", pal["text"], 16))
+        self.btn_ws_report.setIcon(glyphs.icon("report", pal["text"], 16))
+        self.btn_collapse.setIcon(glyphs.icon("expand" if self.sidebar_compact() else "collapse", pal["muted"], 16))
+
+    def _on_workspace(self, k: int) -> None:
+        """A workspace is shown: check its sidebar entry and write the header."""
+        if k < 0:
+            return
+        tab = self.tabs.widget(k)
+        num, name = workspace_label(tab.title)
+        self.nav_buttons[k].setChecked(True)
+        self.ws_index.setText(num)
+        self.ws_title.setText(name)
+        self.ws_caption.setText(CAPTIONS[k])
+        self.btn_ws_course.setVisible(k != COURSE_INDEX)
+
+    def _focus_page(self) -> None:
+        """After a click in the sidebar, keyboard focus goes to the workspace shown (not the button)."""
+        fw = QApplication.focusWidget()
+        if fw is None or (isinstance(fw, QToolButton) and fw.objectName() in ("navItem", "navHelp", "collapse")):
+            self.tabs.currentWidget().setFocus()
+
+    def sidebar_compact(self) -> bool:
+        return self.sidebar.width() <= SIDEBAR_COMPACT
+
+    def set_sidebar_compact(self, compact: bool, user: bool = False) -> None:
+        """Icons-only sidebar (narrow windows) or full sidebar; `user`: an explicit choice, kept on resize."""
+        if user:
+            self._compact_user = compact
+        self.sidebar.setFixedWidth(SIDEBAR_COMPACT if compact else SIDEBAR_WIDTH)
+        style = Qt.ToolButtonStyle.ToolButtonIconOnly if compact else Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        for btn in self.nav_buttons:
+            btn.setToolButtonStyle(style)
+        for w in (self.wordmark, self.subtitle, self.chain_note, *self.nav_group_labels, *self.help_buttons):
+            w.setVisible(not compact)
+        self._style_shell()
+
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        super().showEvent(event)
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(0, self._focus_page)  # after Qt has given the first focus: start in the workspace
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        super().resizeEvent(event)
+        if self._compact_user is None and hasattr(self, "sidebar"):
+            compact = self.width() < AUTO_COMPACT_BELOW
+            if compact != self.sidebar_compact():
+                self.set_sidebar_compact(compact)
 
     def show_for_screen(self) -> None:
         """Show the window: maximised on a small screen (laptop), else at its default size."""
@@ -151,6 +441,7 @@ class MainWindow(QMainWindow):
         theme.apply(QApplication.instance(), name)
         theme.save(name)
         self.theme_actions[name].setChecked(True)
+        self._style_shell()
         for k in range(self.tabs.count()):
             tab = self.tabs.widget(k)
             if hasattr(tab, "on_theme_changed"):
@@ -240,6 +531,7 @@ class MainWindow(QMainWindow):
             group.addAction(act)
             view.addAction(act)
             self.theme_actions[name] = act
+        self.btn_ws_report.clicked.connect(self.act_pdf.trigger)
         tab1 = self.tabs.widget(0)
         if hasattr(tab1, "btn_pdf"):
             tab1.btn_pdf.setEnabled(True)
@@ -356,5 +648,11 @@ class MainWindow(QMainWindow):
         demo = " (démo)" if m.is_demo else ""
         self.motor_text = f"Moteur : {m.source}{demo}"
         self.setToolTip(self.motor_text)
+        if hasattr(self, "motor_context"):
+            full = f"Moteur · {m.source}"
+            fm = self.motor_context.fontMetrics()
+            self.motor_context.setText(fm.elidedText(full, Qt.TextElideMode.ElideRight, MOTOR_CONTEXT_WIDTH - 22))
+            self.motor_context.setToolTip(f"{full}{demo} — moteur utilisé par toute la chaîne (onglet 1)")
+            self.motor_demo.setVisible(m.is_demo)
         if not keep_message:
             self.statusBar().showMessage(self.motor_text)

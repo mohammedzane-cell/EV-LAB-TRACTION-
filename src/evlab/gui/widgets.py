@@ -1,12 +1,15 @@
-"""Small shared widgets: French spin boxes, cards, KPI tiles, chips. Presentation only.
+"""EV-LAB component library: French spin boxes, panels, section headers, KPI readouts, provenance chips,
+plot legends and plot inspection (crosshair + readout). Presentation only.
 
-Their look comes from gui/style.qss (object names #card, #cardTitle, #kpi, #kpiLabel,
-#kpiValue and the chip / role properties), applied by gui/theme.py.
+Their look comes from gui/style.qss (object names #card, #cardTitle, #sectionHeader, #kpi,
+#kpiLabel, #kpiValue, #plotLegend, #plotReadout and the chip / role properties), applied by
+gui/theme.py. docs/ui_design_system.md documents each component.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QLocale, Qt
+from PySide6.QtCore import QLocale, QRectF, QSize, Qt
+from PySide6.QtGui import QFont, QFontMetrics, QPainter
 from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFrame,
@@ -72,13 +75,35 @@ def set_demo_chip(lbl: QLabel, labels: list[str]) -> None:
     lbl.setToolTip("Valeurs démo : " + " ; ".join(labels) if labels else "")
 
 
+CHIP_KINDS = ("demo", "alert", "source")
+
+
 def chip(text: str, kind: str = "demo") -> QLabel:
-    """Rounded label: "demo" (amber, e.g. "points synthétiques (démo)") or "alert" (red)."""
-    if kind not in ("demo", "alert"):
-        raise ValueError(f"chip kind must be 'demo' or 'alert', got {kind!r}")
+    """Provenance / state label: "demo" (amber: synthetic or assumed values), "alert" (red),
+    "source" (neutral: where a value comes from, e.g. « moteur de référence »)."""
+    if kind not in CHIP_KINDS:
+        raise ValueError(f"chip kind must be one of {CHIP_KINDS}, got {kind!r}")
     lbl = QLabel(text)
     lbl.setProperty("chip", kind)
     return lbl
+
+
+def section_header(text: str) -> QLabel:
+    """Small capitals label that opens a group of controls or results (#sectionHeader)."""
+    lbl = QLabel(text.upper())
+    lbl.setObjectName("sectionHeader")
+    f = lbl.font()
+    f.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 108)
+    lbl.setFont(f)
+    return lbl
+
+
+def divider() -> QFrame:
+    """1 px horizontal rule in the divider colour."""
+    line = QFrame()
+    line.setObjectName("divider")
+    line.setFrameShape(QFrame.Shape.NoFrame)
+    return line
 
 
 def muted(lbl: QLabel) -> QLabel:
@@ -87,8 +112,92 @@ def muted(lbl: QLabel) -> QLabel:
     return lbl
 
 
+class ElidedLabel(QLabel):
+    """One-line label that elides itself to the width it gets (« … »); text() and the tooltip keep the full text.
+
+    Its minimum width is small, so a long caption never imposes its width on the window.
+    """
+
+    MIN_WIDTH = 40
+
+    def setText(self, text: str) -> None:  # noqa: N802 (Qt API)
+        super().setText(text)
+        self.setToolTip(text)
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt API)
+        return QSize(self.MIN_WIDTH, super().minimumSizeHint().height())
+
+    def paintEvent(self, _event) -> None:  # noqa: N802 (Qt API)
+        p = QPainter(self)
+        p.setFont(self.font())
+        p.setPen(self.palette().color(self.foregroundRole()))
+        r = self.contentsRect()
+        text = self.fontMetrics().elidedText(self.text(), Qt.TextElideMode.ElideRight, r.width())
+        p.drawText(r, int(self.alignment()) | int(Qt.AlignmentFlag.AlignVCenter), text)
+        p.end()
+
+
+class ReadoutLabel(QLabel):
+    """Value label of a KPI tile: the number large, its unit smaller and muted, on one baseline.
+
+    text() stays the plain "value unit" string (the reports, the tests and the tools read it);
+    only the painting splits it.
+    """
+
+    def __init__(self, text: str = "", unit: str = "") -> None:
+        super().__init__(text)
+        self.unit = unit
+
+    def _number_font(self) -> QFont:
+        f = QFont(self.font())
+        f.setFeature(QFont.Tag("tnum"), 1)  # tabular figures: readouts of a row line up
+        return f
+
+    def _parts(self) -> tuple[str, str]:
+        text = self.text()
+        if self.unit and text.endswith(" " + self.unit):
+            return text[: -len(self.unit) - 1], self.unit
+        return text, ""
+
+    def _unit_font(self) -> QFont:
+        f = QFont(self.font())
+        f.setPointSizeF(max(8.0, self.font().pointSizeF() * 0.55))
+        f.setWeight(QFont.Weight.Normal)
+        return f
+
+    def sizeHint(self) -> QSize:  # noqa: N802 (Qt API)
+        number, unit = self._parts()
+        fm, fu = QFontMetrics(self._number_font()), QFontMetrics(self._unit_font())
+        w = fm.horizontalAdvance(number) + (fu.horizontalAdvance(" " + unit) if unit else 0)
+        return QSize(w + 2, fm.height())
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt API)
+        return self.sizeHint()
+
+    def paintEvent(self, _event) -> None:  # noqa: N802 (Qt API)
+        from evlab.gui import theme
+
+        number, unit = self._parts()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        fm = QFontMetrics(self._number_font())
+        base = (self.height() + fm.ascent() - fm.descent()) / 2
+        p.setFont(self._number_font())
+        p.setPen(self.palette().color(self.foregroundRole()))
+        p.drawText(QRectF(0, 0, self.width(), self.height()), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                   number)
+        if unit:
+            from PySide6.QtGui import QColor
+
+            x = fm.horizontalAdvance(number) + 4
+            p.setFont(self._unit_font())
+            p.setPen(QColor(theme.palette()["muted"]))
+            p.drawText(int(x), int(base), unit)
+        p.end()
+
+
 class KpiTile(QFrame):
-    """Title + large value + unit."""
+    """Readout tile: muted title, then the value large with its unit smaller (ReadoutLabel)."""
 
     def __init__(self, title: str, unit: str) -> None:
         super().__init__()
@@ -100,7 +209,7 @@ class KpiTile(QFrame):
         self.title.setObjectName("kpiLabel")
         self.title.setWordWrap(True)  # tiles can shrink on a narrow window: the label wraps
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        self.value = QLabel("—")
+        self.value = ReadoutLabel("—", unit)
         self.value.setObjectName("kpiValue")
         self.unit = unit
         lay.addWidget(self.title)
@@ -108,6 +217,7 @@ class KpiTile(QFrame):
 
     def set_value(self, text: str) -> None:
         self.value.setText(f"{text} {self.unit}" if text != "—" else "—")
+        self.value.updateGeometry()
 
 
 # --- plots: flexible size, legends outside the plot area ---------------------------------
@@ -205,3 +315,158 @@ def flexible_plots(root: QWidget) -> None:
         if type(w).__name__ == "FigureCanvasQTAgg":
             w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             w.setMinimumHeight(CANVAS_MIN_HEIGHT)
+
+
+# --- plot inspection: crosshair and readout ------------------------------------------------
+
+READOUT_MAX_CURVES = 4  # curves listed in a readout (the nearest sample of each)
+
+
+def _axis_title(item, name: str) -> str:
+    ax = item.getAxis(name)
+    return (ax.labelText or ("x" if name == "bottom" else "y")) + (f" ({ax.labelUnits})" if ax.labelUnits else "")
+
+
+def readout_text(item, x: float, y: float) -> str:
+    """Readout of the cursor at (x, y) in data units, then the nearest computed sample of each named curve.
+
+    Values are those of the plotted arrays (nothing is interpolated or recomputed); numbers use the
+    French decimal comma.
+    """
+    import numpy as np
+
+    from evlab.gui.format import fr
+
+    parts = [f"{_axis_title(item, 'bottom')} = {fr(x, 4)}", f"{_axis_title(item, 'left')} = {fr(y, 4)}"]
+    vx = item.viewRange()[0]
+    tol = 0.03 * abs(vx[1] - vx[0])
+    n = 0
+    for curve in item.listDataItems():
+        name = curve.name()
+        if not name or not curve.isVisible() or n >= READOUT_MAX_CURVES:
+            continue
+        xs, ys = curve.getData()
+        if xs is None or len(xs) == 0:
+            continue
+        xs, ys = np.asarray(xs, dtype=float), np.asarray(ys, dtype=float)
+        k = int(np.nanargmin(np.abs(xs - x))) if np.isfinite(xs).any() else -1
+        if k < 0 or abs(xs[k] - x) > tol or not np.isfinite(ys[k]):
+            continue
+        parts.append(f"{name} : {fr(float(ys[k]), 4)}")
+        n += 1
+    return "   ·   ".join(parts)
+
+
+def inspect_plots(root: QWidget) -> None:
+    """Give every pyqtgraph plot under `root` a crosshair and a readout line under it.
+
+    The crosshair follows the mouse inside the plot area (dashed, muted); the readout shows the cursor
+    in the axis units and the nearest sample of each named curve. Zoom (wheel), pan (drag), reset
+    (« A » button, or right-click → View All) and export (right-click → Export…) are pyqtgraph's own.
+    """
+    import pyqtgraph as pg
+
+    for pw in root.findChildren(pg.PlotWidget):
+        if getattr(pw, "readout_label", None) is not None:
+            continue
+        item = pw.getPlotItem()
+        box = pw.parentWidget()
+        lay = box.layout() if box is not None else None
+        if lay is None:
+            continue
+        label = QLabel("")
+        label.setObjectName("plotReadout")
+        label.setWordWrap(True)
+        label.setVisible(False)
+        idx = lay.indexOf(pw)
+        if idx < 0:
+            continue
+        if isinstance(lay, QVBoxLayout):
+            lay.insertWidget(idx + 1, label)
+        else:
+            continue  # plots in grids keep only the crosshair (no row to put a readout in)
+        pw.readout_label = label
+        pen = pg.mkPen((128, 140, 156, 150), width=1, style=Qt.PenStyle.DashLine)
+        vline, hline = pg.InfiniteLine(angle=90, pen=pen), pg.InfiniteLine(angle=0, pen=pen)
+        for line in (vline, hline):
+            line.setZValue(1000)
+            line.setVisible(False)
+            item.addItem(line, ignoreBounds=True)
+        pw.crosshair = (vline, hline)
+
+        def moved(pos, item=item, vline=vline, hline=hline, label=label):
+            vb = item.getViewBox()
+            inside = item.sceneBoundingRect().contains(pos) and vb.sceneBoundingRect().contains(pos)
+            for line in (vline, hline):
+                line.setVisible(inside)
+            label.setVisible(inside)
+            if not inside:
+                return
+            pt = vb.mapSceneToView(pos)
+            vline.setPos(pt.x())
+            hline.setPos(pt.y())
+            label.setText(readout_text(item, pt.x(), pt.y()))
+
+        pw.scene().sigMouseMoved.connect(moved)
+        pw.setToolTip("Molette : zoom · glisser : déplacer · bouton « A » (coin bas gauche) : vue complète · "
+                      "clic droit : View All, Export… (PNG, SVG, CSV)")
+
+
+# --- empty states: what to do before a plot has data ------------------------------------------
+
+
+class _EmptyOverlay(QLabel):
+    """Centred hint over an empty plot; hidden as soon as the plot holds a data item."""
+
+    def __init__(self, pw, text: str) -> None:
+        super().__init__(text, pw)
+        self.setObjectName("emptyState")
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setWordWrap(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._pw = pw
+        pw.installEventFilter(self)
+        self.refresh()
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802 (Qt API)
+        from PySide6.QtCore import QEvent
+
+        if obj is self._pw and event.type() in (QEvent.Type.Resize, QEvent.Type.Show):
+            self._place()
+        return False
+
+    def _place(self) -> None:
+        w, h = self._pw.width(), self._pw.height()
+        width = min(320, max(120, w - 40))
+        self.setFixedWidth(width)
+        self.adjustSize()
+        self.move((w - width) // 2, max(0, (h - self.height()) // 2))
+
+    def refresh(self) -> None:
+        has_data = any(getattr(c, "xData", None) is not None and len(c.xData) > 0
+                       for c in self._pw.getPlotItem().listDataItems())
+        self.setVisible(not has_data)
+        self._place()
+        self.raise_()
+
+
+def empty_state(pw, text: str) -> QLabel:
+    """Show `text` in the middle of plot `pw` while it has no data (e.g. « Lancez le calcul »)."""
+    overlay = getattr(pw, "empty_overlay", None)
+    if overlay is not None:
+        overlay.setText(text)
+        overlay.refresh()
+        return overlay
+    overlay = _EmptyOverlay(pw, text)
+    pw.empty_overlay = overlay
+    item = pw.getPlotItem()
+    for meth in ("addItem", "removeItem", "clear"):
+        orig = getattr(item, meth)
+
+        def wrapped(*a, _orig=orig, **kw):
+            out = _orig(*a, **kw)
+            overlay.refresh()
+            return out
+
+        setattr(item, meth, wrapped)
+    return overlay
