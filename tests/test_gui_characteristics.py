@@ -43,3 +43,24 @@ def test_tab3_average_inverter_model_uses_the_chosen_dc_link(qtbot):
         tab.compute()
     emap = b.args[0]
     assert np.all(emap.v[emap.valid] <= inverter.max_phase_voltage(st.inverter_params) * (1 + 1e-9))
+
+
+def test_tab4_battery_follows_the_simulated_cycle(qtbot):
+    import numpy as np
+
+    from evlab.core import battery
+    from evlab.gui.tab_vehicle import VehicleTab
+
+    tab = VehicleTab(Session())
+    qtbot.addWidget(tab)
+    assert "kWh" in tab.lbl_pack.text() and tab.battery_result is None
+    with qtbot.waitSignal(tab.simulation_done, timeout=120_000):
+        tab.simulate()
+    _s, res, cycle, _mp, _veh = tab.result
+    ref = battery.simulate(battery.demo_pack(), res.p_battery, np.diff(cycle.t), 0.9)
+    b = tab.battery_result
+    assert np.array_equal(b.soc, ref.soc) and np.array_equal(b.current, ref.current)
+    assert "SOC 90,0 %" in tab.lbl_battery.text()
+    tab.spin_soc0.setValue(60.0)  # inputs of the battery: recomputed without a new cycle simulation
+    assert tab.battery_result.soc[0] == 0.6
+    assert [tab.cycle_tabs.tabText(k) for k in range(3)] == ["Puissances", "Couple moteur", "Batterie"]

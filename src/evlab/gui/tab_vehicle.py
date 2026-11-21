@@ -22,11 +22,15 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSpinBox,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from evlab.core import drive, losses, vehicle
+import numpy as np
+
+from evlab.core import battery, drive, losses, vehicle
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
@@ -121,6 +125,29 @@ class VehicleTab(QWidget):
         cv.addWidget(self.btn_class_cycle)
         lv.addWidget(cyc)
 
+        bat = QGroupBox("Batterie (pack, démo A34)")
+        bf = QFormLayout(bat)
+        self.spin_cells = QSpinBox()
+        self.spin_cells.setRange(10, 400)
+        self.spin_cells.setValue(168)
+        self.spin_cells.setSuffix(" cellules")
+        self.spin_cells.setToolTip("Cellules NMC en série (courbe OCV(SOC) typique, démo A34)")
+        self.spin_cap = french_spin(1.0, 500.0, 1, "Ah", 10.0)
+        self.spin_cap.setToolTip("Capacité d'une cellule (une branche en parallèle)")
+        self.spin_soc0 = french_spin(5.0, 95.0, 0, "%", 90.0)
+        self.spin_soc0.setToolTip("SOC au début du cycle (fenêtre utilisable 5 à 95 %)")
+        self.lbl_pack = QLabel("")
+        self.lbl_pack.setWordWrap(True)
+        self.lbl_pack.setProperty("role", "hint")
+        bf.addRow("En série", self.spin_cells)
+        bf.addRow("Capacité cellule", self.spin_cap)
+        bf.addRow("SOC initial", self.spin_soc0)
+        bf.addRow(self.lbl_pack)
+        for w in (self.spin_cells, self.spin_cap, self.spin_soc0):
+            w.valueChanged.connect(lambda _v: self._run_battery())
+        lv.addWidget(bat)
+        self.battery_result: battery.BatteryResult | None = None
+
         self.btn_simulate = QPushButton("Simuler le cycle")
         self.btn_simulate.setMinimumHeight(34)
         self.btn_simulate.setProperty("role", "primary")
@@ -160,18 +187,34 @@ class VehicleTab(QWidget):
             pw.showGrid(x=True, y=True, alpha=0.25)
             pw.addLegend(offset=(-10, 10))
         lay.addWidget(self.plot_speed, 1)  # the cycle on top, full width
-        below = QHBoxLayout()  # what it asks of the energy source and of the motor, side by side
-        below.addWidget(self.plot_power)
-        below.addWidget(self.plot_motor)
-        lay.addLayout(below, 1)
+        # what the cycle asks of the energy source, of the motor and of the battery: one page each
+        self.plot_soc = pg.PlotWidget(title="Batterie : état de charge")
+        self.plot_soc.setLabel("bottom", "Temps (s)")
+        self.plot_soc.setLabel("left", "SOC (%)")
+        self.plot_soc.showGrid(x=True, y=True, alpha=0.25)
+        self.plot_soc.addLegend(offset=(-10, 10))
+        self.cycle_tabs = QTabWidget()
+        for pw, name in ((self.plot_power, "Puissances"), (self.plot_motor, "Couple moteur"),
+                         (self.plot_soc, "Batterie")):
+            page = QWidget()
+            pl = QVBoxLayout(page)
+            pl.setContentsMargins(0, 4, 0, 0)
+            pl.addWidget(pw)
+            self.cycle_tabs.addTab(page, name)
+        lay.addWidget(self.cycle_tabs, 1)
+        self.lbl_battery = QLabel("")
+        self.lbl_battery.setWordWrap(True)
+        self.lbl_battery.setProperty("role", "muted")
+        lay.addWidget(self.lbl_battery)
         # one time axis for the three plots (zoom and pan included); setXLink would align them by their
         # position on screen, which is wrong for plots placed side by side
         self._syncing_x = False
-        for pw in (self.plot_speed, self.plot_power, self.plot_motor):
+        for pw in (self.plot_speed, self.plot_power, self.plot_motor, self.plot_soc):
             pw.sigXRangeChanged.connect(self._sync_time_axis)
         right.addWidget(plot_card, 1)
         root.addLayout(right, 1)
         self._g_from_user = False
+        self._run_battery()  # pack values from core before any simulation
 
     def _sync_time_axis(self, viewbox, rng) -> None:
         """Give the other two cycle plots the time range of the one the user zoomed or panned."""
@@ -179,7 +222,7 @@ class VehicleTab(QWidget):
             return
         self._syncing_x = True
         try:
-            for pw in (self.plot_speed, self.plot_power, self.plot_motor):
+            for pw in (self.plot_speed, self.plot_power, self.plot_motor, self.plot_soc):
                 if pw.getPlotItem().getViewBox() is not viewbox:
                     pw.setXRange(float(rng[0]), float(rng[1]), padding=0)
         finally:
@@ -316,8 +359,36 @@ class VehicleTab(QWidget):
                                                   loss_settings=mp.settings, vehicle=veh, cycle=cycle))
         self._draw(res, cycle)
         self.cycle_points.emit(res.torque[res.torque > 0], res.omega[res.torque > 0])
+        self._run_battery()
         self.status_message.emit(f"Cycle simulé : {fr(s.wh_per_km)} Wh/km")
         self.simulation_done.emit(self.result)
+
+    def pack(self) -> battery.PackParams:
+        """Core PackParams from the fields (démo cell, A34)."""
+        return battery.demo_pack(n_series=self.spin_cells.value(), capacity_ah=self.spin_cap.value())
+
+    def _run_battery(self) -> None:
+        """Battery trajectory over the simulated cycle (core.battery), driven by its terminal power series."""
+        pack = self.pack()
+        self.lbl_pack.setText(f"Pack : {fr(battery.ocv(pack, 0.5))} V à 50 % de SOC, {fr(pack.energy_wh() / 1000)} kWh, "
+                              f"R = {fr(pack.r)} Ω")
+        if self.result is None:
+            return
+        _sizing, res, cycle, _mp, _veh = self.result
+        try:
+            b = battery.simulate(pack, res.p_battery, np.diff(cycle.t), self.spin_soc0.value() / 100.0)
+        except ValueError as exc:
+            self.battery_result = None
+            self.lbl_battery.setText(f"Batterie : {exc}")
+            return
+        self.battery_result = b
+        self.plot_soc.clear()
+        self.plot_soc.plot(cycle.t, 100.0 * b.soc, pen=pg.mkPen(theme.color("green"), width=2), name="SOC")
+        parts = [f"Batterie : SOC {fr_fixed(100 * b.soc[0], 1)} % → {fr_fixed(100 * b.soc[-1], 1)} %",
+                 f"énergie prise aux cellules {fr(b.chemical_energy_wh)} Wh (pertes du pack {fr(b.energy_wh('p_loss'))} Wh)",
+                 f"récupération refusée {fr(b.energy_wh('regen_refused'))} Wh",
+                 f"puissance non fournie {fr(b.energy_wh('shortfall'))} Wh"]
+        self.lbl_battery.setText(" · ".join(parts))
 
     def _on_failed(self, message: str) -> None:
         self.btn_simulate.setEnabled(True)
