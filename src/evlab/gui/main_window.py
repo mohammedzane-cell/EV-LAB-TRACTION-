@@ -40,7 +40,7 @@ from evlab.gui.tab_thermal import ThermalTab
 from evlab.gui.tab_vehicle import VehicleTab
 from evlab.gui.tab_winding import WindingTab
 from evlab.gui.widgets import ElidedLabel, chip, empty_state, external_legends, flexible_plots, inspect_plots
-from evlab.gui.workers import CoreWorker
+from evlab.gui.workers import CoreWorker, collect_garbage_in_gui_thread
 from evlab.io import cours
 
 PRODUCT = "EV-LAB"
@@ -135,6 +135,7 @@ class MainWindow(QMainWindow):
         """theme_name: "light" or "dark"; None: the theme remembered by QSettings (Affichage menu)."""
         super().__init__()
         theme.apply(QApplication.instance(), theme_name if theme_name is not None else theme.saved())
+        collect_garbage_in_gui_thread()  # never in a worker thread: PySide would crash finalising Qt objects there
         self.session = session if session is not None else Session()
         self.setWindowTitle(WINDOW_TITLE)
         self.setMinimumSize(*MIN_SIZE)

@@ -160,7 +160,7 @@ class WindingTab(QWidget):
         kw_card, kl, _ = card("Facteurs de bobinage")
         self.kw_table = QTableWidget(len(HARMONICS), 6)
         self.kw_table.verticalHeader().setDefaultSectionSize(24)
-        self.kw_table.setMinimumHeight(26 * (len(HARMONICS) + 1) + 4)
+        self.kw_table.setMinimumHeight(24 * len(HARMONICS) + 28 + 4)  # rows + header + frame: no scroll bar
         self.kw_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.kw_table.verticalHeader().setVisible(False)
         self.kw_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)

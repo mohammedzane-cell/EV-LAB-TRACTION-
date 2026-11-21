@@ -414,14 +414,14 @@ QCheckBox:disabled, QRadioButton:disabled, QLabel:disabled {
 }
 
 QComboBox {
-    padding-right: 22px;
+    padding-right: 20px;
 }
 
 QComboBox::drop-down {
     subcontrol-origin: padding;
     subcontrol-position: center right;
     border: none;
-    width: 20px;
+    width: 18px;
 }
 
 QComboBox::down-arrow {
@@ -601,6 +601,11 @@ QTableWidget#slotTable {
 QTableWidget#slotTable QHeaderView::section {
     padding: 2px 0px;
     font-size: 7.5pt;
+}
+
+QHeaderView {
+    background: @card;
+    border: none;
 }
 
 QHeaderView::section {

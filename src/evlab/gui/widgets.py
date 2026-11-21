@@ -377,7 +377,11 @@ def inspect_plots(root: QWidget) -> None:
         label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         label.setVisible(False)
         pw.readout_label = label
-        pen = pg.mkPen((143, 157, 176, 200), width=1, style=Qt.PenStyle.DashLine)
+        from evlab.gui import theme
+
+        colour = pg.mkColor(theme.color("muted"))
+        colour.setAlpha(200)
+        pen = pg.mkPen(colour, width=1, style=Qt.PenStyle.DashLine)
         vline, hline = pg.InfiniteLine(angle=90, pen=pen), pg.InfiniteLine(angle=0, pen=pen)
         for line in (vline, hline):
             line.setZValue(1000)
