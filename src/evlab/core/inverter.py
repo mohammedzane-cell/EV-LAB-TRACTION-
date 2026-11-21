@@ -94,6 +94,18 @@ def max_phase_voltage(p: InverterParams) -> float:
     return max_modulation(p.modulation) * p.v_dc / (2.0 * math.sqrt(2.0))
 
 
+def required_dc_voltage(v_phase: ArrayLike, modulation: Modulation = "svpwm") -> np.ndarray | float:
+    """Smallest DC-link voltage (V) whose linear range reaches a phase voltage (RMS, V): the inverse of
+    max_phase_voltage, √6·V_ph for SVPWM and 2√2·V_ph for SPWM."""
+    if modulation not in ("svpwm", "spwm"):
+        raise ValueError(f"modulation must be 'svpwm' or 'spwm', got {modulation!r}")
+    v = np.asarray(v_phase, dtype=float)
+    if np.any(~np.isfinite(v)) or np.any(v < 0):
+        raise ValueError("phase voltage must be finite and >= 0 V")
+    out = 2.0 * math.sqrt(2.0) * v / max_modulation(modulation)
+    return float(out) if out.ndim == 0 else out
+
+
 def modulation_index(p: InverterParams, v_phase: ArrayLike) -> np.ndarray | float:
     """m = Û_ph/(V_dc/2) for a phase voltage (RMS, V). Refuses a voltage beyond the linear range."""
     v = np.asarray(v_phase, dtype=float)

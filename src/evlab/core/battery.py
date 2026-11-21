@@ -25,6 +25,8 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import ArrayLike
 
+from evlab.core import inverter as inverter_mod
+
 
 @dataclass(frozen=True)
 class CellParams:
@@ -218,3 +220,37 @@ def simulate(pack: PackParams, p_terminal: ArrayLike, dt: ArrayLike, soc0: float
     return BatteryResult(dt=d, soc=soc, current=out["current"], v_oc=out["v_oc"], v_terminal=v_t,
                          p_requested=p_req, p_terminal=out["p_terminal"], p_loss=out["p_loss"],
                          shortfall=out["shortfall"], regen_refused=out["regen_refused"], pack=pack)
+
+
+@dataclass(frozen=True)
+class DcLinkCheck:
+    """Battery voltage against the DC voltage the motor needs, per step (V).
+
+    required: smallest DC voltage reaching the phase voltage of the step (inverter.required_dc_voltage).
+    margin: terminal voltage − required (negative: the inverter cannot apply the voltage of the map).
+    short_steps: number of steps with a negative margin; short_time: their duration, s.
+    """
+
+    required: np.ndarray
+    margin: np.ndarray
+    short_steps: int
+    short_time: float
+    min_margin: float
+
+
+def dc_link_check(res: BatteryResult, v_phase: ArrayLike, modulation: str = "svpwm") -> DcLinkCheck:
+    """Is the pack's terminal voltage at each step enough for the motor's phase voltage (RMS, V) of that step?
+
+    Steps without current demand (v_phase = 0) need no voltage. The vehicle result is not changed: a negative
+    margin means the operating point of the map would need field weakening earlier (or a higher pack voltage).
+    """
+    v = np.asarray(v_phase, dtype=float)
+    if v.shape != res.v_terminal.shape:
+        raise ValueError(f"v_phase must have one value per battery step ({res.v_terminal.size}), got {v.shape}")
+    req = np.asarray(inverter_mod.required_dc_voltage(v, modulation), dtype=float)
+    margin = res.v_terminal - req
+    short = (margin < 0) & (v > 0)
+    active = v > 0
+    return DcLinkCheck(required=req, margin=margin, short_steps=int(short.sum()),
+                       short_time=float(np.sum(res.dt[short])),
+                       min_margin=float(np.min(margin[active])) if active.any() else math.inf)

@@ -85,3 +85,17 @@ def test_invalid_inputs():
         inv.losses(P, 1.0, 100.0, 1.5)
     with pytest.raises(ValueError):
         inv.active_vector(7, 600.0)
+
+
+@pytest.mark.parametrize("modulation", ["svpwm", "spwm"])
+def test_required_dc_voltage_is_the_inverse_of_the_linear_range(modulation):
+    for v in (50.0, 230.0, 400.0):
+        v_dc = inv.required_dc_voltage(v, modulation)
+        p = inv.InverterParams(**{**inv.DEMO_A35, "v_dc": v_dc}, modulation=modulation)
+        assert inv.max_phase_voltage(p) == pytest.approx(v)
+    assert inv.required_dc_voltage(230.0) == pytest.approx(math.sqrt(6) * 230.0)  # 563,4 V
+    assert np.allclose(inv.required_dc_voltage(np.array([0.0, 100.0]), "spwm"), [0.0, 200 * math.sqrt(2)])
+    with pytest.raises(ValueError):
+        inv.required_dc_voltage(-1.0)
+    with pytest.raises(ValueError):
+        inv.required_dc_voltage(100.0, "sixstep")

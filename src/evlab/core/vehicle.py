@@ -231,6 +231,7 @@ def size_vehicle(m: MotorParams, env: drive.Envelope, st: losses.LossSettings, v
 
 class LossTable:
     """A loss term of an efficiency map, interpolated at any (|T|, ω); default: total P_in − P_out.
+    Also the operating phase voltage "v" (V) and stator frequency "f" (Hz) of the map.
 
     Above the envelope (NaN in the map) each speed column keeps its last valid
     value; queries outside the grid are clamped to it (A24).
@@ -239,7 +240,7 @@ class LossTable:
     def __init__(self, emap: losses.EfficiencyMap, term: str = "total") -> None:
         if term == "total":
             loss = emap.p_in - emap.p_out
-        elif term in ("p_cu1", "p_cu2", "p_fe", "p_mech", "p_inv", "i1"):
+        elif term in ("p_cu1", "p_cu2", "p_fe", "p_mech", "p_inv", "i1", "v", "f"):
             loss = getattr(emap, term)
         else:
             raise ValueError(f"unknown loss term {term!r}")
@@ -325,6 +326,12 @@ class DriveResult:
     outside: np.ndarray  # traction demand beyond the envelope
     summary: DriveSummary
     balance: dict[str, float] = field(default_factory=dict)  # energy terms, J
+
+
+def phase_voltage(res: "DriveResult", emap: losses.EfficiencyMap) -> np.ndarray:
+    """Per-interval phase voltage (RMS, V) the motor needs on the cycle, read from the map at (|T|, ω) like the
+    losses (A24; in braking the motoring voltage at the same |T| is used); 0 at standstill."""
+    return np.where(res.omega > 0, LossTable(emap, "v")(res.torque, res.omega), 0.0)
 
 
 def wheel_powers(res: "DriveResult", veh: Vehicle) -> tuple[np.ndarray, np.ndarray]:

@@ -89,6 +89,49 @@ def test_invalid_inputs():
         bt.ocv(PACK, 1.2)
 
 
+def _chain():
+    """Motor (TD5 + R1) → drive → loss map → vehicle on the démo cycle."""
+    from dataclasses import replace
+
+    from evlab.core import drive, losses, vehicle
+    from evlab.core.session import MotorParams
+    from evlab.io.cycles import load_cycle
+    from evlab.io.paths import data_dir
+
+    m = MotorParams(v_phase=230.0, f_rated=50.0, pole_pairs=2, r1=0.5, r2p=2.0, x_leak=4.0, x_m=46.0,
+                    r_fe=230.0, p_mech=60.0, r1_temperature_k=293.15)
+    ds, st = drive.demo_settings(), losses.LossSettings()
+    env = drive.envelope(m, ds)
+    t, w = losses.default_grid(m, env, st, 40, 30)
+    emap = losses.efficiency_map(m, t, w, ds, st, envelope=env)
+    veh = vehicle.demo_quadricycle()
+    cycle = load_cycle(data_dir() / "cycle_demo.csv")
+    veh = replace(veh, gear_ratio=vehicle.size_vehicle(m, env, st, veh, cycle).gear_ratio)
+    return m, emap, cycle, vehicle.simulate(cycle, veh, m, env, emap, st)
+
+
+def test_dc_link_voltage_against_the_motor_on_the_cycle():
+    """The pack's terminal voltage against √6·V_ph of each step (SVPWM): enough when charged, not when empty."""
+    from evlab.core import inverter, vehicle
+
+    m, emap, cycle, res = _chain()
+    v_ph = vehicle.phase_voltage(res, emap)
+    assert np.all(v_ph <= m.v_phase * (1 + 1e-9)) and v_ph.max() > 0.9 * m.v_phase  # V/f law, capped at Vn
+    assert np.all(v_ph[res.omega == 0] == 0)
+    dt = np.diff(cycle.t)
+    full = bt.simulate(PACK, res.p_battery, dt, 0.9)
+    chk = bt.dc_link_check(full, v_ph)
+    assert np.allclose(chk.required, math.sqrt(6) * v_ph)
+    assert np.allclose(chk.margin, full.v_terminal - inverter.required_dc_voltage(v_ph))
+    assert chk.short_steps == 0 and chk.min_margin > 0  # ≈ 685 V of OCV at 90 % for at most 563 V needed
+    low = bt.simulate(PACK, res.p_battery, dt, 0.07)  # OCV ≈ 168 × 3,32 V = 557 V < 563 V
+    chk_low = bt.dc_link_check(low, v_ph)
+    assert chk_low.short_steps > 0 and chk_low.min_margin < 0
+    assert chk_low.short_time == pytest.approx(float(np.sum(dt[(chk_low.margin < 0) & (v_ph > 0)])))
+    with pytest.raises(ValueError):
+        bt.dc_link_check(full, v_ph[:-1])
+
+
 def test_driven_by_a_real_vehicle_simulation():
     """Motor (TD5 + R1) → drive → loss map → vehicle → battery: the battery sees the vehicle's terminal power."""
     from evlab.core import drive, losses, vehicle

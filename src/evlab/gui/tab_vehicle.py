@@ -148,6 +148,7 @@ class VehicleTab(QWidget):
             w.valueChanged.connect(lambda _v: self._run_battery())
         lv.addWidget(bat)
         self.battery_result: battery.BatteryResult | None = None
+        self.dc_check: battery.DcLinkCheck | None = None
 
         self.btn_simulate = QPushButton("Simuler le cycle")
         self.btn_simulate.setMinimumHeight(34)
@@ -375,11 +376,11 @@ class VehicleTab(QWidget):
                               f"R = {fr(pack.r)} Ω")
         if self.result is None:
             return
-        _sizing, res, cycle, _mp, _veh = self.result
+        _sizing, res, cycle, emap, _veh = self.result
         try:
             b = battery.simulate(pack, res.p_battery, np.diff(cycle.t), self.spin_soc0.value() / 100.0)
         except ValueError as exc:
-            self.battery_result = None
+            self.battery_result = self.dc_check = None
             self.lbl_battery.setText(f"Batterie : {exc}")
             self.battery_done.emit(None)
             return
@@ -390,6 +391,15 @@ class VehicleTab(QWidget):
                  f"énergie prise aux cellules {fr(b.chemical_energy_wh)} Wh (pertes du pack {fr(b.energy_wh('p_loss'))} Wh)",
                  f"récupération refusée {fr(b.energy_wh('regen_refused'))} Wh",
                  f"puissance non fournie {fr(b.energy_wh('shortfall'))} Wh"]
+        dc = battery.dc_link_check(b, vehicle.phase_voltage(res, emap))
+        self.dc_check = dc
+        if dc.short_steps:
+            parts.append(f"<span style='color:{theme.color('alert_fg')}'>tension du pack insuffisante pendant "
+                         f"{fr(dc.short_time)} s (marge min {fr(dc.min_margin)} V) : l'onduleur (MLI vectorielle) "
+                         f"ne peut pas appliquer la tension de la carte</span>")
+        elif np.isfinite(dc.min_margin):
+            parts.append(f"tension DC suffisante (MLI vectorielle, besoin max {fr(float(np.max(dc.required)))} V, "
+                         f"marge min {fr(dc.min_margin)} V)")
         self.lbl_battery.setText(" · ".join(parts))
         self.battery_done.emit(b)
 

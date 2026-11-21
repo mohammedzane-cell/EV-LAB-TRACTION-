@@ -64,3 +64,23 @@ def test_tab4_battery_follows_the_simulated_cycle(qtbot):
     tab.spin_soc0.setValue(60.0)  # inputs of the battery: recomputed without a new cycle simulation
     assert tab.battery_result.soc[0] == 0.6
     assert [tab.cycle_tabs.tabText(k) for k in range(3)] == ["Puissances", "Couple moteur", "Batterie"]
+
+
+def test_tab4_checks_the_dc_link_voltage(qtbot):
+    import numpy as np
+
+    from evlab.core import battery, vehicle
+    from evlab.gui.tab_vehicle import VehicleTab
+
+    tab = VehicleTab(Session())
+    qtbot.addWidget(tab)
+    with qtbot.waitSignal(tab.simulation_done, timeout=120_000):
+        tab.simulate()
+    _s, res, cycle, emap, _veh = tab.result
+    ref = battery.dc_link_check(tab.battery_result, vehicle.phase_voltage(res, emap))
+    assert tab.dc_check.short_steps == ref.short_steps == 0
+    assert f"marge min {fr(ref.min_margin)} V" in tab.lbl_battery.text()
+    assert f"besoin max {fr(float(np.max(ref.required)))} V" in tab.lbl_battery.text()
+    with qtbot.waitSignal(tab.battery_done, timeout=10_000):
+        tab.spin_soc0.setValue(7.0)  # nearly empty: the pack is below √6·V_ph above base speed
+    assert tab.dc_check.short_steps > 0 and "tension du pack insuffisante" in tab.lbl_battery.text()
