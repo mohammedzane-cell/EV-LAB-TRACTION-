@@ -55,6 +55,7 @@ class VehicleTab(QWidget):
     busy = Signal(bool)
     simulation_done = Signal(object)  # (Sizing, DriveResult, Cycle, EfficiencyMap)
     simulation_failed = Signal(str)
+    battery_done = Signal(object)  # core.battery.BatteryResult or None (tab 9)
     cycle_points = Signal(object, object)  # motor shaft torque (N·m), speed (rad/s) for tab 3
 
     def __init__(self, session: Session) -> None:
@@ -380,6 +381,7 @@ class VehicleTab(QWidget):
         except ValueError as exc:
             self.battery_result = None
             self.lbl_battery.setText(f"Batterie : {exc}")
+            self.battery_done.emit(None)
             return
         self.battery_result = b
         self.plot_soc.clear()
@@ -389,6 +391,7 @@ class VehicleTab(QWidget):
                  f"récupération refusée {fr(b.energy_wh('regen_refused'))} Wh",
                  f"puissance non fournie {fr(b.energy_wh('shortfall'))} Wh"]
         self.lbl_battery.setText(" · ".join(parts))
+        self.battery_done.emit(b)
 
     def _on_failed(self, message: str) -> None:
         self.btn_simulate.setEnabled(True)

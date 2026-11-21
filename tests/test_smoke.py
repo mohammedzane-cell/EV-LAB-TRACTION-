@@ -19,6 +19,7 @@ TAB_TITLES = [
     "6 · Bobinage",
     "7 · Optimisation",
     "8 · Cours",
+    "9 · Labo 3D",
 ]
 
 
@@ -38,7 +39,7 @@ def test_import_gui(name):
     assert importlib.import_module(f"evlab.gui.{name}").__doc__
 
 
-def test_main_window_opens_with_eight_tabs(qtbot):
+def test_main_window_opens_with_nine_tabs(qtbot):
     from evlab.gui.main_window import MainWindow
 
     win = MainWindow()
@@ -46,12 +47,12 @@ def test_main_window_opens_with_eight_tabs(qtbot):
     win.show()
     qtbot.waitExposed(win)
     assert win.windowTitle() == "EV-LAB · Electric Traction Research Studio — ENP Alger, ME3"
-    assert win.tabs.count() == 8
+    assert win.tabs.count() == 9
     # Qt stores '&&' for a literal '&' (a single '&' would be hidden as a shortcut marker)
     labels = [win.tabs.tabText(i) for i in range(win.tabs.count())]
     assert labels[3] == "4 · Véhicule && WLTC"
     assert [lab.replace("&&", "&") for lab in labels] == TAB_TITLES
-    assert [win.tabs.widget(i).title for i in range(8)] == TAB_TITLES
+    assert [win.tabs.widget(i).title for i in range(9)] == TAB_TITLES
     assert win.statusBar().currentMessage() == "Moteur : TD5 Ex 1"
 
 

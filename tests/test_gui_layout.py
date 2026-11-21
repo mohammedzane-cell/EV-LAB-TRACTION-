@@ -70,6 +70,9 @@ def win(qapp, request):
     veh, th = w.tabs.widget(3), w.tabs.widget(4)
     with bot.waitSignal(veh.simulation_done, timeout=TIMEOUT):
         w.tabs.setCurrentIndex(3)
+    for k in reversed(range(veh.cycle_tabs.count())):  # lay out every inner page of tab 4 once (Qt lays out shown pages)
+        veh.cycle_tabs.setCurrentIndex(k)
+        bot.wait(50)
     with bot.waitSignal(th.thermal_done, timeout=TIMEOUT):
         w.tabs.setCurrentIndex(4)
     t7 = w.tabs.widget(6)

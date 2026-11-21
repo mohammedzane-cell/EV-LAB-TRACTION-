@@ -35,6 +35,7 @@ from evlab.gui.tab_cours import CoursTab
 from evlab.gui.tab_efficiency import EfficiencyTab
 from evlab.gui.tab_envelope import EnvelopeTab
 from evlab.gui.tab_identification import IdentificationTab
+from evlab.gui.tab_lab3d import Lab3DTab
 from evlab.gui.tab_optimisation import OptimisationTab
 from evlab.gui.tab_thermal import ThermalTab
 from evlab.gui.tab_vehicle import VehicleTab
@@ -59,14 +60,16 @@ TAB_CLASSES = (
     WindingTab,
     OptimisationTab,
     CoursTab,
+    Lab3DTab,
 )
 COURSE_PDF_NAME = "cours_EV-Traction_Lab.pdf"  # file name kept: links and scripts already use it
-COURSE_INDEX = len(TAB_CLASSES) - 1  # « 8 · Cours », last tab; tab k < 7 is explained by cours.TABS[k]
+COURSE_INDEX = 7  # « 8 · Cours »; tab k < 7 is explained by cours.TABS[k]
+LAB3D_INDEX = 8  # « 9 · Labo 3D »
 
 
 # sidebar: one entry per workspace, grouped by engineering domain; the caption is the header's subtitle
 NAV_GROUPS = (("Machine", (0, 1, 2)), ("Véhicule", (3, 4)), ("Électromagnétisme", (5,)), ("Conception", (6,)),
-              ("Ressources", (7,)))
+              ("Laboratoire 3D", (8,)), ("Ressources", (7,)))
 CAPTIONS = (
     "Schéma équivalent en Γ identifié à partir des essais DC, à vide, rotor bloqué et en charge",
     "Enveloppe couple–vitesse du moteur identifié, sous loi V/f puis défluxage",
@@ -76,6 +79,7 @@ CAPTIONS = (
     "Bobinage triphasé : facteurs de bobinage, FMM et ses harmoniques, f.é.m., champ tournant",
     "Rapport, loi V/f, marge et rebobinage optimisés sur les modèles testés (front de Pareto)",
     "Les lois de chaque espace de travail, dans la notation du cours, avec les nombres de l'application",
+    "Moteur et chaîne de traction en 3D, animés par le cycle simulé : vitesses, puissances, SOC, températures",
 )
 SIDEBAR_WIDTH = 224  # px, expanded
 SIDEBAR_COMPACT = 60  # px, icons only
@@ -218,6 +222,20 @@ class MainWindow(QMainWindow):
         th_tab = self.tabs.widget(4)
         if hasattr(th_tab, "on_cycle") and hasattr(veh_tab, "simulation_done"):
             veh_tab.simulation_done.connect(th_tab.on_cycle)
+        # tabs 4, 5, 6 → tab 9: the 3D scenes follow the winding, the cycle, the battery and the temperatures
+        lab = self.tabs.widget(LAB3D_INDEX)
+        win_tab = self.tabs.widget(5)
+        if hasattr(lab, "on_cycle"):
+            veh_tab.simulation_done.connect(lab.on_cycle)
+            veh_tab.battery_done.connect(lab.on_battery)
+            th_tab.thermal_done.connect(lambda r: lab.on_thermal(r, th_tab.cycle[0] if th_tab.cycle else None))
+            win_tab.winding_changed.connect(lab.on_winding)
+            lab.thermal_request = th_tab.compute
+            if win_tab.winding is not None:
+                lab.on_winding(win_tab.winding)
+            if veh_tab.result is not None:
+                lab.on_battery(veh_tab.battery_result)
+                lab.on_cycle(veh_tab.result)
         # tab 7: the optimisation problem is assembled from tabs 1–5; a chosen design goes back to them
         opt_tab = self.tabs.widget(6)
         if hasattr(opt_tab, "problem_provider"):
@@ -275,7 +293,7 @@ class MainWindow(QMainWindow):
             for k in indices:
                 lay.addLayout(self._nav_row(k))
         lay.addStretch(1)
-        self.chain_note = QLabel("Un moteur, une chaîne : le moteur identifié en 01 alimente 02 à 07.")
+        self.chain_note = QLabel("Un moteur, une chaîne : le moteur identifié en 01 alimente 02 à 07 et la 3D (09).")
         self.chain_note.setObjectName("chainNote")
         self.chain_note.setWordWrap(True)
         lay.addWidget(self.chain_note)

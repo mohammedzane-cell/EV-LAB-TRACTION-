@@ -38,6 +38,8 @@ GLYPHS: dict[str, str] = {
     # 8 · course: open book
     "cours": '<path d="M3 5c3-1 6-1 9 1v13c-3-2-6-2-9-1z"/><path d="M21 5c-3-1-6-1-9 1v13c3-2 6-2 9-1z"/>'
              '<path d="M6 9h3M6 12h3M15 9h3M15 12h3"/>',
+    # 9 · 3D laboratory: an isometric block (scene)
+    "lab3d": '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
     # shell actions
     "help": '<circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.5v.7"/>'
             '<circle cx="12" cy="16.8" r="0.5"/>',
@@ -48,7 +50,7 @@ GLYPHS: dict[str, str] = {
 }
 
 WORKSPACE_GLYPHS = ("identification", "envelope", "efficiency", "vehicle", "thermal", "winding", "optimisation",
-                    "cours")
+                    "cours", "lab3d")
 
 
 def svg(name: str, colour: str, stroke: float = 1.6) -> str:

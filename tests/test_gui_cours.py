@@ -30,7 +30,7 @@ def _shown(qtbot, w, action, slug):
 
 
 def test_tab_8_is_the_course(win):
-    assert win.tabs.count() == 8 and win.tabs.widget(mw.COURSE_INDEX).title == TITLE == "8 · Cours"
+    assert win.tabs.count() == 9 and win.tabs.widget(mw.COURSE_INDEX).title == TITLE == "8 · Cours"
     assert isinstance(win.course, CoursTab)
     assert [win.course.toc.topLevelItem(k).text(0) for k in range(win.course.toc.topLevelItemCount())] == \
         [p.title for p in cours.PAGES]
@@ -175,7 +175,7 @@ def test_sidebar_replaces_the_tab_bar_and_fits_the_minimum_window(qtbot):
     qtbot.waitExposed(w)
     qtbot.wait(50)
     assert not w.tabs.tabBar().isVisible()
-    assert len(w.nav_buttons) == w.tabs.count() == 8
+    assert len(w.nav_buttons) == w.tabs.count() == 9
     assert w.sidebar_compact() and w.sidebar.width() == mw.SIDEBAR_COMPACT
     bottom = w.centralWidget().height()
     for k, btn in enumerate(w.nav_buttons):

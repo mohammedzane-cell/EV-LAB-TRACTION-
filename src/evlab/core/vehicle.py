@@ -327,6 +327,19 @@ class DriveResult:
     balance: dict[str, float] = field(default_factory=dict)  # energy terms, J
 
 
+def wheel_powers(res: "DriveResult", veh: Vehicle) -> tuple[np.ndarray, np.ndarray]:
+    """Per-interval wheel power of the motor path and friction-brake power of a simulated cycle, W.
+
+    The same definitions as simulate (so that their sums are balance["gear"] and balance["friction_brake"]):
+    traction (F ≥ 0): the wheels receive F·v̄ (= P_shaft·ηg); braking: the motor takes
+    F_m·v̄ = P_shaft/ηg (< 0) and the friction brakes dissipate −(F − F_m)·v̄ ≥ 0, with F_m = T/(k·ηg), k = r/G.
+    """
+    traction = res.force >= 0
+    k = veh.wheel_radius / veh.gear_ratio
+    f_motor = np.where(traction, res.force, res.torque / (k * veh.gear_efficiency))
+    return f_motor * res.v, -(res.force - f_motor) * res.v
+
+
 def simulate(cycle: Cycle, veh: Vehicle, m: MotorParams, env: drive.Envelope, emap: losses.EfficiencyMap,
              st: losses.LossSettings) -> DriveResult:
     """Battery power and energy of the vehicle on the cycle (see module docstring)."""
