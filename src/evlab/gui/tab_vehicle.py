@@ -145,14 +145,18 @@ class VehicleTab(QWidget):
         for t in self.tiles.values():
             tiles.addWidget(t)
         right.addLayout(tiles)
-        plot_card, lay, head = card("Cycle : vitesse et puissance batterie")
+        plot_card, lay, head = card("Cycle : vitesse, puissances et couple moteur")
         self.chip_demo = chip("démo")
         self.chip_demo.setVisible(False)
         head.addWidget(self.chip_demo)
         self.plot_speed = pg.PlotWidget(title="Vitesse du véhicule")
-        self.plot_power = pg.PlotWidget(title="Puissance batterie")
+        self.plot_power = pg.PlotWidget(title="Puissance batterie et puissance à l'arbre")
         self.plot_power.setXLink(self.plot_speed)
-        for pw, ylab in ((self.plot_speed, "Vitesse (km/h)"), (self.plot_power, "Puissance (kW)")):
+        # the motor side of the same cycle: shaft torque > 0 in traction, < 0 in regenerative braking
+        self.plot_motor = pg.PlotWidget(title="Moteur : couple à l'arbre")
+        self.plot_motor.setXLink(self.plot_speed)
+        for pw, ylab in ((self.plot_speed, "Vitesse (km/h)"), (self.plot_power, "Puissance (kW)"),
+                         (self.plot_motor, "Couple (N·m)")):
             pw.setLabel("bottom", "Temps (s)")
             pw.setLabel("left", ylab)
             pw.showGrid(x=True, y=True, alpha=0.25)
@@ -306,9 +310,15 @@ class VehicleTab(QWidget):
     def _draw(self, res: vehicle.DriveResult, cycle: vehicle.Cycle) -> None:
         self.plot_speed.clear()
         self.plot_power.clear()
+        self.plot_motor.clear()
         self.plot_speed.plot(cycle.t, cycle.v * KMH, pen=pg.mkPen(theme.color("blue"), width=2), name=cycle.name)
         if res.outside.any():
             self.plot_speed.plot(res.t[res.outside], res.v[res.outside] * KMH, pen=None, symbol="o", symbolSize=7,
                                  symbolBrush=theme.color("red"), symbolPen=None, name="hors enveloppe")
+        self.plot_power.plot(res.t, res.p_shaft / 1000, pen=pg.mkPen(theme.color("orange"), width=1.2),
+                             name="arbre moteur")
         self.plot_power.plot(res.t, res.p_battery / 1000, pen=pg.mkPen(theme.color("green"), width=1.5), name="batterie")
         self.plot_power.addLine(y=0, pen=pg.mkPen(theme.color("grey")))
+        self.plot_motor.plot(res.t, res.torque, pen=pg.mkPen(theme.color("blue"), width=1.2),
+                             name="couple à l'arbre (< 0 : récupération)")
+        self.plot_motor.addLine(y=0, pen=pg.mkPen(theme.color("grey")))

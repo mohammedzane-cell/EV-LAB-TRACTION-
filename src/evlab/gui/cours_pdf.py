@@ -1,6 +1,6 @@
 """PDF of the whole course (Fichier → Exporter le cours en PDF): QTextDocument + QPrinter, A4.
 
-A title page (EV-Traction Lab, ENP Alger, ME3, date), then every page of io.cours in its
+A title page (EV-LAB · Electric Traction Research Studio, ENP Alger, ME3, date), then every page of io.cours in its
 print form (answers printed under their questions, links as plain text), each page on a
 new sheet, always in the light theme (the document is meant to be printed). Page numbers
 are added by QTextDocument.print_ (the document has no page size of its own).
@@ -22,10 +22,12 @@ from PySide6.QtGui import QFont, QFontDatabase, QPageLayout, QPageSize, QTextDoc
 from PySide6.QtPrintSupport import QPrinter
 
 from evlab.core.session import MotorParams
+from evlab.gui import theme
 from evlab.gui.tab_cours import document_css, page_html
 from evlab.io import cours
 
-TITLE = "EV-Traction Lab"
+TITLE = "EV-LAB"
+PRODUCT_SUBTITLE = "Electric Traction Research Studio"
 SUBTITLE = "Cours : les lois de l'application, onglet par onglet"
 SCHOOL = "École Nationale Polytechnique, Alger"
 COURSE = "ME3 · Machines électriques"
@@ -62,8 +64,10 @@ def title_page(date: dt.date, motor_label: str) -> str:
     """HTML of the title page."""
     return (
         '<div align="center">'
-        '<p style="margin-top: 180px; font-size: 28pt; font-weight: bold;">' + html.escape(TITLE) + "</p>"
-        '<p style="font-size: 15pt;">' + html.escape(SUBTITLE) + "</p>"
+        '<p style="margin-top: 180px; font-size: 30pt; font-weight: bold;">' + html.escape(TITLE) + "</p>"
+        f'<p style="font-size: 10pt; color: {theme.palette("light")["muted"]};">'
+        + html.escape(PRODUCT_SUBTITLE.upper()) + "</p>"
+        '<p style="margin-top: 30px; font-size: 15pt;">' + html.escape(SUBTITLE) + "</p>"
         '<p style="margin-top: 60px; font-size: 13pt;">' + html.escape(SCHOOL) + "</p>"
         '<p style="font-size: 13pt;">' + html.escape(COURSE) + "</p>"
         '<p style="margin-top: 40px; font-size: 12pt;">' + date.strftime("%d/%m/%Y") + "</p>"

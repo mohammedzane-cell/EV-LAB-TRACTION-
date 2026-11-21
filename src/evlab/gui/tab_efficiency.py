@@ -4,6 +4,9 @@ Thin view: reads the loss settings, runs core.losses.efficiency_map in a
 QThreadPool worker, draws the contour map with % labels, the envelope overlay
 and (from stage 5) the cycle points. Every number comes from core/; this module
 only converts units for display (rad/s → tr/min, °C ↔ K, η → %).
+The « Bilan au point » panel reads the arrays of the map at one grid point (the best point,
+or the one clicked): η, P_out, P_in, I1, f and each loss term as computed by core.losses;
+its bars only draw each term as a share of P_in (no number is derived from them).
 """
 
 from __future__ import annotations
@@ -12,14 +15,16 @@ import numpy as np
 import matplotlib
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from PySide6.QtCore import QThreadPool, Signal
+from PySide6.QtCore import Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
@@ -30,7 +35,7 @@ from evlab.core import drive, losses
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
-from evlab.gui.widgets import card, chip, french_spin, scroll_panel, set_demo_chip
+from evlab.gui.widgets import card, chip, divider, french_spin, scroll_panel, section_header, set_demo_chip
 from evlab.gui.workers import CoreWorker
 from evlab.io.notes import demo_labels
 
@@ -40,6 +45,12 @@ RPM = 60.0 / (2.0 * 3.141592653589793)  # rad/s → tr/min (display only)
 T_ZERO_C = 273.15
 LEVELS = (50, 60, 70, 75, 78, 80, 82, 84, 86, 88, 90, 92, 94)  # contour lines, %
 DEFAULT_DRIVE = drive.demo_settings()  # until tab 2 sends its envelope (A16)
+POINT_ROWS = (("torque", "Couple à l'arbre", "N·m"), ("speed", "Vitesse", "tr/min"), ("eta", "Rendement η", "%"),
+              ("p_out", "Puissance utile", "W"), ("p_in", "Puissance absorbée", "W"), ("i1", "Courant I1", "A"),
+              ("f", "Fréquence f", "Hz"))
+LOSS_ROWS = (("p_cu1", "Cuivre stator", "P_cu1"), ("p_cu2", "Cuivre rotor", "P_cu2"), ("p_fe", "Fer", "P_fer"),
+             ("p_mech", "Mécaniques", "P_méc"), ("p_inv", "Onduleur", "P_ond"))
+PANEL_WIDTH = 236
 
 
 class EfficiencyTab(QWidget):
@@ -131,12 +142,130 @@ class EfficiencyTab(QWidget):
         head.addWidget(self.chip_demo)
         self.figure = Figure(figsize=(8, 6), layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.figure)
-        lay.addWidget(self.canvas, 1)
+        self.canvas.setToolTip("Cliquez dans la carte : bilan de puissance au point de la grille le plus proche")
+        self.canvas.mpl_connect("button_press_event", self._on_click)
+        self.ax = None
+        self.selected: tuple[int, int] | None = None  # grid indices (torque, speed) of « Bilan au point »
+        body = QHBoxLayout()
+        body.addWidget(self.canvas, 1)
+        body.addWidget(self._build_point_panel())
+        lay.addLayout(body, 1)
         self.lbl_best = QLabel("")
         lay.addWidget(self.lbl_best)
         root.addWidget(map_card, 1)
 
         self.on_motor_changed(recompute=False)
+
+    def _build_point_panel(self) -> QWidget:
+        """« Bilan au point »: values of the map at one grid point and the loss terms (core arrays)."""
+        panel = QWidget()
+        panel.setFixedWidth(PANEL_WIDTH)
+        v = QVBoxLayout(panel)
+        v.setContentsMargins(6, 0, 0, 0)
+        v.setSpacing(4)
+        v.addWidget(section_header("Bilan au point"))
+        self.lbl_point_where = QLabel("—")
+        self.lbl_point_where.setProperty("role", "hint")
+        self.lbl_point_where.setWordWrap(True)
+        v.addWidget(self.lbl_point_where)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(3)
+        self.point_values: dict[str, QLabel] = {}
+        for r, (key, label, unit) in enumerate(POINT_ROWS):
+            name = QLabel(label)
+            name.setProperty("role", "muted")
+            val = QLabel("—")
+            val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            val.setToolTip(unit)
+            grid.addWidget(name, r, 0)
+            grid.addWidget(val, r, 1)
+            self.point_values[key] = val
+        v.addLayout(grid)
+        v.addWidget(divider())
+        v.addWidget(section_header("Pertes"))
+        lgrid = QGridLayout()
+        lgrid.setHorizontalSpacing(8)
+        lgrid.setVerticalSpacing(2)
+        self.loss_values: dict[str, QLabel] = {}
+        self.loss_bars: dict[str, QProgressBar] = {}
+        for r, (key, label, symbol) in enumerate(LOSS_ROWS):
+            name = QLabel(f"{label}")
+            name.setToolTip(symbol)
+            val = QLabel("—")
+            val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            bar = QProgressBar()
+            bar.setObjectName("lossBar")
+            bar.setRange(0, 1000)
+            bar.setValue(0)
+            bar.setTextVisible(False)
+            bar.setToolTip(f"{symbol} : longueur = part de la puissance absorbée P_in")
+            lgrid.addWidget(name, 2 * r, 0)
+            lgrid.addWidget(val, 2 * r, 1)
+            lgrid.addWidget(bar, 2 * r + 1, 0, 1, 2)
+            self.loss_values[key] = val
+            self.loss_bars[key] = bar
+        v.addLayout(lgrid)
+        note = QLabel("Valeurs de la carte (core.losses) au point de grille le plus proche du clic.")
+        note.setProperty("role", "hint")
+        note.setWordWrap(True)
+        v.addWidget(note)
+        v.addStretch(1)
+        return panel
+
+    def select_point(self, i: int, j: int) -> None:
+        """Show « Bilan au point » for grid indices (torque i, speed j) and mark the point on the map."""
+        self.selected = (i, j)
+        self._fill_point_panel()
+        self._draw()
+
+    def _selected_ok(self) -> bool:
+        """The selected indices exist on the current map's grid."""
+        if self.emap is None or self.selected is None:
+            return False
+        i, j = self.selected
+        return 0 <= i < len(self.emap.torque) and 0 <= j < len(self.emap.speed)
+
+    def _fill_point_panel(self) -> None:
+        emap = self.emap
+        if not self._selected_ok():
+            for lbl in (*self.point_values.values(), *self.loss_values.values()):
+                lbl.setText("—")
+            for bar in self.loss_bars.values():
+                bar.setValue(0)
+            self.lbl_point_where.setText("Calculez la carte, puis cliquez un point.")
+            return
+        i, j = self.selected
+        self.point_values["torque"].setText(f"{fr(float(emap.torque[i]))} N·m")
+        self.point_values["speed"].setText(f"{fr_fixed(float(emap.speed[j]) * RPM, 0)} tr/min")
+        if not emap.valid[i, j]:
+            self.lbl_point_where.setText("Point hors de l'enveloppe : la carte n'y a pas de valeur.")
+            for key in ("eta", "p_out", "p_in", "i1", "f"):
+                self.point_values[key].setText("—")
+            for key in self.loss_values:
+                self.loss_values[key].setText("—")
+                self.loss_bars[key].setValue(0)
+            return
+        best = losses.best_point(emap)
+        is_best = abs(best[1] - emap.torque[i]) < 1e-12 and abs(best[2] - emap.speed[j]) < 1e-12
+        self.lbl_point_where.setText("Point de meilleur rendement" if is_best else "Point choisi sur la carte")
+        self.point_values["eta"].setText(f"{fr_fixed(100.0 * float(emap.eta[i, j]), 1)} %")
+        for key in ("p_out", "p_in"):
+            self.point_values[key].setText(f"{fr(float(getattr(emap, key)[i, j]))} W")
+        self.point_values["i1"].setText(f"{fr(float(emap.i1[i, j]))} A")
+        self.point_values["f"].setText(f"{fr(float(emap.f[i, j]))} Hz")
+        p_in = float(emap.p_in[i, j])
+        for key, _label, _symbol in LOSS_ROWS:
+            x = float(getattr(emap, key)[i, j])
+            self.loss_values[key].setText(f"{fr(x)} W")
+            self.loss_bars[key].setValue(int(round(1000 * x / p_in)) if p_in > 0 and np.isfinite(x) else 0)
+
+    def _on_click(self, event) -> None:
+        if self.emap is None or self.ax is None or event.inaxes is not self.ax or event.xdata is None:
+            return
+        i = int(np.argmin(np.abs(self.emap.torque - event.ydata)))
+        j = int(np.argmin(np.abs(self.emap.speed * RPM - event.xdata)))
+        self.select_point(i, j)
 
     # --- inputs -----------------------------------------------------------------
 
@@ -241,6 +370,7 @@ class EfficiencyTab(QWidget):
 
     def _on_done(self, emap: losses.EfficiencyMap) -> None:
         self.emap = emap
+        self.selected = None  # indices of the previous map are not valid on a new grid
         self.stale = False
         self.btn_compute.setEnabled(True)
         self.btn_png.setEnabled(True)
@@ -248,6 +378,10 @@ class EfficiencyTab(QWidget):
         self._draw()
         self._update_demo_chip(emap)
         eta, t, w = losses.best_point(emap)
+        k = int(np.nanargmax(emap.eta))
+        self.selected = tuple(int(x) for x in np.unravel_index(k, emap.eta.shape))  # same point as best_point
+        self._fill_point_panel()
+        self._draw()
         self.lbl_best.setText(f"Rendement max {fr_fixed(100 * eta, 1)} % à {fr(t)} N·m, "
                               f"{fr_fixed(w * RPM, 0)} tr/min (rendement chaîne onduleur + moteur, arbre)")
         self.status_message.emit("Carte de rendement calculée")
@@ -294,11 +428,16 @@ class EfficiencyTab(QWidget):
         if self.chk_cycle.isChecked() and self.cycle_points is not None:
             t, w = self.cycle_points
             ax.scatter(w * RPM, t, s=6, color=theme.color("orange"), alpha=0.6, label="points du cycle")
+        if self._selected_ok():
+            i, j = self.selected
+            ax.plot([n[j]], [emap.torque[i]], marker="+", markersize=14, markeredgewidth=1.8,
+                    color=theme.color("text"), linestyle="none", label="point du bilan")
         demo = " (démo)" if self.session.motor.is_demo else ""
-        ax.set_title(f"{self.session.motor.source}{demo}", fontsize=10)
+        ax.set_title(f"{self.session.motor.source}{demo}", fontsize=8.5, loc="right", color=theme.color("muted"))
         ax.set_xlabel("Vitesse (tr/min)")
         ax.set_ylabel("Couple à l'arbre (N·m)")
-        ax.legend(loc="upper right", fontsize=8)
+        ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.0), ncol=3, fontsize=8, frameon=False,
+                  borderaxespad=0.2, handlelength=1.6)  # above the axes, left: never over the map nor the title
         ax.set_ylim(0, float(emap.torque[-1]))
         ax.set_xlim(0, float(n[-1]))
         self.canvas.draw_idle()

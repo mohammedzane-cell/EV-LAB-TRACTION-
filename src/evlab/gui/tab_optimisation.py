@@ -321,10 +321,19 @@ class OptimisationTab(QWidget):
         r = self.result
         self.plot.clear()
         feas = [e for e in r.log if e.feasible and math.isfinite(e.t_0_50)]
+        infeas = [e for e in r.log if not e.feasible and math.isfinite(e.t_0_50) and math.isfinite(e.wh_per_km)]
+        if infeas:
+            # constraints violated (envelope, winding temperature, current, E/f): shown, never part of the front;
+            # ignoreBounds: an extreme infeasible design does not zoom the view away from the front (« A » shows all)
+            bad = pg.PlotDataItem([e.t_0_50 for e in infeas], [e.wh_per_km for e in infeas], pen=None, symbol="x",
+                                  symbolSize=6, symbolBrush=None, symbolPen=pg.mkPen(theme.color("alert_border")),
+                                  name=f"non admissibles ({len(infeas)})")
+            bad.setOpacity(0.55)
+            self.plot.addItem(bad, ignoreBounds=True)
         if feas:
             self.plot.plot([e.t_0_50 for e in feas], [e.wh_per_km for e in feas], pen=None, symbol="o",
                            symbolSize=4, symbolBrush=(150, 150, 150, 90), symbolPen=None,
-                           name="évaluations admissibles")
+                           name=f"évaluations admissibles ({len(feas)})")
         self.front_item = pg.ScatterPlotItem(
             [e.t_0_50 for e in r.front], [e.wh_per_km for e in r.front], size=11,
             brush=pg.mkBrush(theme.color("green")), pen=pg.mkPen(theme.color("dark_green")), data=list(range(len(r.front))),

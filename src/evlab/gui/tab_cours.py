@@ -47,7 +47,7 @@ def page_html(markdown: str, name: str | None = None) -> str:
     doc = QTextDocument()
     doc.setMarkdown(markdown)
     html = doc.toHtml()
-    accent = pal["primary"] if (name or theme.current()) == theme.LIGHT else pal["info"]
+    accent = pal["primary"]  # equations in the identity accent (cyan), both themes
     return _MONO.sub(lambda m: m.group(0) + f" color:{accent};", html)
 
 

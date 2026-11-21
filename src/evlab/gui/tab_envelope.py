@@ -216,6 +216,32 @@ class EnvelopeTab(QWidget):
                               name=f"{fr_fixed(100 * env.settings.margin, 0)} % du décrochage")
         self.plot_power.plot(n, env.power / 1000.0, pen=pg.mkPen(theme.color("blue"), width=2.5), name="puissance")
         self.plot_torque.setYRange(0, 1.15 * float(env.torque.max()))
+        self._annotate_zones(bounds, top_torque=1.13 * float(env.torque.max()), top_power=1.06 * float(env.power.max()) / 1000.0)
         self.lbl_zones.setText(" · ".join(
             f"zone {z} : {ZONE_NAMES[z]} {fr_fixed(a, 0)}–{fr_fixed(b, 0)} tr/min"
             for z, (a, b) in bounds.items() if b > a))
+
+    def _annotate_zones(self, bounds: dict[int, tuple[float, float]], top_torque: float, top_power: float) -> None:
+        """Number each operating region at the top of both plots (names in the zone line below, values from core)
+        and mark its boundary speeds."""
+        from PySide6.QtGui import QFont
+
+        font = QFont()
+        font.setPointSizeF(8.0)
+        font.setWeight(QFont.Weight.DemiBold)
+        muted = theme.color("muted")
+        for pw, top in ((self.plot_torque, top_torque), (self.plot_power, top_power)):
+            for z, (a, b) in bounds.items():
+                if b <= a:
+                    continue
+                label = pg.TextItem(f"zone {z}", color=muted, anchor=(0.5, 0.0))
+                label.setFont(font)
+                label.setToolTip(ZONE_NAMES[z])
+                label.setPos((a + b) / 2.0, top)
+                pw.addItem(label, ignoreBounds=True)
+            for z in (1, 2):
+                a, b = bounds[z]
+                if b > a:
+                    line = pg.InfiniteLine(pos=b, angle=90, movable=False,
+                                           pen=pg.mkPen(theme.color("grid"), width=1, style=Qt.PenStyle.DotLine))
+                    pw.addItem(line, ignoreBounds=True)

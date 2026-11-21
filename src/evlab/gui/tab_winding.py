@@ -151,6 +151,7 @@ class WindingTab(QWidget):
         self.strip.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.strip.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.strip.horizontalHeader().setMinimumSectionSize(18)
+        self.strip.setTextElideMode(Qt.TextElideMode.ElideNone)  # « C− » in a 22 px column: no « … »
         self.strip.setFixedHeight(92)
         sl.addWidget(self.strip)
         right.addWidget(strip_card)

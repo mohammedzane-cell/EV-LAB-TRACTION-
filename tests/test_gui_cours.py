@@ -166,14 +166,31 @@ def test_theme_switch_restyles_the_page(qtbot, win):
     assert theme.palette("light")["card"] in win.course.browser.styleSheet()
 
 
-def test_tab_bar_fits_the_minimum_window(qtbot):
+def test_sidebar_replaces_the_tab_bar_and_fits_the_minimum_window(qtbot):
+    """EV-LAB shell: the tab bar is hidden, the sidebar navigates; at the minimum size it is compact and complete."""
     w = MainWindow(theme_name="light")
     qtbot.addWidget(w)
     w.resize(*mw.MIN_SIZE)
     w.show()
     qtbot.waitExposed(w)
-    bar = w.tabs.tabBar()
-    assert sum(bar.tabRect(k).width() for k in range(bar.count())) <= w.tabs.width()
+    qtbot.wait(50)
+    assert not w.tabs.tabBar().isVisible()
+    assert len(w.nav_buttons) == w.tabs.count() == 8
+    assert w.sidebar_compact() and w.sidebar.width() == mw.SIDEBAR_COMPACT
+    bottom = w.centralWidget().height()
+    for k, btn in enumerate(w.nav_buttons):
+        assert btn.isVisible() and btn.mapTo(w.centralWidget(), btn.rect().bottomLeft()).y() <= bottom
+        btn.click()
+        assert w.tabs.currentIndex() == k and btn.isChecked()
+        assert w.ws_title.text() == mw.workspace_label(w.tabs.widget(k).title)[1]
+    w.resize(1600, 900)
+    qtbot.wait(50)
+    assert not w.sidebar_compact()  # wide window: the full sidebar comes back (automatic mode)
+    w.btn_collapse.click()
+    assert w.sidebar_compact()  # an explicit choice is kept
+    w.resize(1700, 950)
+    qtbot.wait(50)
+    assert w.sidebar_compact()
 
 
 # --- course PDF (Fichier → Exporter le cours en PDF) ----------------------------------------------
@@ -196,7 +213,7 @@ def test_course_pdf_has_title_page_every_page_and_the_answers(qtbot, win, tmp_pa
     pages = [" ".join(p.extract_text().split()) for p in reader.pages]  # wrapped lines and tabs → one space
     assert len(pages) > len(cours.PAGES)
     first = pages[0]
-    for s in ("EV-Traction Lab", "École Nationale Polytechnique, Alger", "ME3", dt.date.today().strftime("%d/%m/%Y"),
+    for s in ("EV-LAB", "ELECTRIC TRACTION RESEARCH STUDIO", "École Nationale Polytechnique, Alger", "ME3", dt.date.today().strftime("%d/%m/%Y"),
               "moteur de référence"):
         assert s in first, s
     text = " ".join(pages)
