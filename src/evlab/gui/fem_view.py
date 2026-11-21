@@ -37,7 +37,7 @@ from evlab.core import winding as wd
 from evlab.core.session import MotorParams
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed, fr_pct
-from evlab.gui.widgets import external_legends, flexible_plots, french_spin, scroll_panel
+from evlab.gui.widgets import external_legends, flexible_plots, french_spin, inspect_plots, scroll_panel
 from evlab.gui.workers import CoreWorker
 from evlab.io import femm_model as fm
 
@@ -192,6 +192,8 @@ class FemDialog(QDialog):
 
         external_legends(self)  # legend above the B_r plot, never over the curves
         flexible_plots(self)
+        inspect_plots(self)  # crosshair + readout, as in the workspaces
+        theme.style_plot(self.plot)
         self.refresh_cache_list()
         if not self.available and self.combo_cache.count():
             self.load_cached(self._preferred_cache())

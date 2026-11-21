@@ -358,11 +358,12 @@ def readout_text(item, x: float, y: float) -> str:
 
 
 def inspect_plots(root: QWidget) -> None:
-    """Give every pyqtgraph plot under `root` a crosshair and a readout line under it.
+    """Give every pyqtgraph plot under `root` a crosshair and a floating readout.
 
-    The crosshair follows the mouse inside the plot area (dashed, muted); the readout shows the cursor
-    in the axis units and the nearest sample of each named curve. Zoom (wheel), pan (drag), reset
-    (« A » button, or right-click → View All) and export (right-click → Export…) are pyqtgraph's own.
+    The crosshair follows the mouse inside the plot area; the readout floats in the corner of the
+    plot area away from the cursor (it never changes the layout) and shows the cursor in the axis
+    units and the nearest sample of each named curve. Zoom (wheel), pan (drag), reset (« A » button,
+    or right-click → View All) and export (right-click → Export…) are pyqtgraph's own.
     """
     import pyqtgraph as pg
 
@@ -370,23 +371,13 @@ def inspect_plots(root: QWidget) -> None:
         if getattr(pw, "readout_label", None) is not None:
             continue
         item = pw.getPlotItem()
-        box = pw.parentWidget()
-        lay = box.layout() if box is not None else None
-        if lay is None:
-            continue
-        label = QLabel("")
+        label = QLabel("", pw)  # child of the plot: floats over it, outside any layout
         label.setObjectName("plotReadout")
         label.setWordWrap(True)
+        label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         label.setVisible(False)
-        idx = lay.indexOf(pw)
-        if idx < 0:
-            continue
-        if isinstance(lay, QVBoxLayout):
-            lay.insertWidget(idx + 1, label)
-        else:
-            continue  # plots in grids keep only the crosshair (no row to put a readout in)
         pw.readout_label = label
-        pen = pg.mkPen((128, 140, 156, 150), width=1, style=Qt.PenStyle.DashLine)
+        pen = pg.mkPen((143, 157, 176, 200), width=1, style=Qt.PenStyle.DashLine)
         vline, hline = pg.InfiniteLine(angle=90, pen=pen), pg.InfiniteLine(angle=0, pen=pen)
         for line in (vline, hline):
             line.setZValue(1000)
@@ -394,18 +385,28 @@ def inspect_plots(root: QWidget) -> None:
             item.addItem(line, ignoreBounds=True)
         pw.crosshair = (vline, hline)
 
-        def moved(pos, item=item, vline=vline, hline=hline, label=label):
+        def moved(pos, pw=pw, item=item, vline=vline, hline=hline, label=label):
             vb = item.getViewBox()
-            inside = item.sceneBoundingRect().contains(pos) and vb.sceneBoundingRect().contains(pos)
+            inside = vb.sceneBoundingRect().contains(pos)
             for line in (vline, hline):
                 line.setVisible(inside)
             label.setVisible(inside)
             if not inside:
                 return
+            for line in (vline, hline):
+                if line.scene() is None:  # the tab's redraw (plot.clear()) removed it: put it back
+                    item.addItem(line, ignoreBounds=True)
             pt = vb.mapSceneToView(pos)
             vline.setPos(pt.x())
             hline.setPos(pt.y())
             label.setText(readout_text(item, pt.x(), pt.y()))
+            area = pw.mapFromScene(vb.sceneBoundingRect()).boundingRect()
+            label.setFixedWidth(int(max(120, min(340, area.width() - 12))))
+            label.adjustSize()
+            cursor = pw.mapFromScene(pos)
+            x = area.left() + 6 if cursor.x() > area.center().x() else area.right() - label.width() - 6
+            label.move(int(x), int(area.top() + 4))
+            label.raise_()
 
         pw.scene().sigMouseMoved.connect(moved)
         pw.setToolTip("Molette : zoom · glisser : déplacer · bouton « A » (coin bas gauche) : vue complète · "

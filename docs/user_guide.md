@@ -1,4 +1,4 @@
-# EV-Traction Lab — Guide d'utilisation
+# EV-LAB · Electric Traction Research Studio — Guide d'utilisation
 
 Mini-projet ME3 — ENP Alger, Machines électriques.
 
@@ -27,10 +27,23 @@ sont signalées par une pastille ou la mention « (démo) ».
   fichiers volontairement erronés, tous synthétiques (voir `data/tests/README.md`).
 
 **Principe : un moteur, une chaîne.** Le moteur identifié dans l'onglet 1 (par
-défaut TD5 Ex 1) est celui de tous les autres onglets. La barre d'état indique
-toujours le moteur utilisé (« Moteur : … (démo) ») et l'environnement
-(« Python 3 · PySide6 »). Les calculs longs tournent en arrière-plan : une barre
-de progression s'affiche, l'interface reste utilisable.
+défaut TD5 Ex 1) est celui de tous les autres onglets. L'en-tête et la barre d'état
+indiquent toujours le moteur utilisé (« Moteur · … » avec la pastille « démo » le cas
+échéant). Les calculs longs tournent en arrière-plan : une barre de progression
+s'affiche, l'interface reste utilisable.
+
+**Navigation (EV-LAB)** : la barre latérale range les huit espaces de travail par domaine
+(Machine · Véhicule · Électromagnétisme · Conception · Ressources) ; **Ctrl+1** à
+**Ctrl+8** y mènent au clavier. Sous 1440 px de largeur de fenêtre, la barre se réduit
+à ses icônes (le bouton en bas la déploie ou la réduit). L'en-tête rappelle le numéro et
+le nom de l'espace, ce qu'on y fait, le moteur de la chaîne, et offre « Cours » et
+« Rapport PDF ».
+
+**Lire un graphique** : la croix suit la souris et la ligne sous le graphique donne la
+position dans les unités des axes, puis l'échantillon calculé le plus proche de chaque
+courbe nommée (aucune interpolation). Molette : zoom ; glisser : déplacer ; bouton
+« A » (coin bas gauche) : vue complète ; clic droit : *View All* et *Export…* (PNG,
+SVG, CSV). Avant un calcul, un graphique vide indique l'action à faire.
 
 **Menu Fichier** : *Exporter PDF…* (rapport A4 de 2 à 3 pages, sections 1 à 6,
 encadré des hypothèses, pied de page listant les valeurs démo) et *Exporter
@@ -39,12 +52,14 @@ encore calculés sont calculés pour l'export ; l'optimisation est notée « non
 calculée » tant qu'elle n'a pas été lancée. *Exporter le cours en PDF…* écrit le cours
 de l'onglet 8 (voir la section 8).
 
-**Aide et cours** : chaque onglet 1 à 7 porte un bouton **?** qui ouvre sa page du cours
+**Aide et cours** : chaque espace 1 à 7 porte, dans la barre latérale, un bouton **?** qui ouvre sa page du cours
 (onglet 8) ; **F1** fait de même pour l'onglet affiché. Menu **Aide** : *Cours*
 (introduction) et *Cours de l'onglet affiché* (F1).
 
-**Menu Affichage** : *Thème clair* (par défaut) ou *Thème sombre* ; le choix est
-appliqué tout de suite et retenu au prochain démarrage. Les pastilles ambre
+**Menu Affichage** : *Thème sombre* (« Studio graphite », par défaut) ou *Thème clair*
+(« Studio clair ») ; le choix est appliqué tout de suite et retenu au prochain démarrage.
+Les captures de ce guide sont en graphite ; la même série en thème clair est dans
+`docs/images/clair/`. Les pastilles ambre
 signalent les valeurs démo (le survol liste lesquelles), les pastilles rouges
 une alerte (« R1 ≈ 0 … »). Le rapport PDF est toujours en thème clair.
 
@@ -249,12 +264,12 @@ en % par indicateur (écart de température en K). La capture est une démo rapi
 
 ## 8. Cours
 
-![Capture — onglet 8, thème clair](images/08_cours.png)
+![Capture — onglet 8, thème graphite](images/08_cours.png)
 
-![Capture — onglet 8, thème sombre](images/08_cours_sombre.png)
+![Capture — onglet 8, thème clair](images/08_cours_clair.png)
 
 *Bouton « ? » de l'onglet 1 : page « 1 · Identification », loi « Rotor bloqué : inversion
-exacte du schéma » ; en haut thème clair, en bas thème sombre.*
+exacte du schéma » ; en haut thème graphite (par défaut), en bas thème clair.*
 
 **But** : énoncer et expliquer chaque loi que l'application utilise, onglet par onglet,
 dans la notation du cours du Pr Boughrara (R_s, R_μ, X_μ, l_s'ω_s, R_r', I_s, I_r', g).

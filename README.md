@@ -1,4 +1,6 @@
-# EV-Traction Lab
+# EV-LAB · Electric Traction Research Studio
+
+(EV-Traction Lab until the interface redesign; the package is still `evlab`.)
 
 Mini-projet ME3 — ENP Alger, Machines électriques. Laboratoire virtuel d'une chaîne
 de traction de véhicule électrique à moteur asynchrone.
@@ -14,7 +16,8 @@ Tab 6 covers the stator winding (factors, MMF, rotating field, optional FEM). Ta
 French course that states and explains every law the app uses, tab by tab, in the notation
 of Pr Boughrara's course, with examples computed by the app itself (« ? » on each tab, F1).
 A PDF report and an Excel workbook export the whole session, and the course exports to
-PDF. Specification: `CLAUDE.md`; user guide (French): `docs/user_guide.md`; 5½-minute
+PDF. Specification: `CLAUDE.md`; user guide (French): `docs/user_guide.md`; interface design system:
+`docs/ui_design_system.md`; 5½-minute
 demo: `docs/demo_script.md`.
 
 ## Install
@@ -58,11 +61,16 @@ log in `<dossier>/smoke.log`, exit code 0 when all pass):
 python -m evlab --smoke build/smoke
 ```
 
-Look: `src/evlab/palette.py` (no Qt) holds one palette per theme (light, dark);
-`gui/theme.py` applies it to the Qt stylesheet `gui/style.qss` and the pyqtgraph plots,
-and `io/figures.py` uses it for the PDF figures (always the light one); every text
-colour pair is tested for a contrast ≥ 4,5:1.
-*Affichage → Thème clair / sombre* switches it, remembered with QSettings.
+Look (EV-LAB design system, `docs/ui_design_system.md`): `src/evlab/palette.py` (no Qt) holds
+one palette per theme, « Studio graphite » (`dark`, the default) and « Studio clair »
+(`light`), plus the font stacks; `gui/theme.py` applies it to the Qt stylesheet
+`gui/style.qss` and the pyqtgraph plots, and `io/figures.py` uses it for the PDF figures
+(always the light one); every text colour pair is tested for a contrast ≥ 4,5:1.
+*Affichage → Thème clair / sombre* switches it, remembered with QSettings. The shell
+(`gui/main_window.py`) is a sidebar of the eight workspaces (Ctrl+1…8, icon rail below
+1440 px), a one-line workspace header and the pages of `self.tabs` (tab bar hidden);
+icons are drawn by `gui/glyphs.py`; every plot gets a crosshair and a readout of the nearest
+computed sample (`widgets.inspect_plots`).
 
 Screen sizes: the window works down to 1100 × 650 logical px and opens maximised on a
 screen smaller than 1440 × 900 (1366 × 768, or 1920 × 1080 at 150 %). Left panels
@@ -87,7 +95,8 @@ official files are in `data/`.
 
 Screenshots: `python tools/capture_screenshots.py` redoes every `docs/images/*.png` by driving the
 app along `docs/demo_script.md` (headless, about 1 min) and prints the numbers the script quotes.
-Tab 8 is captured in both themes (`08_cours.png`, `08_cours_sombre.png`); the tool points
+The images are in graphite (the default theme; `--theme light --out docs/images/clair` for the
+light set). Tab 8 is captured in both themes (`08_cours.png`, `08_cours_clair.png`); the tool points
 QSettings to a temporary folder, so the theme you chose is left as it is.
 
 ## Build (PyInstaller, one folder)

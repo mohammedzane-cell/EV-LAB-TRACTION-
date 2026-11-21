@@ -4,7 +4,7 @@ Usage (from the repository root, app installed with `pip install -e .[dev]`):
 
     python tools/capture_screenshots.py                 # writes docs/images/*.png
     python tools/capture_screenshots.py --out /tmp/x --numbers numbers.json
-    python tools/capture_screenshots.py --theme dark --out /tmp/sombre
+    python tools/capture_screenshots.py --theme light --out docs/images/clair
     python tools/capture_screenshots.py --size 1366x768 --out /tmp/portable
 
 Clicks the demo path (tab 1 démo data → "Comparer les deux" → Identifier, then tabs 2 to 7,
@@ -38,7 +38,7 @@ def _table(t) -> list[list[str]]:
             for r in range(t.rowCount())]
 
 
-def capture(out: Path, theme_name: str = "light", size: tuple[int, int] = SIZE) -> dict:
+def capture(out: Path, theme_name: str = "dark", size: tuple[int, int] = SIZE) -> dict:
     """Drive the app in the given theme and window size, save the PNGs in `out`, return the displayed numbers."""
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtCore import QEventLoop, QSettings, QTimer
@@ -205,7 +205,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", type=Path, default=ROOT / "docs" / "images", help="folder for the PNGs")
     ap.add_argument("--numbers", type=Path, help="also write the displayed numbers to this JSON file")
-    ap.add_argument("--theme", choices=("light", "dark"), default="light", help="UI theme (default light)")
+    ap.add_argument("--theme", choices=("light", "dark"), default="dark",
+                    help="UI theme (default dark: « Studio graphite », the app's default)")
     ap.add_argument("--size", type=_size, default=SIZE, help="window size WxH in logical px (default 1280x800)")
     args = ap.parse_args()
     nums = capture(args.out, args.theme, args.size)

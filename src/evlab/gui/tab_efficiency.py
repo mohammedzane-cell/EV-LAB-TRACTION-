@@ -433,11 +433,12 @@ class EfficiencyTab(QWidget):
             ax.plot([n[j]], [emap.torque[i]], marker="+", markersize=14, markeredgewidth=1.8,
                     color=theme.color("text"), linestyle="none", label="point du bilan")
         demo = " (démo)" if self.session.motor.is_demo else ""
-        ax.set_title(f"{self.session.motor.source}{demo}", fontsize=8.5, loc="right", color=theme.color("muted"))
+        ax.set_title(f"{self.session.motor.source}{demo}", fontsize=8.5, loc="left", color=theme.color("muted"))
         ax.set_xlabel("Vitesse (tr/min)")
         ax.set_ylabel("Couple à l'arbre (N·m)")
-        ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.0), ncol=3, fontsize=8, frameon=False,
-                  borderaxespad=0.2, handlelength=1.6)  # above the axes, left: never over the map nor the title
+        # legend under the figure (constrained layout makes room): never over the map nor the title
+        self.figure.legend(*ax.get_legend_handles_labels(), loc="outside lower center", ncol=3, fontsize=8,
+                           frameon=False, handlelength=1.6)
         ax.set_ylim(0, float(emap.torque[-1]))
         ax.set_xlim(0, float(n[-1]))
         self.canvas.draw_idle()

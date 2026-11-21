@@ -154,7 +154,7 @@ onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
 
 ## 5:00 – 5:30 · Onglet 8 — Cours
 
-- **Cliquer** le bouton **?** de l'onglet « 1 · Identification » (ou F1 sur l'onglet 1) :
+- **Cliquer** le bouton **?** de « 01 Identification » dans la barre latérale (ou F1 sur l'onglet 1) :
   la page « 1 · Identification » du cours s'ouvre ; la table des matières montre les
   quatre groupes de lois (Essais · Schéma équivalent · Couple et puissances · Ajustement
   par moindres carrés). Faire défiler jusqu'à « Rotor bloqué : inversion exacte du
@@ -166,8 +166,8 @@ onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
 - **Cliquer** *Voir la réponse* sous Q1 (« Pourquoi divise-t-on U_dc par 2·I_dc ? ») :
   « on mesure 2·R_s », deux phases en série.
 - **Taper** « decrochage » dans la recherche : « 19 occurrence(s) dans 6 page(s) », les
-  accents sont ignorés. *Affichage → Thème sombre* : la page suit le thème
-  (`08_cours_sombre.png`).
+  accents sont ignorés. *Affichage → Thème clair* : la page suit le thème
+  (`08_cours_clair.png`).
 - **Conclure** : *Fichier → Exporter PDF…* : rapport de 2 à 3 pages, sections 1 à 6,
   hypothèses, et pied de page listant ce qui est démo ; *Fichier → Exporter le cours en
   PDF…* : le cours entier, 52 pages, réponses imprimées.

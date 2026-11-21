@@ -40,7 +40,7 @@ from evlab.core import identification as ident
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed, fr_pct
-from evlab.gui.widgets import card, chip, french_spin, scroll_panel
+from evlab.gui.widgets import ElidedLabel, card, chip, french_spin, scroll_panel
 from evlab.gui.workers import CoreWorker
 from evlab.io import demo_data
 from evlab.io.loaders import (
@@ -260,14 +260,16 @@ class IdentificationTab(QWidget):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.setMinimumHeight(130)
+        self.table.setMinimumHeight(116)  # header + 3 rows
         lay.addWidget(self.table)
-        # published motor and fit confidence, read from the identification result (no computation here)
-        self.lbl_published = QLabel("")
-        self.lbl_published.setProperty("role", "hint")
-        self.lbl_published.setWordWrap(True)
-        self.lbl_published.setVisible(False)
-        lay.addWidget(self.lbl_published)
+        # published motor and fit confidence, read from the identification result (no computation here);
+        # one line each, elided on a narrow window (full text in the tooltip)
+        self.lbl_published = ElidedLabel("")
+        self.lbl_ci = ElidedLabel("")
+        for lbl in (self.lbl_published, self.lbl_ci):
+            lbl.setProperty("role", "hint")
+            lbl.setVisible(False)
+            lay.addWidget(lbl)
         return card
 
     # --- data loading --------------------------------------------------------------
@@ -501,17 +503,19 @@ class IdentificationTab(QWidget):
         res = self.result
         if res is None:
             self.lbl_published.setVisible(False)
+            self.lbl_ci.setVisible(False)
             return
         m = res.published
-        parts = [f"Moteur publié : R1 = {fr(m.r1, 4)} Ω"
-                 + (f" à {fr(m.r1_temperature_k - T_ZERO_C)} °C" if m.r1_temperature_k is not None else ""),
-                 f"p_méc = {fr(m.p_mech)} W"]
+        self.lbl_published.setText(
+            f"Moteur publié : R1 = {fr(m.r1, 4)} Ω"
+            + (f" à {fr(m.r1_temperature_k - T_ZERO_C)} °C" if m.r1_temperature_k is not None else "")
+            + f" · p_méc = {fr(m.p_mech)} W")
+        self.lbl_published.setVisible(True)
         if res.fit is not None and res.fit.ci95:
             names = dict(COLUMNS)
             ci = [f"{names.get(k, k).split(' (')[0]} [{fr(lo, 4)} ; {fr(hi, 4)}] Ω" for k, (lo, hi) in res.fit.ci95.items()]
-            parts.append("IC 95 % de l'optimisation : " + ", ".join(ci))
-        self.lbl_published.setText(" · ".join(parts))
-        self.lbl_published.setVisible(True)
+            self.lbl_ci.setText("Intervalles de confiance à 95 % de l'optimisation : " + " · ".join(ci))
+        self.lbl_ci.setVisible(res.fit is not None and bool(res.fit.ci95))
 
     def _tooltip(self, row: str, name: str) -> str:
         res = self.result

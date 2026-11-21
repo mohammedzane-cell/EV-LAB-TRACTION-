@@ -151,20 +151,39 @@ class VehicleTab(QWidget):
         head.addWidget(self.chip_demo)
         self.plot_speed = pg.PlotWidget(title="Vitesse du véhicule")
         self.plot_power = pg.PlotWidget(title="Puissance batterie et puissance à l'arbre")
-        self.plot_power.setXLink(self.plot_speed)
         # the motor side of the same cycle: shaft torque > 0 in traction, < 0 in regenerative braking
         self.plot_motor = pg.PlotWidget(title="Moteur : couple à l'arbre")
-        self.plot_motor.setXLink(self.plot_speed)
         for pw, ylab in ((self.plot_speed, "Vitesse (km/h)"), (self.plot_power, "Puissance (kW)"),
                          (self.plot_motor, "Couple (N·m)")):
             pw.setLabel("bottom", "Temps (s)")
             pw.setLabel("left", ylab)
             pw.showGrid(x=True, y=True, alpha=0.25)
             pw.addLegend(offset=(-10, 10))
-            lay.addWidget(pw)
+        lay.addWidget(self.plot_speed, 1)  # the cycle on top, full width
+        below = QHBoxLayout()  # what it asks of the energy source and of the motor, side by side
+        below.addWidget(self.plot_power)
+        below.addWidget(self.plot_motor)
+        lay.addLayout(below, 1)
+        # one time axis for the three plots (zoom and pan included); setXLink would align them by their
+        # position on screen, which is wrong for plots placed side by side
+        self._syncing_x = False
+        for pw in (self.plot_speed, self.plot_power, self.plot_motor):
+            pw.sigXRangeChanged.connect(self._sync_time_axis)
         right.addWidget(plot_card, 1)
         root.addLayout(right, 1)
         self._g_from_user = False
+
+    def _sync_time_axis(self, viewbox, rng) -> None:
+        """Give the other two cycle plots the time range of the one the user zoomed or panned."""
+        if self._syncing_x:
+            return
+        self._syncing_x = True
+        try:
+            for pw in (self.plot_speed, self.plot_power, self.plot_motor):
+                if pw.getPlotItem().getViewBox() is not viewbox:
+                    pw.setXRange(float(rng[0]), float(rng[1]), padding=0)
+        finally:
+            self._syncing_x = False
 
     # --- inputs -------------------------------------------------------------------
 
@@ -320,5 +339,5 @@ class VehicleTab(QWidget):
         self.plot_power.plot(res.t, res.p_battery / 1000, pen=pg.mkPen(theme.color("green"), width=1.5), name="batterie")
         self.plot_power.addLine(y=0, pen=pg.mkPen(theme.color("grey")))
         self.plot_motor.plot(res.t, res.torque, pen=pg.mkPen(theme.color("blue"), width=1.2),
-                             name="couple à l'arbre (< 0 : récupération)")
+                             name="couple à l'arbre (négatif en récupération)")
         self.plot_motor.addLine(y=0, pen=pg.mkPen(theme.color("grey")))
