@@ -42,7 +42,9 @@ def demo_labels(
         out.append(f"réglages variateur {', '.join(_DRIVE_NAMES[n] for n in f)} (A16)")
     if loss_settings is not None:
         f = losses.demo_fields(loss_settings)
-        if any(n.startswith("inverter") for n in f):
+        if "inverter_params" in f:
+            out.append("onduleur IGBT moyen, V_dc et composants (A35)")
+        elif any(n.startswith("inverter") for n in f):
             out.append("pertes onduleur (A21)")
         if include_beta and "beta" in f:
             out.append(f"β = {str(loss_settings.beta).replace('.', ',')} (A19)")

@@ -18,6 +18,7 @@ from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QFormLayout,
     QGridLayout,
@@ -31,7 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from evlab.core import drive, losses
+from evlab.core import drive, inverter, losses
 from evlab.core.session import Session
 from evlab.gui import theme
 from evlab.gui.format import fr, fr_fixed
@@ -97,9 +98,23 @@ class EfficiencyTab(QWidget):
         form.addRow("Température bobinage", self.spin_tw)
         form.addRow(self.chk_mech)
         form.addRow("Part frottements", self.spin_friction)
+        self.combo_inv_model = QComboBox()
+        self.combo_inv_model.addItem("linéaire P₀ + k·P (A21)", "lineaire")
+        self.combo_inv_model.addItem("moyen IGBT/diode (A35)", "moyen")
+        self.combo_inv_model.setToolTip("Linéaire : modèle de base. Moyen : pertes de conduction et de commutation "
+                                        "des IGBT et des diodes (core.inverter), limite de tension du bus continu")
+        self.spin_vdc = french_spin(50.0, 2000.0, 0, "V", inverter.DEMO_A35["v_dc"])
+        self.spin_vdc.setToolTip("Tension du bus continu (démo A35) ; tension simple max V_dc/√6 en SVPWM")
+        self.spin_fsw = french_spin(0.5, 100.0, 1, "kHz", inverter.DEMO_A35["f_sw"] / 1000.0)
+        self.spin_fsw.setToolTip("Fréquence de découpage (démo A35)")
+        self.combo_inv_model.currentIndexChanged.connect(self._inverter_model_changed)
         form.addRow(self.chk_inv)
+        form.addRow("Modèle onduleur", self.combo_inv_model)
         form.addRow("Onduleur fixe", self.spin_inv0)
         form.addRow("Onduleur proportionnel", self.spin_invk)
+        form.addRow("Bus continu V_dc", self.spin_vdc)
+        form.addRow("Découpage f_sw", self.spin_fsw)
+        self._inverter_model_changed()
         lv.addWidget(box)
 
         grid = QGroupBox("Grille et affichage")
@@ -280,7 +295,20 @@ class EfficiencyTab(QWidget):
             inverter=self.chk_inv.isChecked(),
             inverter_fixed_w=self.spin_inv0.value(),
             inverter_fraction=self.spin_invk.value() / 100.0,
+            inverter_model=self.combo_inv_model.currentData(),
+            inverter_params=(inverter.demo_inverter(v_dc=self.spin_vdc.value(), f_sw=1000.0 * self.spin_fsw.value())
+                             if self.combo_inv_model.currentData() == "moyen" else None),
         )
+
+    def _inverter_model_changed(self, _index: int = 0) -> None:
+        """Only the fields of the selected inverter model are editable."""
+        moyen = self.combo_inv_model.currentData() == "moyen"
+        for w in (self.spin_inv0, self.spin_invk):
+            w.setEnabled(not moyen)
+        for w in (self.spin_vdc, self.spin_fsw):
+            w.setEnabled(moyen)
+        if hasattr(self, "chip_demo"):  # not yet built during the panel's construction
+            self._update_demo_chip()
 
     def drive_settings(self) -> drive.DriveSettings:
         return self.envelope.settings if self.envelope is not None else DEFAULT_DRIVE

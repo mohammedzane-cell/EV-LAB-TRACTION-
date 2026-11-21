@@ -18,7 +18,9 @@ Loss terms (three-phase, W):
   mech.    P_mec(Ω) = a·Ω + b·Ω², a·Ω_0 = s·p_mec, b·Ω_0² = (1 − s)·p_mec,
            p_mec from the no-load separation of tab 1 at Ω_0 = 2π·fn/p
            (circuit.efficiency leaves it out, assumption A10)
-  inverter P_inv = P_0 + k·P_motor (démo values)
+  inverter P_inv = P_0 + k·P_motor (démo values, model "lineaire", the baseline), or the average-value
+  IGBT/diode model of core.inverter (model "moyen": conduction + switching losses from I1, V, cos φ and
+  the DC link; grid points beyond the linear range of the DC link are outside the map)
 η = P_out/P_in with P_out = T·Ω (shaft) and P_in = P_motor + P_inv (DC side).
 NaN outside the drive envelope.
 """
@@ -32,6 +34,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from evlab.core import circuit, drive
+from evlab.core import inverter as inverter_mod
 from evlab.core.identification import r1_at_temperature
 from evlab.core.session import MotorParams
 
@@ -54,6 +57,8 @@ class LossSettings:
         inverter: include inverter losses.
         inverter_fixed_w: fixed inverter loss P_0, W (démo, A21).
         inverter_fraction: inverter loss proportional to the motor input power, k (démo, A21).
+        inverter_model: "lineaire" (P_0 + k·P, default, the baseline) or "moyen" (core.inverter).
+        inverter_params: inverter datasheet values for "moyen" (None: inverter.demo_inverter(), A35).
     """
 
     beta: float = BETA_A19
@@ -63,6 +68,8 @@ class LossSettings:
     inverter: bool = True
     inverter_fixed_w: float = INVERTER_A21["inverter_fixed_w"]
     inverter_fraction: float = INVERTER_A21["inverter_fraction"]
+    inverter_model: str = "lineaire"
+    inverter_params: inverter_mod.InverterParams | None = None
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.beta) or not 0 < self.beta <= 3:
@@ -75,13 +82,20 @@ class LossSettings:
             raise ValueError(f"inverter_fixed_w must be >= 0 W, got {self.inverter_fixed_w!r}")
         if not math.isfinite(self.inverter_fraction) or not 0 <= self.inverter_fraction < 1:
             raise ValueError(f"inverter_fraction must be in [0, 1), got {self.inverter_fraction!r}")
+        if self.inverter_model not in ("lineaire", "moyen"):
+            raise ValueError(f"inverter_model must be 'lineaire' or 'moyen', got {self.inverter_model!r}")
+        if self.inverter_params is not None and not isinstance(self.inverter_params, inverter_mod.InverterParams):
+            raise ValueError("inverter_params must be an inverter.InverterParams")
 
 
 def demo_fields(st: LossSettings) -> tuple[str, ...]:
     """Fields of st still at an assumed or démo value: "beta" (A19), and the inverter terms (A21)
     when the inverter losses are included (one flag per field)."""
     out = ("beta",) if st.beta == BETA_A19 else ()
-    if st.inverter:
+    if st.inverter and st.inverter_model == "moyen":
+        if st.inverter_params is None or st.inverter_params.is_demo:
+            out += ("inverter_params",)
+    elif st.inverter:
         out += tuple(name for name, value in INVERTER_A21.items() if getattr(st, name) == value)
     return out
 
@@ -241,8 +255,17 @@ def efficiency_map(
     p_out = np.asarray(op.p_mech) - p_mec  # shaft power of the solved point: balance is exact
     # zero shaft torque (coasting): the requested output is exactly 0; the bisection leaves ~1e-12 W
     p_out = np.where(tt == 0.0, 0.0, p_out)
-    p_inv = (settings.inverter_fixed_w + settings.inverter_fraction * p_motor) if settings.inverter \
-        else np.zeros_like(p_motor)
+    if not settings.inverter:
+        p_inv = np.zeros_like(p_motor)
+    elif settings.inverter_model == "moyen":
+        ip = settings.inverter_params or inverter_mod.demo_inverter()
+        v_max = inverter_mod.max_phase_voltage(ip)
+        valid &= np.asarray(v) <= v_max * (1 + 1e-9)  # beyond the DC link's linear range: outside the map
+        v_ok = np.minimum(np.asarray(v, dtype=float), v_max)  # only for points masked just above
+        p_inv = np.asarray(inverter_mod.losses(ip, np.asarray(op.i1), v_ok,
+                                               np.clip(np.asarray(op.power_factor), -1.0, 1.0)).total)
+    else:
+        p_inv = settings.inverter_fixed_w + settings.inverter_fraction * p_motor
     p_in = p_motor + p_inv
     valid &= ((p_out > 0) | (tt == 0.0)) & (p_in > 0)
 
