@@ -81,3 +81,21 @@ the capability), **MISSING**, **UNVERIFIED** (implemented but not demonstrated o
    simulation.
 5. **FUTURE** (needs data or a larger model): saturation from a measured magnetisation curve, deep-bar
    rotor, FOC, fractional-slot windings.
+
+## Status at the end of the mission (branch `feature/ev-lab-virtual-lab`, local commits)
+
+| Capability | Before | Now | Evidence |
+|---|---|---|---|
+| Starting / breakdown / no-load characteristics, R'2(T) option, sensitivities | PARTIAL / MISSING | COMPLETE | `core/characteristics.py`, `tests/test_characteristics.py` (closed forms) |
+| DC-link voltage and modulation limit | MISSING | COMPLETE (« moyen » model of tab 3; check of the battery voltage on the cycle) | `core/inverter.py`, `battery.dc_link_check`, `tests/test_inverter.py`, `tests/test_battery.py` |
+| Inverter losses (conduction + switching, average value) | PARTIAL | COMPLETE (model); UNVERIFIED (démo components A35, no datasheet of a chosen part) | numerical integration over a period (1e-4) |
+| SVPWM | MISSING | COMPLETE (sectors, dwell times; not a switching-level simulation) | volt-second balance |
+| FOC | MISSING | FUTURE | the drive stays V/f + field weakening |
+| Battery: pack, OCV(SOC), R, SOC, current/power/SOC limits, regenerative-charging limit, losses | MISSING | COMPLETE (model); UNVERIFIED (démo cell A34) | `core/battery.py`, `solve_ivp`, energy balance |
+| Battery ↔ inverter ↔ motor voltage consistency | MISSING | PARTIAL: checked and reported (A38), not fed back into the operating points | `battery.dc_link_check` |
+| Sensitivity analysis | MISSING | PARTIAL: motor parameters (tab 2); not on the optimisation outputs | `characteristics.sensitivity` |
+| Interactive 3D motor and powertrain linked to the simulation | MISSING | COMPLETE (illustrative geometry A37; angles, powers, SOC and two-node temperatures from the models) | `core/scene3d.py`, tab 9, `tests/test_scene3d.py`, `tests/test_gui_lab3d*.py` |
+| 3D on Windows (Direct3D) | — | UNVERIFIED (Qt Quick 3D's default there; tested only on Linux Xvfb + Mesa OpenGL) | — |
+| Saturation, deep-bar rotor, fractional-slot windings | MISSING | FUTURE (need a magnetisation curve, bar geometry, a winding generaliser) | — |
+| Official WLTC cycles | UNVERIFIED | UNVERIFIED (files not provided) | 3 skipped tests |
+| Live FEMM in this container | UNVERIFIED | UNVERIFIED (Wine crashes; cached runs replayed) | 6 deselected tests |

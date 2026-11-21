@@ -91,7 +91,9 @@ pytest --cov=evlab --cov-report=term
 
 GUI tests run headless (`QT_QPA_PLATFORM=offscreen`, set in `tests/conftest.py`).
 The FEM tests run only where FEMM is installed; three WLTC tests skip until the
-official files are in `data/`.
+official files are in `data/`. The offscreen platform has no 3D API: the 3D rendering test
+(`tests/test_gui_lab3d_render.py`) starts `tools/lab3d_render_check.py` on Xvfb with Mesa OpenGL and
+skips where `xvfb-run` is missing (on a desktop, run the tool directly).
 
 Screenshots: `python tools/capture_screenshots.py` redoes every `docs/images/*.png` by driving the
 app along `docs/demo_script.md` (headless, about 1 min) and prints the numbers the script quotes.
@@ -130,6 +132,10 @@ QtWebEngine and the other Qt web modules (about 200 MB).
 | `core/identification.py` | 1 | R1 = U_dc/(2I_dc); P0 − 3R1I0² vs U0² → p_mec (intercept); Rf = 3V0²/P_fe, Xm = 3V0²/Q0; R'2 = Pcc/(3Icc²) − R1, X = √(Zcc² − Rcc²) (classical) or exact inversion; load-point fit of (Xm, X, R'2) by `least_squares` (soft_l1, multistart, 95 % CI) |
 | `core/drive.py` | 2 | V/f law V = V0 + (Vn − V0)·f/fn up to fn, then V = Vn (field weakening); per speed: T = max over f_r of min(T_I(i_max), margin·T_bd, T_peak) |
 | `core/losses.py` | 3 | P_cu = 3R1(T)I1² + 3R'2I'2²; iron P_fe ∝ f^β·B² → Rf(f) = Rf·(f/fn)^(2−β), β = 1,5; P_mec = aΩ + bΩ²; P_inv = P0 + k·P; η = P_out/P_in |
+| `core/characteristics.py` | 2 | starting torque/current/cos φ, breakdown slip/torque/speed (exact Thévenin), no-load current; R'2(T) = R'2,ref·(T0 + T)/(T0 + T_ref), T0 = 225 °C (Al) or 234,5 °C (Cu); normalised sensitivity S = (∂y/∂p)·(p/y) by central differences |
+| `core/inverter.py` | 3 | linear range: V_ph,max = V_dc/√6 (SVPWM), V_dc/(2√2) (SPWM), m = Û/(V_dc/2); IGBT P_T = V_CE0·Î(1/2π + m·cos φ/8) + r_CE·Î²(1/8 + m·cos φ/3π), diode with the minus signs; switching f_sw·E·(Î/(π·I_ref))·(V_dc/V_ref); × 6 switches; SVPWM dwell times t1 = √3·T_s·\|v\|/V_dc·sin(60° − θ), t2 = …·sin θ |
+| `core/battery.py` | 4 | V_oc = n_s·ocv(SOC), R = n_s·R_cell/n_p; I = (V_oc − √(V_oc² − 4RP))/(2R); SOC_{k+1} = SOC_k − I·Δt/Q; V_oc·I = P + R·I²; limits (current, V_oc²/4R, SOC window) recorded, never silent |
+| `core/scene3d.py` | 9 | illustrative meshes (Z, 2p, y, slot table from the winding; wheel radius and G from the vehicle); θ_m = ∫ω_m dt, θ_w = ∫v/r dt; link powers battery → DC → AC → shaft → wheels from the vehicle result; SOC and two-node temperatures |
 | `core/vehicle.py`, `io/cycles.py` | 4 | F = m·a + ½ρC_xS·v² + C_rr·m·g; T = F·r/(G·η_g) (traction), F·r·η_g/G (regen); ω_m = G·v/r; Wh/km = ∫P_batt dt / distance; WLTC class by W/kg (≤ 22 → 1, ≤ 34 → 2, else 3) |
 | `core/thermal.py` | 5 | C_w·dT_w/dt = P_cu(T_w) − (T_w − T_s)/R_ws; C_s·dT_s/dt = P_fe + P_cu2 + (T_w − T_s)/R_ws − (T_s − T_a)/R_sa; life L = L_ref·2^((T_class − T)/10) |
 | `core/winding.py` | 6 | q = Z/(2pm), α = 2πp/Z; k_d = sin(qνα/2)/(q·sin(να/2)), k_p = sin(νπy/(2τ)), k_w = k_d·k_p; stepped MMF and FFT ∝ k_wν/ν; E = 4,44·f·N·k_w1·Φ; Carter k_c = τ_s/(τ_s − γg) |
@@ -153,6 +159,12 @@ QtWebEngine and the other Qt web modules (about 200 MB).
 | Optimisation: 1-variable optimum = brute force within 1 %; constraints met; same seed → same result | **validated** | `tests/test_optimise.py` |
 | FEM air-gap fundamental vs analytical MMF (−6,5 % linear, 6 A); T/6 symmetry < 1 % | **validated** where FEMM is installed | `tests/test_femm_model.py`, A32 |
 | Course (tab 8): every law named exists in core, every example number = an independent recomputation, every link has a target | **validated** | `tests/test_cours_pages.py`, `tests/test_cours_valeurs.py`, `tests/test_gui_cours.py` |
+| Motor characteristics and sensitivities (tab 2) | **verified** against closed forms | `tests/test_characteristics.py`: TD5 S = −1, 1, 0,6, −1,6; direct differences with R1 ≠ 0 |
+| Inverter average-value losses, linear range, SVPWM (tab 3) | **verified** against a numerical integration (1e-4) and the volt-second balance | `tests/test_inverter.py`, `tests/test_losses_inverter.py` |
+| Battery: current root, SOC, limits, energy balance (tab 4) | **verified** against `solve_ivp` (2e-4) and the per-step balance | `tests/test_battery.py` |
+| 3D playback (tab 9): angles, link powers, SOC, temperatures | **verified**: wheel angle = distance / r, link powers close the vehicle's own energy balance, GUI = core | `tests/test_scene3d.py`, `tests/test_gui_lab3d.py`; rendering and picking: `tests/test_gui_lab3d_render.py` (Xvfb) |
+| Battery cell and pack (168s1p NMC, 10 Ah, 3 mΩ), inverter components (1200 V / 50 A IGBT orders of magnitude) | **démo** | A34, A35, A36 |
+| 3D geometry (dimensions, bar count, layout) | **illustrative** | A37; Z, 2p, y, slot table, wheel radius, G come from the models |
 | Bench and load-point files `data/*_demo.csv` (TD5 Ex 1 + R1 = 0,5 Ω, p_mec = 60 W, 2,5 % noise) | **démo** | `docs/data_notes.md` |
 | Driving cycle `data/cycle_demo.csv` (synthetic urban, not WLTC) | **démo** | A25; official WLTC files not yet provided |
 | Vehicle (600 kg quadricycle, C_xS, C_rr, r) | **démo** | A22 |
@@ -213,6 +225,10 @@ from the curve: the log–log slope d ln T/d ln Ω and the binding limit (A18).
 The tab shows the drive inputs, four KPI tiles (base speed, end of constant
 power, P max, torque at max speed) and the torque and power curves with the
 zones shaded. It recomputes in a worker whenever tab 1 publishes a motor.
+Below them (`core/characteristics.py`): starting torque and current, breakdown slip and torque (exact
+Thévenin), synchronous speed at Vn, fn, and the normalised sensitivities S = (∂y/∂p)·(p/y) of the breakdown
+torque and slip, the starting torque and current and the efficiency at 5 % slip to R1, R'2, X, Xm and Rf.
+`characteristics.rotor_at_temperature` corrects R'2 for the cage temperature (aluminium or copper).
 
 ## Tab 3 · Rendement (`core/losses.py`, `gui/tab_efficiency.py`)
 
@@ -228,6 +244,11 @@ limits: I1 ≤ i_max and T_em ≤ margin·T_bd (the envelope of tab 2 uses the
 identified R1 and a constant Rf, so a hot winding shrinks the map slightly).
 The default grid starts at zero shaft torque: that row holds the no-load losses
 (iron, inverter P_0, mechanical) that tab 4 charges while coasting, with η = 0.
+
+Inverter model (`core/inverter.py`): « linéaire P₀ + k·P » (A21, default, unchanged) or « moyen IGBT/diode »
+(A35, A36): average-value conduction and switching losses of a two-level inverter from datasheet-type
+parameters at the chosen DC voltage and switching frequency; this model also limits the phase voltage to
+the linear range (V_dc/√6 with SVPWM), the points beyond it are outside the map.
 
 The tab draws the contour map with % labels, the shaft-torque envelope, the
 best-efficiency point, the cycle points (from stage 5) and exports a PNG. It
@@ -255,6 +276,15 @@ The tab shows the vehicle parameters, the WLTC class with its W/kg, the
 regeneration checkbox, KPI tiles, the speed and battery-power plots and a red
 warning when any point exceeds the envelope; the cycle points also appear on
 the tab 3 map.
+
+**Battery** (`core/battery.py`, A34): a pack of n_s × n_p démo NMC cells (OCV(SOC) table, 3 mΩ, 10 Ah,
+5C/2C, SOC window 5–95 %) follows the cycle's battery power: exact current from P = V_oc·I − R·I²,
+Coulomb-counting SOC, current / power-ceiling / SOC-window limits applied and recorded (undelivered power,
+refused regeneration), pack losses. The « Batterie » page plots the SOC; the result line gives the SOC
+range, the energy taken from the cells, the pack losses, the refused regeneration and the undelivered
+power. `battery.dc_link_check` compares the terminal voltage at each step with √6·V_ph, the DC voltage the
+motor's phase voltage needs with SVPWM (A38): the line gives the minimum margin, or the time during which
+the pack is too low (a nearly empty démo pack is below 563 V above base speed).
 
 ## Tab 5 · Thermique (`core/thermal.py`, `gui/tab_thermal.py`)
 
@@ -382,6 +412,38 @@ montre », the core function that computes it, an **Exemple** and the course ref
 - *Fichier → Exporter le cours en PDF…*: title page (EV-Traction Lab, ENP Alger, ME3, date),
   table of contents, one page per sheet, answers printed under their questions (52 A4 pages,
   about 1 s, DejaVu fonts, always light).
+
+## Tab 9 · Labo 3D (`core/scene3d.py`, `gui/scene3d_bridge.py`, `gui/tab_lab3d.py`, `gui/qml/lab3d.qml`)
+
+Two interactive 3D scenes in Qt Quick 3D (part of PySide6: no new dependency), built when the tab is first
+shown:
+
+- **Moteur asynchrone**: carter with fins, end shields, terminal box, stator laminations (Z teeth), the three
+  phase windings (coil sides in two layers and end turns, coloured A/B/C as in tab 6), the air gap (drawn
+  enlarged), rotor laminations, the squirrel cage (N_r bars, end rings), shaft and bearings. Cutaway (a
+  quarter of the stationary parts removed; the rotor stays whole because it turns), exploded view (slider),
+  visibility per component, labels, click selection with what the models say about the part (Z, q, y, kw1,
+  N_r, V, live speed and torque, winding temperature).
+- **Chaîne de traction**: battery modules and a SOC column, inverter, DC and AC cables, the motor, a
+  two-stage reduction (√G per stage), differential, half-shafts, wheels of the vehicle's radius, chassis.
+
+The geometry is illustrative (A37, « géométrie illustrative » chip): Z, 2p, y and the phase and layer of every
+coil side come from tab 6, the wheel radius, G and the pack from tab 4; all other lengths are typical. While a
+cycle of tab 4 plays (× 1 to × 60, or by the time slider), the rotor, the gears and the wheels turn by
+θ_m = ∫ω_m dt and θ_w = ∫v/r dt (drawn slowed by a factor shown in the tab, the same for every part), markers
+move along the DC, AC, shaft and wheel links in the direction of the power (cyan: towards the wheels; green:
+regeneration), the SOC column follows the battery, and the panel lists t, v, n, T and the power of every
+link. Colour mode « Températures (2 nœuds) » paints the winding with the winding-node temperature and the
+laminations and housing with the iron/frame-node temperature of tab 5: one value per node, never a field;
+the rotor has no node. No electromagnetic field is drawn in 3D (the rotating field is tab 6's 2-D animation;
+FEMM stays 2-D).
+
+Mouse: drag to orbit, wheel to zoom, right button to pan; presets 3/4, Face, Côté, Dessus. On a platform
+without a 3D API (Qt's « offscreen », remote sessions with software rendering) the tab says so and keeps its
+controls and values. `tools/lab3d_render_check.py` checks real rendering, picking, rotation, explosion and
+hiding (Xvfb + Mesa on Linux: `xvfb-run -a -s "-screen 0 1280x1024x24" env QT_QPA_PLATFORM=xcb
+QSG_RHI_BACKEND=opengl python tools/lab3d_render_check.py`); `tools/capture_lab3d.py` makes
+`docs/images/lab3d/`.
 
 ## Reports (`io/report.py`, `io/excel.py`, `io/snapshot.py`, `io/figures.py`)
 

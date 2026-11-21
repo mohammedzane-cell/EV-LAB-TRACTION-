@@ -172,6 +172,34 @@ onduleur ; C_w, C_s, R_ws, R_sa ; véhicule ; cycle).
   hypothèses, et pied de page listant ce qui est démo ; *Fichier → Exporter le cours en
   PDF…* : le cours entier, 52 pages, réponses imprimées.
 
+## Prolongement (2 min) · Onglet 9 — Labo 3D
+
+Même parcours que ci-dessus (identification, onglets 2 à 5 visités), puis **9 Labo 3D** dans la barre
+latérale (fenêtre 1600 × 950, captures `docs/images/lab3d/`, outil `tools/capture_lab3d.py`).
+
+- **Montrer** le moteur en coupe (`09a_moteur_coupe.png`) et la pastille « géométrie illustrative ».
+  **Dire** : « Z = 36 encoches, 2p = 4, pas y = 7 et la phase de chaque côté de bobine viennent de
+  l'onglet 6 ; N_r = 28 barres est une combinaison usuelle ; les cotes sont typiques d'un moteur de
+  5 kW, pas celles du moteur identifié : le schéma équivalent ne contient aucune cote. »
+- **Glisser** pour tourner, **molette** pour zoomer ; curseur *Vue éclatée* à fond (`09b_moteur_eclate.png`) :
+  rotor sorti vers l'avant, flasques et roulements de part et d'autre, carter vers l'arrière.
+- **Placer** le temps à **350 s** : « traction · v = 58,7 km/h · n moteur = 2036 tr/min · n roues =
+  577 tr/min · C arbre = 30,3 N·m · P batterie = 8,56 kW · P DC onduleur = 8,36 kW · P AC moteur = 8,14 kW ·
+  P arbre = 6,46 kW · P roues = 6,13 kW · SOC = 86,7 % ». **Dire** : « chaque liaison perd quelque chose :
+  200 W d'auxiliaires, l'onduleur, le moteur, le réducteur ; ce sont les puissances de la simulation de
+  l'onglet 4, pas un dessin. »
+- **Cliquer** un côté de bobine de la phase A (rouge), puis *Couleurs → Températures (2 nœuds)* (`09c_moteur_temperatures.png`) :
+  « Bobinage phase A · 12 bobines, 24 côtés de bobine, q = 3, y = 7, kw1 = 0,9019 · θ bobinage = 61,2 °C
+  (moyenne, modèle à 2 nœuds) ». **Dire** : « une seule température par nœud, sur une échelle de 25 °C à
+  155 °C (classe F) ; ce n'est pas un champ de température, et aucun champ magnétique n'est dessiné en 3D. »
+- *Scène → Chaîne de traction*, **Lecture** × 20 (`09d_chaine_traction.png`) : les marqueurs cyan vont de
+  la batterie vers les roues. Placer le temps à **285 s** (`09e_chaine_recuperation.png`) : « récupération ·
+  C arbre = −32,8 N·m · P arbre = −6,32 kW · P AC moteur = −4,70 kW · P batterie = −4,29 kW · SOC = 87,3 % » :
+  les marqueurs deviennent verts et repartent vers la batterie.
+- **Conclure** : « Rotations dessinées ralenties ÷ 1388 (rapports de vitesse exacts) : la roue fait
+  exactement distance / rayon radians, le rotor G fois plus. Températures : cycle 10 sur 10 du modèle à
+  2 nœuds (onglet 5). »
+
 ---
 
 **Si une question porte sur la validation** : renvoyer au tableau « What is

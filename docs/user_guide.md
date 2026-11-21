@@ -123,6 +123,13 @@ couple à vitesse max) ; courbes couple et puissance avec les trois zones
 **À vérifier** : la vitesse de base est voisine de la vitesse nominale ; au-delà,
 la puissance reste à peu près constante puis décroît quand le décrochage limite.
 
+**Caractéristiques et sensibilités** (sous les courbes) : couple et courant de
+démarrage, glissement et couple de décrochage (Thévenin exact), vitesse de
+synchronisme, à Vn et fn, calculés sur le moteur de l'onglet 1. Le tableau
+*Sensibilités* donne S = (∂y/∂p)·(p/y) : « 1 % de plus sur p change y de S % ».
+Sur le moteur TD5 (R1 = 0) : S(C max, X) = −1, S(g_c, R'2) = 1,
+S(C dém, R'2) = 0,6, S(C dém, X) = −1,6.
+
 ---
 
 ## 3. Rendement
@@ -146,6 +153,12 @@ l'arbre, point de meilleur rendement, points du cycle de l'onglet 4.
 
 **À vérifier** : à 50 Hz la carte redonne exactement le rendement du circuit ; le
 rendement chute à faible couple (pertes fer et onduleur fixes).
+
+**Modèle d'onduleur** (cadre *Pertes*) : « linéaire P₀ + k·P (A21) » par défaut,
+ou « moyen IGBT/diode (A35) » : pertes de conduction et de commutation d'un
+module IGBT 1200 V / 50 A typique (démo), avec la tension du bus continu V_dc et
+la fréquence de découpage. Ce modèle limite aussi la tension : en MLI vectorielle
+V_ph ≤ V_dc/√6 (244,9 V pour 600 V) ; les points qui demandent plus sont hors carte.
 
 ---
 
@@ -172,6 +185,13 @@ un point du cycle sort de l'enveloppe.
 
 **À vérifier** : sans les fichiers WLTC officiels, l'onglet utilise le cycle
 urbain synthétique `cycle_demo.csv` et l'indique (démo, A25).
+
+**Batterie** (cadre *Batterie (pack, démo A34)*) : nombre de cellules en série,
+capacité (Ah), SOC initial. Le pack (cellule NMC démo : OCV(SOC), 3 mΩ, 5C en
+décharge, 2C en charge, fenêtre 5–95 %) suit la puissance batterie du cycle : page
+*Batterie* (SOC au cours du temps) et ligne de résultats (SOC début → fin, énergie
+prise aux cellules, pertes du pack, récupération refusée, puissance non fournie).
+Une limite n'est jamais appliquée en silence : ce qui est refusé est chiffré.
 
 ---
 
@@ -305,3 +325,51 @@ clair, nom proposé `cours_EV-Traction_Lab.pdf`.
 **À vérifier** : page 1, l'inversion exacte donne R_r' = 1,77 Ω sur les fichiers démo
 bruités et 2,000 Ω sur les mêmes fichiers sans bruit : l'écart vient du bruit, pas de la
 méthode.
+
+---
+
+## 9. Labo 3D
+
+![Capture — onglet 9, moteur en coupe](images/lab3d/09a_moteur_coupe.png)
+
+*Moteur en coupe pendant la lecture du cycle (phases A, B, C en rouge, jaune, bleu).*
+
+![Capture — onglet 9, chaîne de traction](images/lab3d/09d_chaine_traction.png)
+
+*Chaîne de traction en traction : marqueurs cyan de la batterie vers les roues.*
+
+**But** : voir le moteur et la chaîne de traction en 3D, animés par le cycle simulé.
+
+**Scènes** : *Moteur asynchrone* ou *Chaîne de traction du véhicule*. La géométrie est
+**illustrative** (pastille « géométrie illustrative », A37) : Z, 2p, le pas y et la phase de
+chaque côté de bobine viennent de l'onglet 6 ; le rayon de roue, le rapport G et le pack de
+l'onglet 4 ; les autres cotes sont typiques d'un moteur d'environ 5 kW, pas celles du moteur
+identifié (le schéma équivalent ne contient aucune cote).
+
+**Souris** : glisser = tourner, molette = zoom, clic droit = déplacer ; boutons 3/4, Face,
+Côté, Dessus. **Clic sur une pièce** : elle s'allume et le cadre *Sélection* donne ce que
+les modèles en disent (bobinage : bobines, q, y, kw1 ; cage : N_r ; boîte à bornes : V et f ;
+arbre : vitesse et couple du moment).
+
+**Vue** : *Vue éclatée* (curseur), *Coupe* (un quart des pièces fixes retiré ; le rotor
+reste entier car il tourne), *Étiquettes*, *Couleurs* : phases, matériaux, ou températures
+(2 nœuds). *Composants* : afficher ou masquer chaque groupe (masquer le carter montre le
+stator ; masquer les tôles rotoriques montre la cage d'écureuil).
+
+**Lecture du cycle** : après *Simuler le cycle* (onglet 4), *Lecture* (× 1 à × 60) ou le
+curseur de temps. Le rotor, les engrenages et les roues tournent de θ = ∫ω dt (dessin
+ralenti d'un facteur affiché, le même pour toutes les pièces : les rapports de vitesse
+restent exacts) ; des marqueurs parcourent les liaisons DC, AC, arbre et roues dans le sens
+de la puissance (cyan vers les roues, vert en récupération) ; la jauge suit le SOC. Le cadre
+donne t, v, n, C et la puissance de chaque liaison (batterie, DC onduleur, AC moteur, arbre,
+roues, freins à friction), le SOC et les températures.
+
+**Températures** : en mode *Températures (2 nœuds)*, le bobinage prend la couleur du nœud
+« bobinage » et les tôles et le carter celle du nœud « fer/carcasse » de l'onglet 5 (calcul
+lancé automatiquement si besoin), de l'ambiante à la limite de la classe d'isolation. Une
+seule valeur par nœud : ce n'est pas un champ de température ; le rotor n'a pas de nœud.
+
+**À vérifier** : la roue fait exactement distance / rayon radians sur le cycle, le rotor G fois
+plus ; aucun champ électromagnétique n'est dessiné en 3D (voir l'animation 2-D de l'onglet 6).
+Si la plateforme n'a pas d'API 3D (bureau à distance en rendu logiciel), l'onglet l'indique et
+garde ses commandes et ses valeurs.
